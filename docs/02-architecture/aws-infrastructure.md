@@ -11,7 +11,8 @@ Hạ tầng chia thành nhiều stack theo **vòng đời**: stack nào hay bị
 
 | Stack | Chứa gì | Vòng đời | Phụ thuộc |
 |---|---|---|---|
-| `JarsFoundation` | ECR repositories (immutable tags, scan on push), GitHub OIDC provider + deploy role, SNS topic cho alarm, AWS Budgets, **Cost Anomaly Detection** monitor + subscription, **IAM Access Analyzer** (external access, miễn phí) | Tạo 1 lần, giữ mãi | – |
+| `JarsFoundation` | ECR repositories (immutable tags, scan on push), GitHub OIDC provider + deploy role, SNS topic cho alarm, AWS Budget theo tag `Project=jars` | Tạo 1 lần, giữ mãi | – |
+| *(không phải stack)* account baseline | S3 Block Public Access (account), EBS default encryption, IAM Access Analyzer, Cost Anomaly Detection: làm bằng tay ở Phase 0 vì áp dụng cho cả account dùng chung ([deployment.md §1](../05-operations/deployment.md#1-chuẩn-bị-tài-khoản-làm-1-lần)) | Giữ mãi | – |
 | `JarsNetwork` | VPC 2 AZ (public / private / isolated subnets), security groups | Giữ mãi (không tốn phí giờ) | – |
 | `JarsData` | Aurora PostgreSQL Serverless v2 + secret, S3 `statements` bucket | Giữ mãi (`RemovalPolicy.SNAPSHOT`) | Network |
 | `JarsAuth` | Cognito User Pool, managed login domain, resource server/scopes | Giữ mãi (user không mất) | – |

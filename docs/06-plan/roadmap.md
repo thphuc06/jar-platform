@@ -42,10 +42,23 @@ Repo cũ: `be` = `ius_backend_agent_mcp`, `ui` = `ius_financial_ui`, `stock` = `
 
 **Mục tiêu:** an toàn và có khung để code. **Deliverable:** repo có skeleton chạy được, CI xanh, tài khoản AWS sạch sẽ.
 
-- [ ] **P0.1** Xử lý sự cố bảo mật của repo cũ ([security.md §8](../02-architecture/security.md#8-sự-cố-của-repo-cũ-hackathon-và-việc-cần-làm)): đổi mật khẩu Supabase, untrack `deploy.env`, kiểm tra RLS, archive repo cũ.
-- [ ] **P0.2** Vệ sinh tài khoản AWS ([deployment.md §1](../05-operations/deployment.md#1-chuẩn-bị-tài-khoản-làm-1-lần)): MFA root, IAM Identity Center, profile `jars-dev`, cost allocation tag, S3 Block Public Access (account), EBS default encryption, IAM Access Analyzer, Cost Anomaly Detection. Xem lại `sidewalk-labelstudio`.
-- [ ] **P0.3** Cài JDK 25, mở Docker Desktop; tạo repo GitHub `jar-platform` (push skeleton tài liệu này), bật secret scanning.
-- [ ] **P0.4** Skeleton `apps/jars-api`: Spring Boot 4.1.x (Spring Initializr), Maven Wrapper, package `io.github.thphuc06.jars`, endpoint `/api/v1/health`, bật virtual threads.
+**Kickoff 2026-10-23 (đã research):**
+- Version chốt: Spring Boot **4.1.2** (mặc định trên Initializr, ra 22/10/2026); Initializr đã có Java 25. Spring Modulith **2.1.2**; Spring AI **2.0.1** (build trên Boot 4.1.1, nên tương thích); Spring Cloud AWS **4.2.0** (bảng tương thích chính thức mới ghi Boot 4.0.x, phải kiểm ở P0.5); Testcontainers 2.0.5; Flyway 13.x (Boot quản lý version); JDK **Temurin 25.0.4.1**.
+- Repo cũ (kiểm ngày 23/10): `current_env.json`, `deploy.env` và 2 file zip **vẫn còn ở HEAD** của `ius_backend_agent_mcp` (public, 0 fork). Commit gây lộ là `ab10edb` của một thành viên khác (22/03/2026). Repo có 3 maintainer khác.
+- Thay đổi thiết kế: các thiết lập bảo mật cấp account **không đặt trong CDK** (xem [deployment.md §1](../05-operations/deployment.md#1-chuẩn-bị-tài-khoản-làm-1-lần)).
+
+Ký hiệu: 👤 bạn tự làm (console, quyết định) · 🤖 làm cùng trong session · ✋ cần bạn đồng ý trước khi thực hiện.
+
+- [ ] **P0.1** Xử lý sự cố bảo mật của repo cũ ([security.md §8](../02-architecture/security.md#8-sự-cố-của-repo-cũ-hackathon-và-việc-cần-làm)):
+  - 👤 Đổi mật khẩu DB Supabase (nhờ chủ project nếu không phải bạn); xem log kết nối; kiểm tra RLS.
+  - ✋🤖 Commit gỡ file nhạy cảm khỏi HEAD + `.gitignore`.
+  - 👤 Quyết định: chuyển repo sang private, hoặc archive, hoặc purge lịch sử.
+- [ ] **P0.2** Vệ sinh tài khoản AWS ([deployment.md §1](../05-operations/deployment.md#1-chuẩn-bị-tài-khoản-làm-1-lần)):
+  - 👤 MFA root, IAM Identity Center, profile `jars-dev`, cost allocation tag.
+  - ✋🤖 Account baseline bằng CLI: S3 Block Public Access, EBS default encryption, Access Analyzer, Cost Anomaly Detection.
+  - 👤 Quyết định về `sidewalk-labelstudio`.
+- [ ] **P0.3** 👤 Cài JDK 25 (Temurin 25.0.4.1), mở Docker Desktop; bật secret scanning + push protection cho `thphuc06/jar-platform` (repo đã push).
+- [ ] **P0.4** 🤖 Skeleton `apps/jars-api`: Spring Boot 4.1.2 (Initializr), Maven Wrapper, package `io.github.thphuc06.jars`, endpoint `/api/v1/health`, bật virtual threads.
 - [ ] **P0.5** **Smoke test tương thích** (ghi kết quả vào [ADR-0004](../04-adr/0004-java-25-spring-boot-4.md#kết-quả-smoke-test-điền-ở-phase-0)): Boot 4.1 + Spring Cloud AWS 4.2 + Spring Modulith 2.1 + Spring AI 2.0 cùng khởi động được.
 - [ ] **P0.6** `local/compose.yaml` (Postgres 17) + Flyway `V1__baseline.sql` (bảng `users`) + Testcontainers `@ServiceConnection` + test đầu tiên.
 - [ ] **P0.7** `ModularityTests` (Modulith `verify()`) + Spotless format.
