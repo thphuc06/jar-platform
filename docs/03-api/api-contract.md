@@ -54,14 +54,14 @@
 ### Ledger: hũ và giao dịch
 | Method | Path | Mô tả | Phase |
 |---|---|---|---|
-| GET | `/jars` | Danh sách hũ + số dư | 1 |
+| GET | `/jars` | Danh sách hũ + số dư; response có thêm `unallocated` (= số dư của hũ ẩn `POOL`) và `total` ([BR-1, BR-2](../01-product/business-rules.md)) | 1 |
 | POST | `/jars` | Tạo hũ tùy chỉnh | 1 |
 | PATCH | `/jars/{id}` | Đổi tên, `targetPct` (tổng các hũ phải = 100) | 1 |
 | DELETE | `/jars/{id}` | Archive (chỉ khi số dư = 0) | 1 |
-| POST | `/jars/transfers` | Chuyển tiền giữa 2 hũ (**Idempotency-Key**) | 1 |
+| POST | `/jars/transfers` | Chuyển tiền giữa 2 hũ, **gồm cả phân bổ từ `POOL`** (`fromJar = POOL`) (**Idempotency-Key**) | 1 |
 | GET | `/categories` | Danh mục (mặc định của hệ thống + của user) | 1 |
 | GET | `/transactions?limit&cursor&jarId&categoryId&type&from&to` | Money Inbox | 1 |
-| POST | `/transactions` | Ghi thu/chi (**Idempotency-Key**) | 1 |
+| POST | `/transactions` | Ghi thu/chi (**Idempotency-Key**). INCOME không có `jarId` thì vào `POOL`; EXPENSE bắt buộc có `jarId` khác `POOL` ([BR-2](../01-product/business-rules.md)) | 1 |
 | PATCH | `/transactions/{id}` | Đổi danh mục / hũ, sinh bút toán điều chỉnh | 1 |
 | GET | `/balances/daily?days=30` | Chuỗi số dư theo ngày (biểu đồ) | 1 |
 
@@ -172,7 +172,7 @@ UI hiện tại (`ius_financial_ui`) gọi thẳng Supabase. Bảng dưới đâ
 | Profile (`pages/Profile.tsx`) | State local | `GET/PATCH /me`, `GET /me/risk-profile` |
 | Dashboard (`pages/Index.tsx`) | `useLatestBalance`, `useMonthlyFlow`, `useSpendingByCategory`, `useTransactions` | `GET /dashboard?month=` + `GET /transactions?limit=5` |
 | Money Inbox (`pages/MoneyInbox.tsx`) | `useTransactions`, `useCategories` | `GET /transactions`, `GET /categories`, `PATCH /transactions/{id}` |
-| Transfer (`pages/Transfer.tsx`) | `useInsertTransaction`, `useJars` | `POST /transactions` hoặc `POST /jars/transfers` |
+| Transfer (`pages/Transfer.tsx`) | `useInsertTransaction`, `useJars` | `POST /transactions` với `type=EXPENSE`, `jarId` = hũ đã chọn, `counterparty` = "số tài khoản (ngân hàng)" (màn này là **chi tiền từ hũ**, không phải chuyển giữa các hũ) |
 | Budget Jars (`pages/BudgetJars.tsx`) | `useJars`, `useAddJar`, `useUpdateJarAllocation`, `useDeleteJar`, `useJarSpending`, `useJarMonthlyTrend`, `useLatestBalance` | `GET/POST/PATCH/DELETE /jars`, `GET /budget/periods/{month}`, `GET /dashboard` |
 | Goal Planner (`pages/GoalPlanner.tsx`) + `components/roadmap/*` (đang dùng mock) | `useGoals`, `useAddGoal`, `useDeleteGoal`, `useBalanceHistory`, `mock-roadmap.ts` | `/goals/*`, `/goals/{id}/roadmap`, `/balances/daily` |
 | Alerts (`pages/Alerts.tsx`) | `useNotifications`, `useDismissNotification` | `/notifications`, `/notifications/stream`, `/anomalies/{id}/feedback` |

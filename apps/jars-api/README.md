@@ -48,15 +48,15 @@ apps/jars-api/
 
 | Nhóm | Artifact |
 |---|---|
-| Web | `spring-boot-starter-web`, `spring-boot-starter-validation` |
-| Security | `spring-boot-starter-oauth2-resource-server` |
-| Data | `spring-boot-starter-data-jpa`, `org.postgresql:postgresql`, `flyway-core`, `flyway-database-postgresql` |
+| Web | `spring-boot-starter-webmvc` (tên mới ở Boot 4), `spring-boot-starter-validation` |
+| Security | `spring-boot-starter-security-oauth2-resource-server` (tên mới ở Boot 4) |
+| Data | `spring-boot-starter-data-jpa`, `spring-boot-starter-flyway`, `org.postgresql:postgresql`, `flyway-database-postgresql` |
 | Modulith | `spring-modulith-starter-core`, `spring-modulith-starter-jpa`, `spring-modulith-starter-test` |
 | AWS | `spring-cloud-aws-starter-sqs`, `-sns`, `-s3`, `-secrets-manager`, `spring-cloud-aws-modulith-events-sns` (P5), `software.amazon.awssdk:lambda` |
 | AI | `spring-ai-starter-model-bedrock-converse` |
 | Batch | `spring-boot-starter-batch` |
 | Ops | `spring-boot-starter-actuator`, `spring-boot-starter-opentelemetry` |
-| API docs | `springdoc-openapi-starter-webmvc-ui` (3.x, kiểm tra hỗ trợ Boot 4) |
+| API docs | `springdoc-openapi-starter-webmvc-ui` 3.1.1 (build trên Boot 4.1.0) |
 | Test | `spring-boot-starter-test`, `spring-security-test`, `spring-boot-testcontainers`, `testcontainers` (postgresql, localstack), `archunit-junit5` |
 
 Tài liệu: [modules](../../docs/02-architecture/modules.md) · [API contract](../../docs/03-api/api-contract.md) · [data model](../../docs/02-architecture/data-model.md).

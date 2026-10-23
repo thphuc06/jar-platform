@@ -64,17 +64,25 @@ Ký hiệu: 👤 bạn tự làm (console, quyết định) · 🤖 làm cùng t
 
 **Mục tiêu:** UI chạy với Java ở local, mỗi user thấy dữ liệu riêng. **Deliverable:** luồng F1, F2 chạy được; UI không còn gọi Supabase.
 
-- [ ] **P1.1** CDK skeleton `infra/cdk` + stack `JarsAuth` (Cognito user pool + app client localhost) → deploy (miễn phí).
-- [ ] **P1.2** Spring Security resource server: validator `token_use` / `client_id`, `GET /me` tạo user lazy (luồng [F1](../02-architecture/flows.md#f1)); test bằng `jwt()`.
+**Kickoff 2026-10-23 (đã research + đọc source cũ):**
+- Version: starter Boot 4 đổi tên thành **`spring-boot-starter-security-oauth2-resource-server`** (+ `-test`); `spring-boot-starter-data-jpa` (+ `-test`); springdoc **3.1.1** (build trên Boot 4.1.0); `aws-cdk-lib` **2.273.0**, `constructs` 10.8.1, `cdk-nag` 3.0.2.
+- Cognito access token: có `token_use=access`, `client_id`, `scope`, `sub`, `username`; **`aud` chỉ có khi dùng resource binding** → validate `iss` + `token_use` + `client_id`. **Không validate định dạng của `sub`** (AWS khuyên vậy).
+- Hibernate 7: `@UuidGenerator(style = VERSION_7)` sinh UUIDv7 phía app (khớp data-model).
+- Cognito managed login trong CDK: `UserPoolDomain(managedLoginVersion = NEWER_MANAGED_LOGIN)` + `CfnManagedLoginBranding` (L2 chưa hỗ trợ style).
+- Từ source cũ → [business-rules.md](../01-product/business-rules.md): 6 hũ + hũ ẩn **`POOL`** (tiền chưa phân bổ, khớp màn Budget Jars cũ); màn **Transfer = EXPENSE từ một hũ** (`counterparty` = tài khoản nhận); danh mục mặc định có hũ gợi ý; **cách chấm bảng hỏi rủi ro là thiết kế mới** (code cũ không chấm). `risk.py` là sức khỏe tài chính từ giao dịch, nên chuyển sang `insights` ở Phase 2.
+- Thay đổi thứ tự: event registry của Modulith (JPA) cần **từ P1.4** (ledger nghe `UserRegistered`), không đợi tới P2.1.
+
+- [ ] **P1.1** CDK skeleton `infra/cdk` (Maven, CDK 2.273.0, test assertions + cdk-nag) + `cdk bootstrap` ap-southeast-1 + stack `JarsAuth` (user pool Essentials, managed login, resource server `jars-api` có scope read/write, app client public + PKCE cho `localhost:5173`) → deploy (miễn phí).
+- [ ] **P1.2** Spring Security resource server (validator `token_use` / `client_id`, stateless, 401/403 dạng ProblemDetail) + JPA + entity `User` (UUIDv7) + `GET /api/v1/me` tạo user lazy, xử lý race bằng `ON CONFLICT` (luồng [F1](../02-architecture/flows.md#f1)); test bằng `jwt()`.
 - [ ] **P1.3** Global error handling bằng `ProblemDetail` + Bean Validation + `traceId`.
-- [ ] **P1.4** Module `ledger`: entity `Jar`, `JarEntry`, `Category` + migration; nghe `UserRegistered` để tạo 6 hũ mặc định.
-- [ ] **P1.5** `POST /transactions` với `@Transactional`, `@Version`, retry khi xung đột (luồng [F2](../02-architecture/flows.md#f2)); test đồng thời (2 thread).
-- [ ] **P1.6** Idempotency-Key filter + bảng `idempotency_keys`.
-- [ ] **P1.7** `GET /transactions` với keyset pagination + `@EntityGraph` (tránh N+1); test số câu query.
-- [ ] **P1.8** Module `identity`: risk profile (port từ `risk.py`); module `goals` CRUD.
-- [ ] **P1.9** `GET /dashboard` (aggregate SQL / projection).
-- [ ] **P1.10** springdoc → `contracts/openapi/jars-api.yaml` → `openapi-typescript`.
-- [ ] **P1.11** Đưa UI vào `apps/web`: Amplify Auth (PKCE), thay `useSupabaseData.ts` bằng client mới, Vite proxy `/api`; bỏ mock ở Dashboard, Inbox, Transfer, Jars, Goals.
+- [ ] **P1.4** Module `ledger`: entity `Jar` (gồm `POOL`), `JarEntry`, `Category` (+ `default_jar_code`) + migration + seed danh mục mặc định; Modulith event registry (JPA) + nghe `UserRegistered` để tạo hũ theo BR-1.
+- [ ] **P1.5** `POST /transactions` (INCOME/EXPENSE) + `POST /jars/transfers` (phân bổ từ POOL / chuyển giữa hũ) với `@Transactional`, `@Version`, retry khi xung đột (luồng [F2](../02-architecture/flows.md#f2)); test đồng thời (2 thread); quy tắc BR-2 và BR-5.
+- [ ] **P1.6** Idempotency-Key + bảng `idempotency_keys`.
+- [ ] **P1.7** `GET /transactions` với keyset pagination + `@EntityGraph` (tránh N+1); test số câu query; `PATCH /transactions/{id}` (đổi danh mục hoặc hũ).
+- [ ] **P1.8** Module `identity`: bảng hỏi rủi ro theo BR-4 (`PUT/GET /me/risk-profile`); module `goals` CRUD.
+- [ ] **P1.9** `GET /dashboard` (aggregate SQL / projection) + `GET /balances/daily`.
+- [ ] **P1.10** springdoc 3.1.1 → `contracts/openapi/jars-api.yaml` → `openapi-typescript`.
+- [ ] **P1.11** Đưa UI vào `apps/web`: auth PKCE (research ở bước này: Amplify Auth hay `oidc-client-ts`), thay `useSupabaseData.ts` bằng client mới, Vite proxy `/api`; bỏ mock ở Dashboard, Inbox, Transfer, Jars, Goals.
 - [ ] **P1.12** Test IDOR cho mọi endpoint có `{id}`; `SeedDataRunner` cho profile `local`.
 
 **Kỹ năng:** Spring Security / JWT, JPA relationships, transaction và locking, idempotency, pagination, N+1, OpenAPI, test.

@@ -13,7 +13,7 @@
 
 | Chủ đề | Quy ước | Lý do |
 |---|---|---|
-| Khóa chính | `UUID` sinh ở app theo **UUIDv7** (có thứ tự theo thời gian) | Không lộ số lượng bản ghi, index B-tree không bị phân mảnh như UUIDv4 |
+| Khóa chính | `UUID` sinh ở app theo **UUIDv7** (có thứ tự theo thời gian), trong JPA dùng `@UuidGenerator(style = VERSION_7)` của Hibernate 7 | Không lộ số lượng bản ghi, index B-tree không bị phân mảnh như UUIDv4 |
 | Tiền | `NUMERIC(19,2)` + cột `currency CHAR(3)`; trong Java dùng `BigDecimal` bọc trong record `Money` | Không bao giờ dùng `double` hay `float`. VND không có đơn vị lẻ nhưng vẫn để scale 2 để sau này mở rộng đa tiền tệ ([ADR-0014](../04-adr/0014-money-and-ledger-model.md)) |
 | Dấu của số tiền | `transactions.amount` luôn **> 0**, hướng dòng tiền thể hiện qua cột `type`. `jar_entries.amount` **có dấu** (+ vào hũ, − ra khỏi hũ) | Dữ liệu người dùng nhập thì dễ hiểu, còn sổ cái thì dễ cộng dồn |
 | Thời gian | `TIMESTAMPTZ`, lưu UTC; trong Java dùng `Instant` | Quy đổi sang giờ `Asia/Ho_Chi_Minh` chỉ khi tính "tháng" hoặc khi hiển thị |
@@ -66,7 +66,7 @@ erDiagram
     jars {
         uuid id PK
         uuid user_id FK
-        text code "NEC|FFA|LTSS|EDU|PLAY|GIVE|CUSTOM"
+        text code "NEC|FFA|LTSS|EDU|PLAY|GIVE|POOL|CUSTOM"
         text name
         numeric target_pct "0..100"
         numeric balance "cached = SUM(jar_entries)"
@@ -97,6 +97,7 @@ erDiagram
         uuid parent_id FK
         text name
         text kind "EXPENSE|INCOME"
+        text default_jar_code "suggested jar (BR-3)"
     }
     transactions {
         uuid id PK
@@ -104,7 +105,7 @@ erDiagram
         text type "INCOME|EXPENSE|JAR_TRANSFER"
         numeric amount ">0"
         char currency
-        uuid jar_id FK "nullable for INCOME"
+        uuid jar_id FK "POOL when INCOME is not assigned"
         uuid category_id FK
         text counterparty
         text note

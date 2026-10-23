@@ -7,6 +7,7 @@ Tài liệu được viết theo kiểu **docs-as-code**: nằm cùng repo với
 | Thư mục / file | Trả lời câu hỏi | Khi nào cập nhật |
 |---|---|---|
 | [01-product/vision-and-scope.md](01-product/vision-and-scope.md) | Sản phẩm giải quyết vấn đề gì? Cho ai? Trong phạm vi và ngoài phạm vi là gì? | Khi thêm hoặc bỏ feature |
+| [01-product/business-rules.md](01-product/business-rules.md) | Quy tắc nghiệp vụ: hũ mặc định, loại giao dịch, danh mục, chấm bảng hỏi rủi ro, làm tròn | Mỗi khi đổi quy tắc (sửa **trước** code) |
 | [01-product/cv-showcase.md](01-product/cv-showcase.md) | Hoàn thành thì demo được gì? Viết mục project trên CV thế nào? Chuẩn bị câu chuyện phỏng vấn nào? | Cuối mỗi phase (điền số liệu thật) |
 | [02-architecture/overview.md](02-architecture/overview.md) | Hệ thống gồm những phần nào và nói chuyện với nhau ra sao (C4)? Dùng stack nào? | Khi thêm hoặc bỏ thành phần lớn |
 | [02-architecture/aws-infrastructure.md](02-architecture/aws-infrastructure.md) | Từng dịch vụ AWS dùng để làm gì, cấu hình ra sao, thuộc CDK stack nào, tốn bao nhiêu? | Khi đổi hạ tầng |
