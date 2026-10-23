@@ -1,7 +1,8 @@
 # ADR-0018: Truy cập của người dùng bằng IAM user + MFA + `aws login` (không dùng IAM Identity Center)
 
-- **Trạng thái:** Accepted
+- **Trạng thái:** Accepted (**hoãn thực hiện**: ngày 2026-10-23 chủ repo quyết định tạm dùng root, đã có MFA, qua `aws login` trong giai đoạn dev)
 - **Ngày:** 2026-10-23
+- **Điều kiện bắt buộc phải thực hiện:** trước khi bật CI/CD deploy (P3.6), hoặc khi có người thứ hai cần truy cập account, hoặc khi phát hiện bất thường trong CloudTrail. Trong lúc hoãn, vẫn **vô hiệu hóa access key dài hạn** của `phuc-account` (không có MFA) vì đó là rủi ro lớn nhất hiện tại.
 - **Liên quan:** thay đổi bước P0.2 trong roadmap và [deployment.md §1](../05-operations/deployment.md#1-chuẩn-bị-tài-khoản-làm-1-lần)
 
 ## Bối cảnh

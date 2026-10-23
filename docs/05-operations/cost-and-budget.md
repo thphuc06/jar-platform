@@ -14,7 +14,7 @@
 | Tài nguyên **không thuộc project** cũng đang trừ vào credit | EC2 `sidewalk-labelstudio` t3a.medium (ap-southeast-1) + EBS gp3 30 GB + 1 public IPv4: khoảng **$41/tháng**; các stack `FairTable*` (us-east-1, chủ yếu serverless) |
 | Budget hiện có | `My Monthly Cost Budget` $10, `fairtable-cap-20usd` $20 |
 
-> ⚠️ **Cảnh báo:** nếu `sidewalk-labelstudio` chạy liên tục tới 04/2027 (khoảng 5.5 tháng × $41 ≈ $225) thì **riêng nó đã vượt toàn bộ credit**. Hãy stop instance khi không dùng (khi stop vẫn tính EBS $2.88 và IPv4 nếu là EIP).
+> ⚠️ **Cảnh báo:** nếu `sidewalk-labelstudio` chạy liên tục tới 04/2027 (khoảng 5.5 tháng × $41 ≈ $225) thì **riêng nó đã vượt toàn bộ credit**. **Đã stop ngày 2026-10-23.** Khi stop vẫn còn tính EBS gp3 30 GB ($2.88) + Elastic IP ($3.65) ≈ **$6.5/tháng**. Release EIP nếu không cần giữ IP.
 
 ## 2. Bảng đơn giá dùng trong project
 
