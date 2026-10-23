@@ -157,7 +157,7 @@ Chi tiết schema và đảm bảo giao nhận: [event-catalog.md](event-catalog
 
 | Hạng mục | Cấu hình |
 |---|---|
-| Model chat | `global.anthropic.claude-haiku-5-5` (mặc định); `global.anthropic.claude-sonnet-4-6` (tùy chọn, cho lộ trình phức tạp) |
+| Model chat | `global.anthropic.claude-haiku-4-5-20251001-v1:0` (mặc định; Haiku 5.5 bị AccessDenied ở account này, theo P0.5); `global.anthropic.claude-sonnet-4-6` (tùy chọn, cho lộ trình phức tạp) |
 | Loại endpoint | **Global cross-region inference profile**: request có thể được xử lý ở region khác. Chấp nhận được cho dev; nếu có yêu cầu lưu trữ dữ liệu trong nước thì đây là điểm cần xem lại |
 | API | `ConverseStream` qua Spring AI `spring-ai-starter-model-bedrock-converse` |
 | Guardrails | Một guardrail: denied topic "khuyến nghị mua/bán chứng khoán cụ thể", lọc PII (số tài khoản, CCCD), content filter mức medium, **prompt attack filter** (chống prompt injection, theo khuyến nghị trong AWS Prescriptive Guidance). Gắn vào request Converse; **Phase 4 cần kiểm tra Spring AI có truyền `guardrailConfig` không**, nếu không thì gọi `ApplyGuardrail` bằng AWS SDK |

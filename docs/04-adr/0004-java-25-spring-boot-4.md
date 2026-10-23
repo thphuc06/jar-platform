@@ -29,9 +29,24 @@ JD ở ngân hàng và fintech Việt Nam yêu cầu Java 17+ và Spring Boot. N
 - ⚠️ Một số thư viện bên thứ ba có thể chưa hỗ trợ Boot 4 / Jackson 3 (springdoc, Resilience4j starter). Kiểm tra từng thư viện trước khi thêm vào.
 - ⚠️ Máy dev hiện có **JDK 21**, cần cài thêm JDK 25.
 
-## Kết quả smoke test (điền ở Phase 0)
-- [ ] Boot 4.1.x + Spring Cloud AWS 4.2.0: SQS listener + Secrets Manager import: ☐ OK / ☐ Lỗi → hướng xử lý: …
-- [ ] Spring AI 2.0.x Bedrock Converse với `global.anthropic.claude-haiku-5-5`: ☐ OK
+## Kết quả smoke test (P0.5, 2026-10-23)
+
+Thực hiện bằng một project tạm (không commit) dùng chung parent và BOM với `jars-api`. App chạy thật trên AWS ap-southeast-1 với tài nguyên tạm (SQS queue + secret), xóa ngay sau khi test.
+
+| Kiểm tra | Kết quả |
+|---|---|
+| Runtime | Boot **4.1.2**, Framework **7.0.10**, Java **25.0.4.1** |
+| Spring Cloud AWS **4.2.0** + Boot 4.1.2: `spring.config.import=aws-secretsmanager:` | ✅ property được resolve |
+| `SqsTemplate.send` → `@SqsListener` nhận | ✅ round-trip khoảng 20 ms |
+| Spring AI **2.0.1** Bedrock Converse | ✅ với `global.anthropic.claude-haiku-4-5-20251001-v1:0` (14 token vào, 4 token ra). ❌ `global.anthropic.claude-haiku-5-5`: `AccessDeniedException ... is not available for this account` (inference profile *liệt kê* được nhưng account không *gọi* được) |
+| Spring Modulith **2.1.2** `ApplicationModules.verify()` | ✅ |
+| Xung đột dependency | Không có: chỉ có Jackson **3.1.7** (không lẫn Jackson 2); không có `spring-cloud-commons` (nên không có compatibility verifier); 0 dòng WARN khi chạy |
+
+**Phát hiện cần áp dụng vào project:**
+1. Credential `aws login` (`login_session` trong `~/.aws/config`) chỉ đọc được bởi AWS SDK Java khi có module **`software.amazon.awssdk:signin`** (scope `runtime`) trên classpath. Thêm module này khi jars-api bắt đầu gọi AWS.
+2. Đặt `spring.config.import=aws-secretsmanager:...` trong `application.yaml` chung khiến **mọi test** (kể cả test Modulith) phải gọi AWS. Phải đặt trong `application-aws.yaml` và có tiền tố `optional:`.
+3. Listener của Spring Cloud AWS SQS chạy trên **thread pool riêng** (`sqsListenerEndpointContainer#…`, platform thread), **không** dùng virtual thread dù đã bật `spring.threads.virtual.enabled`. Nếu cần thì cấu hình executor riêng cho container ở Phase 3.
+4. Git Bash trên Windows tự đổi tham số dạng `/jars/...` thành đường dẫn file → phải dùng `MSYS_NO_PATHCONV=1` khi gọi AWS CLI với tên bắt đầu bằng `/`.
 
 ## Xem lại khi
 JDK 29 LTS ra mắt (dự kiến 9/2027), hoặc smoke test ở Phase 0 thất bại.

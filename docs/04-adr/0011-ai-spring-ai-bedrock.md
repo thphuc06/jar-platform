@@ -10,7 +10,7 @@ Spring AI 2.0 (GA 12/06/2026) có Bedrock Converse, tool calling, streaming và 
 
 ## Quyết định
 - Module `advisor` trong jars-api dùng **Spring AI 2.0** `ChatClient` với `spring-ai-starter-model-bedrock-converse`.
-- Model mặc định **`global.anthropic.claude-haiku-5-5`**; cho phép cấu hình `global.anthropic.claude-sonnet-4-6`.
+- Model mặc định ~~`global.anthropic.claude-haiku-5-5`~~ → **`global.anthropic.claude-haiku-4-5-20251001-v1:0`** (cập nhật P0.5: account chưa được phép gọi Haiku 5.5, xem [ADR-0004](0004-java-25-spring-boot-4.md#kết-quả-smoke-test-p05-2026-10-23)); cho phép cấu hình `global.anthropic.claude-sonnet-4-6`. Model id luôn là **cấu hình** (`spring.ai.bedrock.converse.chat.model`), không hardcode trong code.
 - **Tool = method Java** gọi API của các module khác (`getJarSummary`, `getSpending`, `getGoalFeasibility`, `getRoadmap`, `getQuote`...). Tool **chỉ đọc**, và `userId` luôn lấy từ security context.
 - **Mọi con số do Java tính.** System prompt yêu cầu chỉ dùng số liệu từ tool, và test kiểm tra câu trả lời không chứa số không có trong kết quả tool (eval nhẹ).
 - **Bedrock Guardrails:** chặn khuyến nghị mua/bán cụ thể, che PII. Phase 4 cần kiểm tra Spring AI có hỗ trợ `guardrailConfig` không; nếu không thì gọi `ApplyGuardrail` bằng AWS SDK.

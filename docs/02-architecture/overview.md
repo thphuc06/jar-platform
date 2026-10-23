@@ -88,7 +88,7 @@ Version được chốt ngày **2026-10-23** theo bản stable mới nhất. C�
 | Spring Boot | **4.1.x** (mới nhất: 4.1.2) | Framework 7, Jackson 3, có starter OpenTelemetry | ✅ tag `v4.1.2` trên GitHub |
 | Spring Modulith | **2.1.x** (2.1.2) | Event publication registry (outbox), `@ApplicationModuleTest` | ✅ |
 | Spring AI | **2.0.x** (2.0.1) | `spring-ai-starter-model-bedrock-converse`, tool calling, streaming | ✅ GA 12/06/2026 |
-| Spring Cloud AWS | **4.2.x** (4.2.0) | SQS listener, SNS, S3, Secrets Manager, `spring-cloud-aws-modulith-events-sns/sqs` | ⚠️ Bảng tương thích chính thức ghi Boot **4.0.x**. Bản 4.2.0 build với Modulith 2.1.0. **Phase 0 phải smoke test với Boot 4.1**; nếu lỗi thì dùng Boot 4.0.x |
+| Spring Cloud AWS | **4.2.x** (4.2.0) | SQS listener, SNS, S3, Secrets Manager, `spring-cloud-aws-modulith-events-sns/sqs` | ✅ Smoke test P0.5 với Boot 4.1.2: Secrets Manager import + SQS listener chạy được (bảng tương thích chính thức chỉ ghi Boot 4.0.x). Cần thêm `software.amazon.awssdk:signin` (runtime) để đọc credential `aws login` |
 | Spring Batch | theo BOM của Boot | Import CSV | – |
 | Flyway | theo BOM của Boot | Migration | – |
 | PostgreSQL | Aurora PostgreSQL **17.x** | Scale-to-zero yêu cầu ≥ 16.3 / 15.7 | ⚠️ Kiểm tra minor version khả dụng ở ap-southeast-1 khi deploy |
@@ -98,7 +98,7 @@ Version được chốt ngày **2026-10-23** theo bản stable mới nhất. C�
 | AWS CDK | v2 (Java) | `aws-cdk-lib` | ✅ Account đã từng dùng CDK (stack `CDKToolkit` ở us-east-1) |
 | Node.js | 22/24 LTS | Build web, chạy CDK CLI qua `npx` | ✅ máy dev có Node 24 |
 | Python | 3.13 | `quant-fn` | – |
-| Bedrock model | `global.anthropic.claude-haiku-5-5` (mặc định), `global.anthropic.claude-sonnet-4-6` (khi cần chất lượng cao) | Global cross-region inference profile | ✅ `list-inference-profiles` ở ap-southeast-1 |
+| Bedrock model | `global.anthropic.claude-haiku-4-5-20251001-v1:0` (mặc định), `global.anthropic.claude-sonnet-4-6` (khi cần chất lượng cao) | Global cross-region inference profile | ✅ **gọi thật** bằng Spring AI ở P0.5 (Haiku 5.5: AccessDenied) |
 | Embedding (tùy chọn) | `cohere.embed-multilingual-v3` | Hỗ trợ tiếng Việt, dùng cho RAG | ✅ có ở ap-southeast-1 |
 
 ## 5. Kiểu giao tiếp

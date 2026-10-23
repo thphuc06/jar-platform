@@ -9,7 +9,9 @@ Người dùng ở Việt Nam. Bản hackathon chạy ở us-east-1 (rẻ nhất
 ## Quyết định
 Mọi resource của Jars Platform đặt ở **ap-southeast-1**, trừ những thứ AWS bắt buộc đặt ở us-east-1 (ACM certificate cho CloudFront nếu dùng domain riêng; CloudFront và WAF cho CloudFront là global).
 
-Đã kiểm tra trên tài khoản ngày 2026-10-23: ở ap-southeast-1 gọi được `global.anthropic.claude-haiku-5-5`, `global.anthropic.claude-sonnet-4-6` và `cohere.embed-multilingual-v3`. S3 Vectors có ở Singapore từ khi GA (12/2025).
+Đã kiểm tra trên tài khoản ngày 2026-10-23: ở ap-southeast-1 có inference profile `global.anthropic.claude-haiku-5-5`, `global.anthropic.claude-sonnet-4-6` và model `cohere.embed-multilingual-v3`. S3 Vectors có ở Singapore từ khi GA (12/2025).
+
+> **Đính chính (P0.5, 2026-10-23):** "có inference profile" **không đồng nghĩa** với "gọi được". Khi gọi thật thì `claude-haiku-5-5` bị `AccessDenied` với account này; gọi được `claude-haiku-4-5`, `claude-sonnet-4-6`, `claude-sonnet-4-5` (xem [ADR-0004](0004-java-25-spring-boot-4.md#kết-quả-smoke-test-p05-2026-10-23)). Quyết định chọn region không đổi.
 
 ## Các phương án đã cân nhắc
 
