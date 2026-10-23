@@ -11,7 +11,7 @@
 | Docker Desktop | mới nhất | ✅ có CLI 29.5, **daemon chưa chạy** | mở Docker Desktop |
 | Node.js | 22/24 LTS | ✅ 24.15 | – |
 | Python | 3.13 | ✅ 3.13.9 | – |
-| AWS CLI v2 | ≥ 2.20 | ✅ 2.35.5 (**đang đăng nhập bằng root, phải đổi**) | – |
+| AWS CLI v2 | ≥ 2.32 (cần cho `aws login`) | ✅ 2.35.5 (**đang đăng nhập bằng root, phải đổi**) | – |
 | AWS CDK CLI | 2.x | dùng `npx aws-cdk@2` | – |
 | Graphviz | (chỉ để render diagram) | ❌ | `winget install Graphviz.Graphviz` |
 | IDE | IntelliJ IDEA (Community đủ dùng) hoặc VS Code + Extension Pack for Java | | |
@@ -57,13 +57,23 @@ cd apps/jars-api && ./mvnw verify
 
 ## 5. AWS credentials cho local (không dùng root)
 
+Dùng IAM user `phuc-account` (có MFA) + `aws login`, credential tạm thời tối đa 12 giờ ([ADR-0018](../04-adr/0018-human-access-iam-user-aws-login.md)):
+
 ```bash
-aws configure sso --profile jars-dev     # SSO start URL lấy từ IAM Identity Center
-aws sso login --profile jars-dev
+aws configure set region ap-southeast-1 --profile jars-dev
+aws login --profile jars-dev              # mở trình duyệt → đăng nhập phuc-account + MFA
 export AWS_PROFILE=jars-dev               # PowerShell: $env:AWS_PROFILE="jars-dev"
+aws sts get-caller-identity               # phải ra ...:user/phuc-account, KHÔNG phải :root
 ```
 
-Spring AI và AWS SDK tự đọc credential theo default provider chain, nên **không ghi access key vào file config**.
+Spring AI và AWS SDK tự đọc credential theo default provider chain, nên **không ghi access key vào file config**. Nếu SDK Java chưa đọc được loại credential `login` (SDK cũ), dùng `credential_process` làm cầu nối:
+
+```ini
+# ~/.aws/config
+[profile jars-dev-sdk]
+region = ap-southeast-1
+credential_process = aws configure export-credentials --profile jars-dev --format process
+```
 
 ## 6. Dữ liệu mẫu
 
@@ -77,4 +87,4 @@ Phase 1 sẽ viết `SeedDataRunner` (chỉ chạy ở profile `local`): tạo 1
 | `401` dù đã đăng nhập | Gửi **ID token** thay vì access token | Lấy `accessToken` từ Amplify `fetchAuthSession()` |
 | `Unsupported class file major version 69` | Chạy bằng JDK 21 | Đặt `JAVA_HOME` trỏ tới JDK 25 |
 | LocalStack thoát ngay khi start | Thiếu `LOCALSTACK_AUTH_TOKEN` | Xem mục 2 |
-| `AccessDeniedException` từ Bedrock | Profile SSO hết hạn hoặc model chưa được bật | `aws sso login`; kiểm tra model access ở console Bedrock (ap-southeast-1) |
+| `AccessDeniedException` / `ExpiredToken` từ AWS | Phiên `aws login` hết hạn (12 giờ) hoặc model Bedrock chưa được bật | `aws login --profile jars-dev`; kiểm tra model access ở console Bedrock (ap-southeast-1) |

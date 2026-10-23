@@ -40,7 +40,7 @@ Nguyên tắc **least privilege**: không dùng `*` ở resource, trừ khi API 
 | `jars-github-deploy` | GitHub Actions qua OIDC | Trust policy giới hạn `token.actions.githubusercontent.com:sub = repo:thphuc06/jar-platform:ref:refs/heads/main` (và environment `dev`); quyền: assume các role bootstrap của CDK (`cdk-*-deploy-role`, `cdk-*-file-publishing-role`, `cdk-*-image-publishing-role`) |
 | `jars-dev-scheduler` | EventBridge Scheduler | `sqs:SendMessage` trên `jars-jobs` |
 
-> **Tài khoản người dùng:** hiện CLI đang đăng nhập bằng **root** (`arn:aws:iam::626212071763:root`). Phase 0 phải chuyển sang **IAM Identity Center** (user có permission set AdministratorAccess cho giai đoạn dev), bật MFA cho root và cất root đi. Xem [deployment.md](../05-operations/deployment.md#1-chuẩn-bị-tài-khoản-làm-1-lần).
+> **Tài khoản người dùng** ([ADR-0018](../04-adr/0018-human-access-iam-user-aws-login.md)): CLI đang đăng nhập bằng **root**. Phase 0 chuyển sang IAM user **`phuc-account` (bật MFA) + `aws login`** để có credential tạm thời. Vô hiệu hóa access key dài hạn của user này. Root giữ MFA và không có access key (đã đúng từ 2026-10-23). **Không dùng IAM Identity Center** vì tài khoản standalone; muốn có permission set thì phải có Organizations, mà Organizations làm mất credit.
 
 ## 4. Network
 

@@ -50,10 +50,10 @@ Repo cũ: `be` = `ius_backend_agent_mcp`, `ui` = `ius_financial_ui`, `stock` = `
 Ký hiệu: 👤 bạn tự làm (console, quyết định) · 🤖 làm cùng trong session · ✋ cần bạn đồng ý trước khi thực hiện.
 
 - [x] **P0.1** ~~Xử lý sự cố bảo mật của repo cũ~~: **bỏ qua theo quyết định (2026-10-23)**. Repo cũ thuộc org, nằm ngoài phạm vi; repo mới không dùng credential nào của repo cũ ([security.md §8](../02-architecture/security.md#8-sự-cố-của-repo-cũ-hackathon-và-việc-cần-làm)).
-- [ ] **P0.2** Vệ sinh tài khoản AWS ([deployment.md §1](../05-operations/deployment.md#1-chuẩn-bị-tài-khoản-làm-1-lần)):
-  - 👤 MFA root, IAM Identity Center, profile `jars-dev`, cost allocation tag.
-  - ✋🤖 Account baseline bằng CLI: S3 Block Public Access, EBS default encryption, Access Analyzer, Cost Anomaly Detection.
-  - 👤 Quyết định về `sidewalk-labelstudio`.
+- [ ] **P0.2** Vệ sinh tài khoản AWS ([deployment.md §1](../05-operations/deployment.md#1-chuẩn-bị-tài-khoản-làm-1-lần), [ADR-0018](../04-adr/0018-human-access-iam-user-aws-login.md)). Trạng thái kiểm ngày 23/10: root đã có MFA và không có access key ✅; Cost Anomaly Detection đã có monitor + subscription hằng ngày ✅; `phuc-account` (AdministratorAccess) **chưa có MFA** và có 1 access key Active (dùng lần cuối 15/05); S3 Block Public Access (account) chưa bật; EBS default encryption = false; chưa có Access Analyzer.
+  - 👤 Bật MFA cho `phuc-account` → `aws login --profile jars-dev` → `aws sts get-caller-identity` phải ra `user/phuc-account`; bật cost allocation tag `Project`.
+  - ✋🤖 Vô hiệu hóa access key cũ của `phuc-account`; account baseline bằng CLI: S3 Block Public Access, EBS default encryption, Access Analyzer (Cost Anomaly đã có).
+  - 👤 Quyết định về `sidewalk-labelstudio` (khoảng $41/tháng).
 - [ ] **P0.3** 👤 Cài JDK 25 (Temurin 25.0.4.1), mở Docker Desktop; bật secret scanning + push protection cho `thphuc06/jar-platform` (repo đã push).
 - [ ] **P0.4** 🤖 Skeleton `apps/jars-api`: Spring Boot 4.1.2 (Initializr), Maven Wrapper, package `io.github.thphuc06.jars`, endpoint `/api/v1/health`, bật virtual threads.
 - [ ] **P0.5** **Smoke test tương thích** (ghi kết quả vào [ADR-0004](../04-adr/0004-java-25-spring-boot-4.md#kết-quả-smoke-test-điền-ở-phase-0)): Boot 4.1 + Spring Cloud AWS 4.2 + Spring Modulith 2.1 + Spring AI 2.0 cùng khởi động được.

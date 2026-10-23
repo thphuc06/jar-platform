@@ -200,7 +200,7 @@ Dùng cho: cache giá cổ phiếu (TTL 60 s), cache dashboard, **rate limit cha
 | Secrets Manager | DB credentials (CDK sinh ra) | $0.40/secret/tháng. Config không nhạy cảm thì để biến môi trường. Chưa bật rotation tự động vì không có NAT ([runbook](../05-operations/runbook.md#đổi-secret-db)) |
 | AWS Budgets | Budget riêng cho project, lọc theo tag `Project=jars` | Cảnh báo ở 50/80/100% |
 | CloudTrail | Event history 90 ngày (mặc định, miễn phí) | Không tạo trail riêng ở dev |
-| IAM Identity Center | User admin cho người, thay cho root | Xem [deployment.md](../05-operations/deployment.md#1-chuẩn-bị-tài-khoản-làm-1-lần) |
+| IAM user `phuc-account` + `aws login` | Truy cập của người (console + CLI), thay cho root; bắt buộc MFA; không có access key dài hạn | Không dùng Identity Center: [ADR-0018](../04-adr/0018-human-access-iam-user-aws-login.md) |
 
 ## 13. Quy ước đặt tên
 

@@ -22,8 +22,8 @@ Ký hiệu: ✅ có trong thiết kế · 🔧 bổ sung sau review này · ⚠�
 
 | Best practice | Áp dụng | Trạng thái | Phase |
 |---|---|---|---|
-| Bảo vệ root: MFA, không access key, không dùng hằng ngày | Hiện **CLI đang dùng root** → chuyển sang IAM Identity Center | 🔧 | 0 |
-| Danh tính tập trung, credential tạm thời | IAM Identity Center (người); OIDC (CI); task role (app) | ✅ | 0 |
+| Bảo vệ root: MFA, không access key, không dùng hằng ngày | Root đã có MFA và không có access key ✅; **CLI đang dùng root** → chuyển sang IAM user | 🔧 | 0 |
+| Danh tính tập trung, credential tạm thời | ⚠️ **Không dùng Identity Center** (account standalone; Organizations làm mất credit). Thay bằng IAM user có MFA + `aws login` (credential tạm thời) cho người; OIDC (CI); task role (app) ([ADR-0018](../04-adr/0018-human-access-iam-user-aws-login.md)) | ⚠️ / 🔧 | 0 |
 | Least privilege | Role tách riêng, resource ARN cụ thể ([security.md §3](security.md#3-iam)); cdk-nag | ✅ | 3 |
 | **Phát hiện truy cập ngoài ý muốn** | **IAM Access Analyzer – external access analyzer** (miễn phí): báo resource bị chia sẻ public hoặc cross-account | 🔧 | 0 |
 | **Chặn S3 public ở cấp account** | Bật **S3 Block Public Access (account-level)** | 🔧 | 0 |
@@ -106,6 +106,7 @@ Ký hiệu: ✅ có trong thiết kế · 🔧 bổ sung sau review này · ⚠�
 | Lệch chuẩn | Chuẩn khuyến nghị | Lý do | Sẽ làm gì nếu là production |
 |---|---|---|---|
 | Một AWS account, chung với project khác | Multi-account (AWS Organizations: dev / prod / security / log) | **Tham gia Organizations làm credit Free Tier hết hạn ngay**; ngân sách $197 | Organizations + Control Tower, account riêng cho prod |
+| IAM user + MFA + `aws login` cho người | IAM Identity Center | Account instance của Identity Center không hỗ trợ permission set; organization instance thì cần Organizations ([ADR-0018](../04-adr/0018-human-access-iam-user-aws-login.md)) | Identity Center (organization instance), không có IAM user nào |
 | Không NAT, task có IP public | Task ở private subnet | Tiết kiệm khoảng $43/tháng | NAT mỗi AZ + VPC endpoint |
 | 1 task, 1 Aurora writer | ≥ 2 task, có reader ở AZ khác | Chi phí | Auto scaling ≥ 2, Aurora multi-AZ |
 | Không có Security Hub / Config / GuardDuty lâu dài | Bật toàn bộ, tổng hợp findings | Chi phí | Bật ở mọi account qua delegated admin |

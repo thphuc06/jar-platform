@@ -9,8 +9,8 @@
 | # | Việc | Vì sao | Cách làm |
 |---|---|---|---|
 | 1 | Bật **MFA cho root**, ngừng dùng root cho CLI | CLI hiện đăng nhập bằng `arn:aws:iam::626212071763:root`. Root lộ thì mất toàn bộ tài khoản | Console → Security credentials → MFA; xóa access key của root nếu có |
-| 2 | Bật **IAM Identity Center** (ap-southeast-1), tạo user `phuc` + permission set `AdministratorAccess` (giai đoạn dev) | Credential tạm thời, có MFA, không có access key sống lâu | Console IAM Identity Center → Enable → Users → Permission sets → gán vào tài khoản |
-| 3 | `aws configure sso --profile jars-dev` | CLI và SDK dùng SSO | [local-development.md §5](local-development.md#5-aws-credentials-cho-local-không-dùng-root) |
+| 2 | **Bật MFA cho IAM user `phuc-account`**, sau đó **vô hiệu hóa** access key dài hạn của user này ([ADR-0018](../04-adr/0018-human-access-iam-user-aws-login.md)). Identity Center **không dùng được** vì cần Organizations, mà Organizations làm mất credit | Không còn credential dài hạn; tài khoản admin có MFA | Console → IAM → Users → `phuc-account` → Security credentials → Assign MFA device; Access keys → Deactivate |
+| 3 | `aws login --profile jars-dev` (đăng nhập bằng `phuc-account`, region `ap-southeast-1`) | CLI/SDK dùng credential tạm thời (tối đa 12 giờ) | [local-development.md §5](local-development.md#5-aws-credentials-cho-local-không-dùng-root) |
 | 4 | Bật cost allocation tag `Project` | Lọc chi phí theo project | Billing → Cost allocation tags (tag xuất hiện sau khi resource đầu tiên được gắn tag, mất tới 24 giờ) |
 | 5 | Kiểm tra **Bedrock model access** ở ap-southeast-1 | Gọi model lần đầu cần được phép | Console Bedrock → Model access (hoặc thử gọi `converse` bằng CLI) |
 | 6 | `npx aws-cdk@2 bootstrap aws://626212071763/ap-southeast-1 --profile jars-dev` | CDK cần bucket và role bootstrap ở mỗi region | Hiện mới bootstrap ở us-east-1 |
