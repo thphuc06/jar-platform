@@ -1,0 +1,26 @@
+# Local development infrastructure for Jars Platform.
+# Started automatically by `./mvnw spring-boot:run` (spring-boot-docker-compose), or manually:
+#   docker compose -f local/compose.yaml up -d
+# Credentials below are for this local container only — never reused anywhere else.
+name: jars
+
+services:
+  postgres:
+    # same major version as Aurora PostgreSQL 17 in AWS; keep in sync with TestcontainersConfiguration
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: jars
+      POSTGRES_USER: jars
+      POSTGRES_PASSWORD: jars-local
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U jars -d jars"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  pgdata:

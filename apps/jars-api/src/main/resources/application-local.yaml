@@ -1,0 +1,9 @@
+# Profile "local": developer machine. The datasource URL/user/password come from local/compose.yaml
+# through Spring Boot's Docker Compose support, so nothing is hard-coded here.
+spring:
+  docker:
+    compose:
+      # path is relative to the working directory: run `./mvnw spring-boot:run` from apps/jars-api
+      file: ../../local/compose.yaml
+      # keep Postgres running after the app stops (faster restarts, data kept in the pgdata volume)
+      lifecycle-management: start-only

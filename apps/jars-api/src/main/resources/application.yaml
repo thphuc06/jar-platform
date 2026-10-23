@@ -1,10 +1,20 @@
 spring:
   application:
     name: jars-api
+  profiles:
+    # running locally without SPRING_PROFILES_ACTIVE means "local"; ECS sets SPRING_PROFILES_ACTIVE=aws
+    default: local
   threads:
     virtual:
       # Tomcat request handling, @Async and schedulers run on virtual threads (JDK 21+)
       enabled: true
+  datasource:
+    hikari:
+      # every connection uses the "jars" schema; Flyway creates it on first run
+      schema: jars
+  flyway:
+    default-schema: jars
+    schemas: jars
 
 server:
   port: 8080
@@ -19,3 +29,5 @@ management:
       # /actuator/health/liveness and /actuator/health/readiness, used later by the ALB target group
       probes:
         enabled: true
+      # list component names (not details) so it is visible that readiness does NOT depend on the DB
+      show-components: always

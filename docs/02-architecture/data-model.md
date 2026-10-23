@@ -1,7 +1,13 @@
 # Data Model
 
 > Schema được quản lý bằng **Flyway** (`apps/jars-api/src/main/resources/db/migration/V<n>__<mô_tả>.sql`). Tài liệu này mô tả **thiết kế đích**, còn migration là nguồn sự thật. Sau mỗi migration phải cập nhật lại tài liệu này.
-> Thiết kế mới **không** dùng lại `schema.sql` của bản hackathon. Lý do và các điểm thay đổi xem mục 4.
+> Thiết kế mới **không** dùng lại `schema.sql` của bản hackathon. Lý do và các điểm thay đổi xem mục 5.
+
+**Migration đã có** (schema PostgreSQL `jars`, do Flyway tạo; app kết nối với `hikari.schema=jars`):
+
+| Version | File | Nội dung | Bước |
+|---|---|---|---|
+| V1 | `V1__baseline_users.sql` | Bảng `users`: `id` UUID (app sinh), `cognito_sub` UNIQUE, `email` UNIQUE **không phân biệt hoa/thường** (unique index trên `lower(email)`), `locale` mặc định `vi-VN`, `created_at`/`updated_at` | P0.6 |
 
 ## 1. Quy ước
 

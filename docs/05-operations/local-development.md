@@ -20,7 +20,7 @@
 
 | Service | Image | Port | Dùng cho |
 |---|---|---|---|
-| `postgres` | `pgvector/pgvector:pg17` | 5432 | DB chính (khớp major version với Aurora 17) |
+| `postgres` ✅ (P0.6) | `postgres:17-alpine` (đang là 17.11) | 5432 | DB chính, khớp major version với Aurora 17. User/db `jars`, password chỉ dùng local. Chỉ đổi sang `pgvector/pgvector:pg17` nếu làm RAG bằng pgvector (P4.9 hiện chọn S3 Vectors) |
 | `valkey` | `valkey/valkey:8` | 6379 | Cache, rate limit (Phase 4) |
 | `lgtm` | `grafana/otel-lgtm` | 3000, 4317, 4318 | Xem trace, metric, log ở local (Phase 6, tùy chọn) |
 | `localstack` | `localstack/localstack` (cần `LOCALSTACK_AUTH_TOKEN`) | 4566 | S3, SQS, SNS, EventBridge ở local (Phase 2–5) |
@@ -33,19 +33,22 @@
 
 | Profile | Khi nào | DB | Auth | Messaging | AI |
 |---|---|---|---|---|---|
-| `local` | Chạy app trên máy | compose `postgres` | JWT thật từ Cognito user pool dev (`JarsAuth` deploy sớm) | in-process (Modulith) | Bedrock thật qua SSO profile, **hoặc** `jars.advisor.stub=true` |
-| `test` | `./mvnw verify` | Testcontainers PostgreSQL (`@ServiceConnection`) | `spring-security-test` `jwt()` | in-process; LocalStack container cho test tích hợp SQS | Stub `ChatModel` |
+| `local` (**mặc định** khi không đặt `SPRING_PROFILES_ACTIVE`) | Chạy app trên máy | compose `postgres`, Spring Boot **tự khởi động** `local/compose.yaml` (`spring-boot-docker-compose`, chế độ `start-only`) | JWT thật từ Cognito user pool dev (`JarsAuth` deploy sớm) | in-process (Modulith) | Bedrock thật qua `aws login`, **hoặc** `jars.advisor.stub=true` |
+| (test) | `./mvnw verify` | Testcontainers `postgres:17-alpine` (`@ServiceConnection`, class `TestcontainersConfiguration`) | `spring-security-test` `jwt()` | in-process; LocalStack container cho test tích hợp SQS | Stub `ChatModel` |
 | `aws` | ECS | Aurora (secret từ Secrets Manager) | Cognito | SQS/SNS thật | Bedrock |
 
-## 4. Chạy (sẽ hoàn thiện ở Phase 0)
+## 4. Chạy
 
 ```bash
-# 1. Hạ tầng local
-docker compose -f local/compose.yaml up -d postgres
-
-# 2. Backend
+# 1. Backend: Spring Boot tự chạy local/compose.yaml (Postgres) và chờ healthy, rồi Flyway migrate
 cd apps/jars-api
-./mvnw spring-boot:run -Dspring-boot.run.profiles=local      # http://localhost:8080
+./mvnw spring-boot:run                                          # http://localhost:8080
+curl localhost:8080/actuator/health                             # có "db":{"status":"UP"}
+
+#    Cách khác: DB mới tinh mỗi lần chạy → chạy class TestJarsApplication (src/test) trong IDE (Testcontainers)
+#    Dừng Postgres khi không dùng (dữ liệu giữ trong volume jars_pgdata):
+docker compose -f ../../local/compose.yaml stop
+#    Xóa sạch dữ liệu local:  docker compose -f ../../local/compose.yaml down -v
 
 # 3. Frontend (Vite proxy /api -> localhost:8080, nên cùng origin, không cần CORS)
 cd apps/web
