@@ -9,7 +9,7 @@
 - Hạ tầng **AWS-native**: ECS Fargate, Aurora Serverless v2, Cognito, SNS/SQS, EventBridge, Bedrock, Lambda; tất cả dựng bằng **AWS CDK (Java)**.
 - Python chỉ dùng ở chỗ nó thật sự có lợi thế: `quant-fn` (vnstock + PyPortfolioOpt).
 
-> **Trạng thái (2026-10-23):** Đã xong phần thiết kế và tài liệu. Chưa có code ứng dụng. Bước tiếp theo là Phase 0, xem [docs/06-plan/roadmap.md](docs/06-plan/roadmap.md).
+> **Trạng thái (2026-10-23):** ✅ **Phase 0 (nền móng) hoàn thành**: skeleton `jars-api` (Spring Boot 4.1.2 / Java 25), PostgreSQL 17 + Flyway, Testcontainers, kiểm tra ranh giới module bằng Spring Modulith, Spotless, CI (build/test + gitleaks). Bước tiếp theo là **Phase 1** (monolith lõi + Auth + nối UI), xem [docs/06-plan/roadmap.md](docs/06-plan/roadmap.md).
 
 ![AWS target architecture](docs/diagrams/aws-architecture.png)
 
@@ -59,4 +59,11 @@ jar-platform/
 
 ## Quick start
 
-Chưa có, sẽ được bổ sung ở Phase 0. Hướng dẫn chuẩn bị máy: [docs/05-operations/local-development.md](docs/05-operations/local-development.md).
+Yêu cầu: JDK 25, Docker đang chạy. Chi tiết: [docs/05-operations/local-development.md](docs/05-operations/local-development.md).
+
+```bash
+cd apps/jars-api
+./mvnw verify            # build + test (Testcontainers Postgres 17) + Modulith verify + Spotless check
+./mvnw spring-boot:run   # tự khởi động local/compose.yaml (Postgres) → http://localhost:8080
+curl localhost:8080/api/v1/health
+```

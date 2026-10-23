@@ -6,7 +6,7 @@
 
 | Phase | Mục tiêu | Thời gian (ước lượng) | Trạng thái |
 |---|---|---|---|
-| 0 | Nền móng: bảo mật, tài khoản, repo, skeleton | 26/10 – 01/11/2026 | ⬜ |
+| 0 | Nền móng: bảo mật, tài khoản, repo, skeleton | 26/10 – 01/11/2026 → **xong 23/10** | ✅ |
 | 1 | Monolith lõi + Auth + nối UI | 02/11 – 29/11/2026 | ⬜ |
 | 2 | Nghiệp vụ tài chính + event in-process | 30/11 – 20/12/2026 | ⬜ |
 | 3 | Deploy AWS MVP | 21/12/2026 – 03/01/2027 | ⬜ |
@@ -152,3 +152,4 @@ Ký hiệu: 👤 bạn tự làm (console, quyết định) · 🤖 làm cùng t
 | Ngày | Bước | Ghi chú / vướng mắc |
 |---|---|---|
 | 2026-10-23 | Thiết kế | Hoàn thành phân tích, kiến trúc AWS-native, tài liệu và diagram |
+| 2026-10-23 | **Phase 0 ✅** | Xong 8/8 bước (P0.1 bỏ qua theo quyết định). Build sạch từ clone mới: 12/12 test, Spotless, Modulith; gitleaks 0 leak; actionlint 0 lỗi. **Lệch thiết kế phát hiện được:** Identity Center không dùng được (ADR-0018, đang hoãn); account baseline để ngoài CDK; Haiku 5.5 bị AccessDenied nên đổi sang Haiku 4.5; cần module `awssdk:signin`; thứ tự BOM làm Modulith bị hạ version; biến `JAVA_HOME` cấp User trỏ JDK 21 (đã xóa). **Còn mở:** push và xem CI chạy lần đầu trên GitHub; xóa access key `phuc-account` sau 30/10; chọn mức agentic (trước P4); số giờ/tuần. |
