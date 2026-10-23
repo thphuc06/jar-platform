@@ -1,0 +1,17 @@
+# Weekly PRs that bump outdated dependencies. Every bump must pass CI before merge.
+version: 2
+updates:
+  - package-ecosystem: maven
+    directory: /apps/jars-api
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      # one PR for the Spring family so versions that must match move together
+      spring:
+        patterns: ["org.springframework*", "io.awspring.cloud*"]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly

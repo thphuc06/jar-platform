@@ -54,15 +54,26 @@ Tất cả lệnh chạy trong `infra/cdk` với `--profile jars-dev`. Trước 
 
 ## 4. Pipeline
 
-### `ci.yml` (mỗi PR và mỗi lần push)
+### `ci.yml` (mỗi PR và mỗi lần push lên `main`)
+
+**Đang có (P0.8):** [`.github/workflows/ci.yml`](../../.github/workflows/ci.yml)
+
+| Job | Làm gì | Ghi chú |
+|---|---|---|
+| `jars-api` | `setup-java` Temurin 25 (có cache Maven) → `./mvnw --batch-mode --no-transfer-progress verify` | `verify` gồm unit test + Testcontainers (Docker của runner) + Modulith `verify()` + Spotless check. Fail thì upload `surefire-reports`; pass thì upload `modulith-docs` |
+| `gitleaks` | Quét **toàn bộ lịch sử** git (`fetch-depth: 0`) | Action pin theo commit SHA (v3.0.0); tắt comment vào PR nên chỉ cần quyền `contents: read`; repo cá nhân nên không cần license |
+
+Toàn workflow: `permissions: contents: read`; dùng `concurrency` để push mới hủy lần chạy cũ; mỗi job có `timeout-minutes`. Cấu hình [`.github/dependabot.yml`](../../.github/dependabot.yml) mở PR cập nhật Maven và Actions hằng tuần (gom nhóm Spring và Spring Cloud AWS để các version khớp nhau luôn đi cùng).
+
+**Thêm sau** (khi có app tương ứng, khi đó dùng path filter để chỉ build phần bị thay đổi):
 
 ```
-paths: apps/jars-api/**      → setup-java 25 → ./mvnw -B verify  (Testcontainers chạy trên Docker của runner)
-paths: apps/web/**           → npm ci → lint → test → build
-paths: functions/quant-fn/** → pip install → pytest
-paths: infra/cdk/**          → ./mvnw test (CDK assertions) → npx cdk synth (cdk-nag)
-always                       → gitleaks
+paths: apps/web/**           → npm ci → lint → test → build                 (P1.11)
+paths: functions/quant-fn/** → pip install → pytest                           (P4.2)
+paths: infra/cdk/**          → ./mvnw test (CDK assertions) → cdk synth (cdk-nag) (P1.1)
 ```
+
+Kiểm tra workflow ở local trước khi push: `docker run --rm -v "$PWD:/repo" -w /repo rhysd/actionlint:1.7.12`. Quét secret ở local: `docker run --rm -v "$PWD:/repo" ghcr.io/gitleaks/gitleaks:v8.30.1 git /repo --redact`.
 
 ### `deploy-dev.yml` (merge `main` hoặc `workflow_dispatch`)
 
