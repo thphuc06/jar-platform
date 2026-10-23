@@ -1,0 +1,13 @@
+# Normalize line endings: LF in the repo and in working copies (shell scripts like mvnw break with CRLF on Linux CI)
+* text=auto eol=lf
+
+*.cmd  text eol=crlf
+*.bat  text eol=crlf
+*.ps1  text eol=crlf
+
+*.png  binary
+*.jpg  binary
+*.gif  binary
+*.ico  binary
+*.jar  binary
+*.zip  binary
