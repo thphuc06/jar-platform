@@ -2,7 +2,7 @@
 
 Modular monolith **Java 25 · Spring Boot 4.1 · Spring Modulith 2.1**. Đây là backend chính của Jars Platform.
 
-> Trạng thái (P0.7, 2026-10-23): ranh giới module được kiểm tra bằng Spring Modulith, format bằng Spotless; Spring Boot **4.1.2** / Java 25; `GET /api/v1/health` + actuator probe; PostgreSQL 17 + Flyway (schema `jars`).
+> Trạng thái (P1.2, 2026-10-23): xác thực bằng Cognito JWT (resource server), `GET /api/v1/me`; ranh giới module được kiểm tra bằng Spring Modulith, format bằng Spotless; Spring Boot **4.1.2** / Java 25; `GET /api/v1/health` + actuator probe; PostgreSQL 17 + Flyway (schema `jars`).
 
 ## Chạy nhanh
 
@@ -18,6 +18,8 @@ curl localhost:8080/actuator/health/readiness  # {"status":"UP"} (probe cho ALB/
 | Endpoint | Dùng cho | Ghi chú |
 |---|---|---|
 | `GET /api/v1/health` | Client, smoke test qua CloudFront | Public, trả version lấy từ `build-info` |
+| `GET /api/v1/me` | UI | Cần access token Cognito có scope `jars-api/read`; tạo user ở lần gọi đầu |
+| `GET /.well-known/oauth-protected-resource` | Client OAuth | Metadata RFC 9728 (issuer, scope) |
 | `GET /actuator/health/readiness` | ALB target group | Không được chạm DB (xem aws-infrastructure §4) |
 | `GET /actuator/health/liveness` | ECS container health | |
 | `GET /actuator/info` | Debug | Chỉ expose `health`, `info` |

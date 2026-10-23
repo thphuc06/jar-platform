@@ -40,9 +40,12 @@ sequenceDiagram
     API->>API: Xác thực JWT: chữ ký (JWKS cache), iss, exp, token_use=access, client_id
     API->>DB: SELECT users WHERE cognito_sub = ?
     alt chưa có user
-        API->>DB: INSERT users + event_publication(UserRegistered)
-        Note over API,DB: Cùng 1 transaction
-        API--)API: AFTER_COMMIT → ledger tạo 6 hũ + danh mục mặc định
+        API->>C: GET /oauth2/userInfo (Bearer access_token) → email
+        Note over API,C: Ngoài transaction DB, chỉ 1 lần mỗi user (access token không có claim email)
+        API->>DB: INSERT ... ON CONFLICT (cognito_sub) DO NOTHING + publish UserRegistered
+        API->>DB: SELECT users WHERE cognito_sub = ?
+        Note over API,DB: Cùng 1 transaction (READ COMMITTED)
+        API--)API: AFTER_COMMIT → ledger tạo 6 hũ + danh mục mặc định (từ P1.4)
     end
     API-->>W: 200 {id, email, onboardingCompleted}
 ```
@@ -50,7 +53,8 @@ sequenceDiagram
 **Điểm cần học:**
 - **PKCE** thay cho client secret, vì SPA không giữ được bí mật.
 - API chỉ nhận **access token**. ID token dùng để hiển thị thông tin user ở frontend, không dùng để gọi API.
-- **Race condition:** 2 request đầu tiên đến cùng lúc thì cả hai cùng thấy "chưa có user". Xử lý bằng `INSERT ... ON CONFLICT (cognito_sub) DO NOTHING` rồi SELECT lại.
+- **Race condition:** 2 request đầu tiên đến cùng lúc thì cả hai cùng thấy "chưa có user". Xử lý bằng `INSERT ... ON CONFLICT (cognito_sub) DO NOTHING` rồi SELECT lại. Transaction thứ hai **chờ** transaction thứ nhất commit (vì đụng unique index), rồi không làm gì, và SELECT sau đó thấy được dòng đã commit. *(Đã cài đặt ở P1.2; `UserProvisioningIntegrationTest` chạy 8 luồng cùng lúc: luôn ra 1 dòng, 1 event.)*
+- **Email lấy từ `/oauth2/userInfo`**, vì access token của Cognito không có claim `email`. Gọi **ngoài** transaction DB (không giữ connection trong lúc chờ mạng); timeout 2 s connect, 3 s read.
 - Spring Security xác thực JWT **offline** bằng JWKS được cache, nên không phải gọi Cognito ở mỗi request.
 
 ---

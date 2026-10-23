@@ -2,6 +2,7 @@ package io.github.thphuc06.jars.platform.web;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import io.github.thphuc06.jars.platform.security.SecurityConfig;
 import java.util.Properties;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -14,7 +15,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.test.web.servlet.assertj.MockMvcTester;
 
 @WebMvcTest(HealthController.class)
-@Import(HealthControllerTest.FixedBuildInfo.class)
+// importing the real SecurityConfig proves /api/v1/health is reachable WITHOUT a token
+@Import({SecurityConfig.class, HealthControllerTest.FixedBuildInfo.class})
 class HealthControllerTest {
 
     @Autowired

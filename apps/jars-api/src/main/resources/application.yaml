@@ -15,6 +15,12 @@ spring:
   flyway:
     default-schema: jars
     schemas: jars
+  jpa:
+    # never keep a DB connection open for the whole HTTP request (anti-pattern, and Aurora could not pause)
+    open-in-view: false
+    hibernate:
+      # Flyway owns the schema; Hibernate only checks that entities match it and fails fast if not
+      ddl-auto: validate
 
 server:
   port: 8080

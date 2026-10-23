@@ -9,7 +9,7 @@
 | Base path | `/api/v1` (CloudFront chuyển `/api/*` sang ALB) |
 | Định dạng | JSON UTF-8, field `camelCase`; tiền là **string** dạng số thập phân (`"85000.00"`) kèm `currency`, tránh JS làm tròn số |
 | Thời gian | ISO-8601 UTC (`2026-11-15T03:21:09Z`); tháng dạng `YYYY-MM` |
-| Auth | `Authorization: Bearer <Cognito access token>` cho mọi endpoint trừ `/api/v1/health` |
+| Auth | `Authorization: Bearer <Cognito access token>` cho mọi endpoint trừ `/api/v1/health`. Metadata RFC 9728 công khai tại `/.well-known/oauth-protected-resource` |
 | Lỗi | **RFC 9457 `application/problem+json`** |
 | Phân trang | **Cursor (keyset)**: `?limit=50&cursor=<opaque>` → `{items, nextCursor}` |
 | Idempotency | Header `Idempotency-Key` (UUID) **bắt buộc** với các POST làm thay đổi tiền |
@@ -33,8 +33,8 @@
 | HTTP | Khi nào |
 |---|---|
 | 400 | JSON sai cú pháp, sai kiểu dữ liệu |
-| 401 | Thiếu hoặc sai token |
-| 403 | Thiếu scope |
+| 401 | Thiếu hoặc sai token (kể cả **ID token**: chỉ nhận access token). Có header `WWW-Authenticate: Bearer ...`; nội dung là ProblemDetail `type=.../unauthorized` |
+| 403 | Thiếu scope: **mọi GET `/api/**` cần `jars-api/read`; mọi method khác cần `jars-api/write`**. ProblemDetail `type=.../forbidden`. Đường dẫn ngoài danh sách cho phép bị chặn mặc định (`denyAll`) |
 | 404 | Không tồn tại **hoặc không thuộc user** (chống IDOR) |
 | 409 | Xung đột version (sau khi đã retry vẫn thất bại) |
 | 422 | Sai quy tắc nghiệp vụ (validation, số dư, Idempotency-Key bị dùng lại với request khác) |
@@ -46,7 +46,7 @@
 ### Identity
 | Method | Path | Mô tả | Phase |
 |---|---|---|---|
-| GET | `/me` | Thông tin user (tự tạo lazy ở lần gọi đầu) | 1 |
+| GET | `/me` | ✅ (P1.2) Thông tin user `{id, email, displayName, locale, createdAt}`; tự tạo lazy ở lần gọi đầu. Cần scope `jars-api/read` | 1 |
 | PATCH | `/me` | Đổi `displayName`, `locale` | 1 |
 | PUT | `/me/risk-profile` | Nộp câu trả lời onboarding → `{score, riskLevel}` | 1 |
 | GET | `/me/risk-profile` | Risk profile hiện tại | 1 |

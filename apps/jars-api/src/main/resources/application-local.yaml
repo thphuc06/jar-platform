@@ -7,3 +7,11 @@ spring:
       file: ../../local/compose.yaml
       # keep Postgres running after the app stops (faster restarts, data kept in the pgdata volume)
       lifecycle-management: start-only
+
+# Cognito user pool of the dev environment (stack jars-dev-auth). Not secret: every SPA must know these values.
+jars:
+  security:
+    issuer-uri: https://cognito-idp.ap-southeast-1.amazonaws.com/ap-southeast-1_QeA6qyznX
+    allowed-client-ids:
+      - 66hvvfoe0r647dfp2jv1lpeq7c # jars-dev-web-local
+    user-info-uri: https://jars-dev-thphuc06.auth.ap-southeast-1.amazoncognito.com/oauth2/userInfo
