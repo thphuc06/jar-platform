@@ -95,9 +95,11 @@ Phát hiện ngày 2026-10-23 khi đọc `swinhackathon/ius_backend_agent_mcp` (
 
 | # | Phát hiện | Mức | Việc phải làm | Trạng thái |
 |---|---|---|---|---|
-| 1 | `infrastructure/lambda/cusum_worker/current_env.json` (UTF-16) chứa connection string Supabase Postgres **có mật khẩu** | 🔴 | Đổi mật khẩu DB trên Supabase; kiểm tra log kết nối; xóa file + purge lịch sử (`git filter-repo`) hoặc archive và chuyển repo sang private | ☐ |
-| 2 | `ops/aws/deploy.env` bị track dù đã nằm trong `.gitignore` | 🟠 | `git rm --cached` | ☐ |
-| 3 | Endpoint stock agent `/ask` không có auth, gọi Claude Sonnet; URL nằm công khai trong `.env.example` | 🟠 | Xác nhận service App Runner đã tắt (tài khoản `626212071763` hiện **không có** App Runner/ECS, có thể nằm ở tài khoản khác) | ☐ |
-| 4 | UI dùng Supabase anon key với `DEFAULT_USER_ID` hardcode | 🟠 | Kiểm tra RLS; tắt project Supabase sau khi chuyển xong | ☐ |
+| 1 | `infrastructure/lambda/cusum_worker/current_env.json` (UTF-16) chứa connection string Supabase Postgres **có mật khẩu** | 🔴 | Đổi mật khẩu DB trên Supabase; kiểm tra log kết nối; xóa file + purge lịch sử (`git filter-repo`) hoặc archive và chuyển repo sang private | ⏭️ Bỏ qua |
+| 2 | `ops/aws/deploy.env` bị track dù đã nằm trong `.gitignore` | 🟠 | `git rm --cached` | ⏭️ Bỏ qua |
+| 3 | Endpoint stock agent `/ask` không có auth, gọi Claude Sonnet; URL nằm công khai trong `.env.example` | 🟠 | Xác nhận service App Runner đã tắt (tài khoản `626212071763` hiện **không có** App Runner/ECS, có thể nằm ở tài khoản khác) | ⏭️ Bỏ qua |
+| 4 | UI dùng Supabase anon key với `DEFAULT_USER_ID` hardcode | 🟠 | Kiểm tra RLS; tắt project Supabase sau khi chuyển xong | ⏭️ Bỏ qua |
 | 5 | `VITE_COGNITO_CLIENT_SECRET` sẽ bị đóng gói vào JS | 🟠 | Bản mới dùng public client + PKCE | ✅ (thiết kế mới) |
 | 6 | Commit file zip Lambda 4 MB + 27 MB và thư mục `package/` | 🟡 | Không lặp lại: build trong CI | ✅ (thiết kế mới) |
+
+> **Quyết định 2026-10-23:** mục 1–4 thuộc repo của org cũ (dữ liệu và hạ tầng của team hackathon), nằm **ngoài phạm vi** project này nên không xử lý. `jar-platform` không dùng Supabase, App Runner hay bất kỳ credential nào của repo cũ. Bài học được áp dụng cho repo mới: gitleaks trong CI, push protection, `.gitignore` chặn `*env*.json`, không commit file build.

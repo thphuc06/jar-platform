@@ -49,10 +49,7 @@ Repo cũ: `be` = `ius_backend_agent_mcp`, `ui` = `ius_financial_ui`, `stock` = `
 
 Ký hiệu: 👤 bạn tự làm (console, quyết định) · 🤖 làm cùng trong session · ✋ cần bạn đồng ý trước khi thực hiện.
 
-- [ ] **P0.1** Xử lý sự cố bảo mật của repo cũ ([security.md §8](../02-architecture/security.md#8-sự-cố-của-repo-cũ-hackathon-và-việc-cần-làm)):
-  - 👤 Đổi mật khẩu DB Supabase (nhờ chủ project nếu không phải bạn); xem log kết nối; kiểm tra RLS.
-  - ✋🤖 Commit gỡ file nhạy cảm khỏi HEAD + `.gitignore`.
-  - 👤 Quyết định: chuyển repo sang private, hoặc archive, hoặc purge lịch sử.
+- [x] **P0.1** ~~Xử lý sự cố bảo mật của repo cũ~~: **bỏ qua theo quyết định (2026-10-23)**. Repo cũ thuộc org, nằm ngoài phạm vi; repo mới không dùng credential nào của repo cũ ([security.md §8](../02-architecture/security.md#8-sự-cố-của-repo-cũ-hackathon-và-việc-cần-làm)).
 - [ ] **P0.2** Vệ sinh tài khoản AWS ([deployment.md §1](../05-operations/deployment.md#1-chuẩn-bị-tài-khoản-làm-1-lần)):
   - 👤 MFA root, IAM Identity Center, profile `jars-dev`, cost allocation tag.
   - ✋🤖 Account baseline bằng CLI: S3 Block Public Access, EBS default encryption, Access Analyzer, Cost Anomaly Detection.
