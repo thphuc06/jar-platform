@@ -25,7 +25,8 @@ class JarsApplicationTests {
         assertThat(mvc.get().uri("/actuator/health/readiness"))
                 .hasStatus(HttpStatus.OK)
                 .bodyJson()
-                .satisfies(json -> assertThat(json.getJson()).contains("\"status\":\"UP\"").doesNotContain("\"db\""));
+                .satisfies(json ->
+                        assertThat(json.getJson()).contains("\"status\":\"UP\"").doesNotContain("\"db\""));
     }
 
     @Test

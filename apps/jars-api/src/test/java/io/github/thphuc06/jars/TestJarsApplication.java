@@ -9,6 +9,8 @@ import org.springframework.boot.SpringApplication;
 public class TestJarsApplication {
 
     public static void main(String[] args) {
-        SpringApplication.from(JarsApplication::main).with(TestcontainersConfiguration.class).run(args);
+        SpringApplication.from(JarsApplication::main)
+                .with(TestcontainersConfiguration.class)
+                .run(args);
     }
 }

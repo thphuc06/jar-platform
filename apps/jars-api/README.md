@@ -2,13 +2,14 @@
 
 Modular monolith **Java 25 · Spring Boot 4.1 · Spring Modulith 2.1**. Đây là backend chính của Jars Platform.
 
-> Trạng thái (P0.6, 2026-10-23): Spring Boot **4.1.2** / Java 25; `GET /api/v1/health` + actuator probe; PostgreSQL 17 + Flyway (schema `jars`).
+> Trạng thái (P0.7, 2026-10-23): ranh giới module được kiểm tra bằng Spring Modulith, format bằng Spotless; Spring Boot **4.1.2** / Java 25; `GET /api/v1/health` + actuator probe; PostgreSQL 17 + Flyway (schema `jars`).
 
 ## Chạy nhanh
 
 ```bash
 # cần JDK 25 (nếu máy có nhiều JDK thì trỏ JAVA_HOME tới bản 25)
-./mvnw verify                 # build + test (cần Docker: Testcontainers chạy Postgres 17)
+./mvnw verify                 # build + test (cần Docker) + Modulith verify + Spotless check
+./mvnw spotless:apply         # format code trước khi commit
 ./mvnw spring-boot:run        # profile local: tự chạy ../../local/compose.yaml rồi Flyway migrate; http://localhost:8080
 curl localhost:8080/api/v1/health              # {"status":"UP","service":"jars-api","version":"0.0.1-SNAPSHOT"}
 curl localhost:8080/actuator/health/readiness  # {"status":"UP"} (probe cho ALB/ECS)

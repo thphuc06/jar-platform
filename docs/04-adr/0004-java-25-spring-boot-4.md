@@ -47,6 +47,7 @@ Thực hiện bằng một project tạm (không commit) dùng chung parent và 
 2. Đặt `spring.config.import=aws-secretsmanager:...` trong `application.yaml` chung khiến **mọi test** (kể cả test Modulith) phải gọi AWS. Phải đặt trong `application-aws.yaml` và có tiền tố `optional:`.
 3. Listener của Spring Cloud AWS SQS chạy trên **thread pool riêng** (`sqsListenerEndpointContainer#…`, platform thread), **không** dùng virtual thread dù đã bật `spring.threads.virtual.enabled`. Nếu cần thì cấu hình executor riêng cho container ở Phase 3.
 4. Git Bash trên Windows tự đổi tham số dạng `/jars/...` thành đường dẫn file → phải dùng `MSYS_NO_PATHCONV=1` khi gọi AWS CLI với tên bắt đầu bằng `/`.
+5. *(phát hiện ở P0.7)* `spring-cloud-aws-dependencies` 4.2.0 **tự import** `spring-modulith-bom` **2.1.0** (cùng với BOM của AWS SDK 2.47.4, spring-cloud-commons, spring-cloud-stream). Khi nhiều BOM cùng quản lý một artifact thì **BOM import trước thắng**. Do đó `spring-modulith-bom` phải đứng **trước** `spring-cloud-aws-dependencies` trong `pom.xml`, nếu không Modulith sẽ âm thầm bị hạ xuống 2.1.0 (đã gặp thật, phát hiện bằng `./mvnw dependency:tree -Dincludes=org.springframework.modulith`).
 
 ## Xem lại khi
 JDK 29 LTS ra mắt (dự kiến 9/2027), hoặc smoke test ở Phase 0 thất bại.

@@ -13,7 +13,9 @@
 
 | Chủ đề | Quy ước |
 |---|---|
-| Format | Spotless + `palantir-java-format`; CI fail nếu chưa format |
+| Format | Spotless 3.10 + `palantir-java-format` 2.102 (dòng 120 ký tự). `./mvnw spotless:apply` để format; `./mvnw verify` **fail** nếu còn file chưa format |
+| Dependency | Version thư viện ngoài Boot quản lý bằng BOM trong `dependencyManagement`. **Thứ tự BOM có ý nghĩa: BOM import trước thắng** (xem ADR-0004, phát hiện #5). Sau khi thêm BOM hoặc dependency thì kiểm tra bằng `./mvnw dependency:tree -Dincludes=<groupId>` |
+| Module | Mỗi package con trực tiếp của `io.github.thphuc06.jars` là một module Modulith; `platform` là shared module (`@Modulithic(sharedModules = "platform")`). `ModularityTests` chạy ở mọi build |
 | Package | `io.github.thphuc06.jars.<module>`; public API nằm ở root package của module, còn lại ở `internal` ([modules.md](../02-architecture/modules.md)) |
 | DTO | `record`; tên `XxxRequest` / `XxxResponse`; không trả entity ra controller |
 | Entity | Không dùng Lombok `@Data` cho entity (vì `equals`/`hashCode` có lazy proxy); constructor `protected` cho JPA; method nghiệp vụ nằm trên entity |
