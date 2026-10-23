@@ -6,12 +6,12 @@
 
 | Công cụ | Version | Trạng thái máy dev (2026-10-23) | Cài bằng |
 |---|---|---|---|
-| JDK | **25** (Temurin) | ❌ đang có 21.0.11 | `winget install EclipseAdoptium.Temurin.25.JDK` |
+| JDK | **25** (Temurin) | ✅ 25.0.4 (cài 23/10; 21.0.11 vẫn còn, nên phải trỏ `JAVA_HOME` đúng bản) | `winget install EclipseAdoptium.Temurin.25.JDK` |
 | Maven | dùng **Maven Wrapper** (`./mvnw`) | ❌ chưa có `mvn` (không cần nếu dùng wrapper) | đi kèm repo |
-| Docker Desktop | mới nhất | ✅ có CLI 29.5, **daemon chưa chạy** | mở Docker Desktop |
+| Docker Desktop | mới nhất | ✅ 29.5.3 đang chạy | mở Docker Desktop |
 | Node.js | 22/24 LTS | ✅ 24.15 | – |
 | Python | 3.13 | ✅ 3.13.9 | – |
-| AWS CLI v2 | ≥ 2.32 (cần cho `aws login`) | ✅ 2.35.5 (**đang đăng nhập bằng root, phải đổi**) | – |
+| AWS CLI v2 | ≥ 2.32 (cần cho `aws login`) | ✅ 2.35.5 (đang dùng root qua `aws login`, xem ADR-0018) | – |
 | AWS CDK CLI | 2.x | dùng `npx aws-cdk@2` | – |
 | Graphviz | (chỉ để render diagram) | ❌ | `winget install Graphviz.Graphviz` |
 | IDE | IntelliJ IDEA (Community đủ dùng) hoặc VS Code + Extension Pack for Java | | |
