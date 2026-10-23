@@ -1,0 +1,21 @@
+spring:
+  application:
+    name: jars-api
+  threads:
+    virtual:
+      # Tomcat request handling, @Async and schedulers run on virtual threads (JDK 21+)
+      enabled: true
+
+server:
+  port: 8080
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, info
+  endpoint:
+    health:
+      # /actuator/health/liveness and /actuator/health/readiness, used later by the ALB target group
+      probes:
+        enabled: true

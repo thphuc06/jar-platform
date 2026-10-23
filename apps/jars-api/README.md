@@ -2,7 +2,24 @@
 
 Modular monolith **Java 25 · Spring Boot 4.1 · Spring Modulith 2.1**. Đây là backend chính của Jars Platform.
 
-> Trạng thái: **chưa có code**. Skeleton được tạo ở bước roadmap P0.4.
+> Trạng thái (P0.4, 2026-10-23): skeleton Spring Boot **4.1.2** / Java 25, có `GET /api/v1/health` và các actuator probe.
+
+## Chạy nhanh
+
+```bash
+# cần JDK 25 (nếu máy có nhiều JDK thì trỏ JAVA_HOME tới bản 25)
+./mvnw verify                 # build + chạy test
+./mvnw spring-boot:run        # http://localhost:8080
+curl localhost:8080/api/v1/health              # {"status":"UP","service":"jars-api","version":"0.0.1-SNAPSHOT"}
+curl localhost:8080/actuator/health/readiness  # {"status":"UP"} (probe cho ALB/ECS)
+```
+
+| Endpoint | Dùng cho | Ghi chú |
+|---|---|---|
+| `GET /api/v1/health` | Client, smoke test qua CloudFront | Public, trả version lấy từ `build-info` |
+| `GET /actuator/health/readiness` | ALB target group | Không được chạm DB (xem aws-infrastructure §4) |
+| `GET /actuator/health/liveness` | ECS container health | |
+| `GET /actuator/info` | Debug | Chỉ expose `health`, `info` |
 
 ## Cấu trúc dự kiến
 
