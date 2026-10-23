@@ -75,6 +75,6 @@ Người trẻ Việt Nam (sinh viên, người mới đi làm) có thu nhập k
 ## 6. Giả định và ràng buộc
 
 - Có một người phát triển chính, khoảng 15 giờ/tuần (giả định, chưa xác nhận). Trình độ: Java core, OOP, DSA vững; AWS SAA-C03; Spring và hệ phân tán là phần cần học sâu.
-- Đây là **repo cá nhân** (`thphuc06/jars-platform`). Những gì có thể đưa lên CV và mốc thời gian: [cv-showcase.md](cv-showcase.md).
+- Đây là **repo cá nhân** (`thphuc06/jar-platform`). Những gì có thể đưa lên CV và mốc thời gian: [cv-showcase.md](cv-showcase.md).
 - Tài khoản AWS `phuclearning2006` có **$197 credit, dùng chung với project khác, hết hạn khoảng 09/04/2027**.
 - Mã nguồn công khai trên GitHub, nên tuyệt đối không commit secret.

@@ -7,7 +7,7 @@
 Bản hackathon chia thành 4 repo (backend, UI, stock agent, demo). Các thay đổi liên quan nhau (đổi API → sửa UI → sửa infra) phải làm ở nhiều repo, khó đồng bộ version, và lịch sử commit lẫn nhiều phần không phải của tác giả (Lovable bot, fork Dexter).
 
 ## Quyết định
-Tạo **một repo mới `jars-platform`** chứa `apps/` (jars-api, insights-worker, web), `functions/` (quant-fn), `infra/cdk`, `contracts/`, `local/`, `docs/`. Mỗi app tự quản lý build của nó (Maven, npm, pip). CI dùng **path filter** để chỉ build phần bị thay đổi.
+Tạo **một repo mới `jar-platform`** chứa `apps/` (jars-api, insights-worker, web), `functions/` (quant-fn), `infra/cdk`, `contracts/`, `local/`, `docs/`. Mỗi app tự quản lý build của nó (Maven, npm, pip). CI dùng **path filter** để chỉ build phần bị thay đổi.
 
 Các repo cũ: sau khi xử lý xong secret thì **archive** (read-only) và ghi link sang repo mới.
 

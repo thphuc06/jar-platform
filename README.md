@@ -31,7 +31,7 @@ Chi tiết và lý do của từng lựa chọn nằm ở [docs/02-architecture/
 ## Cấu trúc repo
 
 ```
-jars-platform/
+jar-platform/
 ├── apps/
 │   ├── jars-api/          # Java 25 · Spring Boot 4.1 · modular monolith (Maven)
 │   ├── insights-worker/   # Java · service tách ra ở Phase 5 (consumer SQS)

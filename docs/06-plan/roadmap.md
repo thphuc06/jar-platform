@@ -24,7 +24,7 @@
 
 - [ ] **P0.1** Xử lý sự cố bảo mật của repo cũ ([security.md §8](../02-architecture/security.md#8-sự-cố-của-repo-cũ-hackathon-và-việc-cần-làm)): đổi mật khẩu Supabase, untrack `deploy.env`, kiểm tra RLS, archive repo cũ.
 - [ ] **P0.2** Vệ sinh tài khoản AWS ([deployment.md §1](../05-operations/deployment.md#1-chuẩn-bị-tài-khoản-làm-1-lần)): MFA root, IAM Identity Center, profile `jars-dev`, cost allocation tag, S3 Block Public Access (account), EBS default encryption, IAM Access Analyzer, Cost Anomaly Detection. Xem lại `sidewalk-labelstudio`.
-- [ ] **P0.3** Cài JDK 25, mở Docker Desktop; tạo repo GitHub `jars-platform` (push skeleton tài liệu này), bật secret scanning.
+- [ ] **P0.3** Cài JDK 25, mở Docker Desktop; tạo repo GitHub `jar-platform` (push skeleton tài liệu này), bật secret scanning.
 - [ ] **P0.4** Skeleton `apps/jars-api`: Spring Boot 4.1.x (Spring Initializr), Maven Wrapper, package `io.github.thphuc06.jars`, endpoint `/api/v1/health`, bật virtual threads.
 - [ ] **P0.5** **Smoke test tương thích** (ghi kết quả vào [ADR-0004](../04-adr/0004-java-25-spring-boot-4.md#kết-quả-smoke-test-điền-ở-phase-0)): Boot 4.1 + Spring Cloud AWS 4.2 + Spring Modulith 2.1 + Spring AI 2.0 cùng khởi động được.
 - [ ] **P0.6** `local/compose.yaml` (Postgres 17) + Flyway `V1__baseline.sql` (bảng `users`) + Testcontainers `@ServiceConnection` + test đầu tiên.

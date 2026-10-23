@@ -46,7 +46,7 @@
 
 > Các ô `[...]` chỉ điền **sau khi đo**. Chọn 4–6 bullet tùy độ dài CV. Thứ tự bullet ưu tiên theo JD đang apply.
 
-**Jars Platform — Personal finance app (6-Jars budgeting, anomaly alerts, AI advisor)** · *Personal project* · `github.com/thphuc06/jars-platform` · `[demo link]`
+**Jars Platform — Personal finance app (6-Jars budgeting, anomaly alerts, AI advisor)** · *Personal project* · `github.com/thphuc06/jar-platform` · `[demo link]`
 *Java 25, Spring Boot 4.1, Spring Modulith, Spring Security, JPA/PostgreSQL, Spring AI, AWS (ECS Fargate, Aurora Serverless v2, SNS/SQS, EventBridge, Cognito, Bedrock, Lambda, CloudFront), AWS CDK, GitHub Actions*
 
 - Designed and built a **modular monolith** (9 modules, boundaries verified in CI with Spring Modulith/ArchUnit) and later extracted an **event-driven microservice** over **SNS/SQS FIFO** using the **transactional outbox** pattern, with idempotent consumers and DLQs.

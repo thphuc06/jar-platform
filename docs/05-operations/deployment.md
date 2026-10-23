@@ -14,7 +14,7 @@
 | 4 | Bật cost allocation tag `Project` | Lọc chi phí theo project | Billing → Cost allocation tags (tag xuất hiện sau khi resource đầu tiên được gắn tag, mất tới 24 giờ) |
 | 5 | Kiểm tra **Bedrock model access** ở ap-southeast-1 | Gọi model lần đầu cần được phép | Console Bedrock → Model access (hoặc thử gọi `converse` bằng CLI) |
 | 6 | `npx aws-cdk@2 bootstrap aws://626212071763/ap-southeast-1 --profile jars-dev` | CDK cần bucket và role bootstrap ở mỗi region | Hiện mới bootstrap ở us-east-1 |
-| 7 | Tạo repo GitHub `thphuc06/jars-platform` (repo cá nhân), bật secret scanning + push protection | Chặn commit secret | Settings → Code security |
+| 7 | Tạo repo GitHub `thphuc06/jar-platform` (repo cá nhân), bật secret scanning + push protection | Chặn commit secret | Settings → Code security |
 | 8 | Bật **S3 Block Public Access ở cấp account** | Không bucket nào lỡ bị public | S3 console → Block Public Access settings for this account |
 | 9 | Bật **EBS encryption by default** (ap-southeast-1) | Volume mới tự được mã hóa (instance `sidewalk` hiện có cũng có EBS) | EC2 console → Settings → EBS encryption |
 | 10 | Tạo **IAM Access Analyzer** loại external access (cấp account) | Phát hiện resource bị chia sẻ ra ngoài; miễn phí | IAM → Access Analyzer → Create analyzer (sau này chuyển vào `JarsFoundation`) |

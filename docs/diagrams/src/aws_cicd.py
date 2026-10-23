@@ -20,7 +20,7 @@ graph_attr = {"fontsize": "20", "pad": "0.5", "nodesep": "0.6", "ranksep": "1.0"
 
 with Diagram("Jars Platform - CI/CD", filename=str(OUT), show=False, direction="LR",
              outformat="png", graph_attr=graph_attr):
-    repo = Github("GitHub\njars-platform")
+    repo = Github("GitHub\njar-platform")
 
     with Cluster("GitHub Actions"):
         ci = GithubActions("ci.yml (every PR)\nunit + Testcontainers\nweb build, cdk synth,\ngitleaks")
