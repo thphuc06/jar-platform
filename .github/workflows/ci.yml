@@ -52,6 +52,32 @@ jobs:
           path: apps/jars-api/target/spring-modulith-docs/
           retention-days: 7
 
+  infra-cdk:
+    name: infra/cdk (CDK assertions, cdk-nag, spotless)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: infra/cdk
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "25"
+          cache: maven
+          cache-dependency-path: infra/cdk/pom.xml
+
+      # jsii (the bridge between Java and the TypeScript CDK) needs Node.js
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+
+      # template assertions + cdk-nag run as JUnit tests; no AWS credentials needed
+      - name: Verify
+        run: ./mvnw --batch-mode --no-transfer-progress verify
+
   gitleaks:
     name: gitleaks (secret scan, full history)
     runs-on: ubuntu-latest

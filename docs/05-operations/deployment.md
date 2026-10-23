@@ -13,7 +13,7 @@
 | 3 | `aws login --profile jars-dev` (đăng nhập bằng `phuc-account`, region `ap-southeast-1`) | CLI/SDK dùng credential tạm thời (tối đa 12 giờ) | [local-development.md §5](local-development.md#5-aws-credentials-cho-local-không-dùng-root) |
 | 4 | Bật cost allocation tag `Project` | Lọc chi phí theo project | Billing → Cost allocation tags (tag xuất hiện sau khi resource đầu tiên được gắn tag, mất tới 24 giờ) |
 | 5 | Kiểm tra **Bedrock model access** ở ap-southeast-1 | Gọi model lần đầu cần được phép | Console Bedrock → Model access (hoặc thử gọi `converse` bằng CLI) |
-| 6 | `npx aws-cdk@2 bootstrap aws://626212071763/ap-southeast-1 --profile jars-dev` | CDK cần bucket và role bootstrap ở mỗi region | Hiện mới bootstrap ở us-east-1 |
+| 6 | ✅ (23/10) `cd infra/cdk && npx cdk bootstrap aws://<account>/ap-southeast-1` | CDK cần bucket và role bootstrap ở mỗi region | Stack `CDKToolkit` ở ap-southeast-1; execution policy mặc định `AdministratorAccess` (giai đoạn dev) |
 | 7 | Tạo repo GitHub `thphuc06/jar-platform` (repo cá nhân), bật secret scanning + push protection | Chặn commit secret | Settings → Code security |
 | 8 | Bật **S3 Block Public Access ở cấp account** | Không bucket nào lỡ bị public | S3 console → Block Public Access settings for this account |
 | 9 | Bật **EBS encryption by default** (ap-southeast-1) | Volume mới tự được mã hóa (instance `sidewalk` hiện có cũng có EBS) | EC2 console → Settings → EBS encryption |
@@ -30,7 +30,7 @@ Tham chiếu đầy đủ: [well-architected-review.md](../02-architecture/well-
 
 | Lần | Lệnh | Khi nào |
 |---|---|---|
-| Phase 1 | `cdk deploy JarsAuth` | Cần Cognito để có JWT thật khi chạy local |
+| Phase 1 ✅ (23/10) | `npx cdk deploy JarsAuth` → stack `jars-dev-auth` | Cần Cognito để có JWT thật khi chạy local |
 | Phase 3, lần đầu | `cdk deploy JarsFoundation JarsNetwork JarsData JarsMessaging` | Hạ tầng nền (ECR, VPC, Aurora, SQS) |
 | Phase 3 | Push image đầu tiên lên ECR (bằng CI hoặc tay), rồi `cdk deploy JarsApp -c imageTag=<sha>` | Lên app |
 | Phase 4 | `cdk deploy JarsQuant JarsApp` | Thêm quant-fn, Valkey, quyền Bedrock |

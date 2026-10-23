@@ -129,10 +129,10 @@ Docs: [Aurora Serverless v2 auto-pause](https://docs.aws.amazon.com/AmazonRDS/la
 
 | Hạng mục | Cấu hình |
 |---|---|
-| User pool | Feature plan **Essentials**. Đăng nhập bằng email; password policy mặc định; MFA tùy chọn (TOTP) |
-| Managed login | Domain `jars-dev-<suffix>.auth.ap-southeast-1.amazoncognito.com` |
-| App client (SPA) | **Public client, không có client secret**; flow **Authorization Code + PKCE**; callback `https://<cloudfront-domain>/auth/callback` và `http://localhost:5173/auth/callback` |
-| Token | Access token 60 phút, refresh token 30 ngày; API **chỉ nhận access token** (`token_use=access`) |
+| User pool | ✅ **Đã deploy (P1.1)**: `jars-dev-users`, feature plan **Essentials**. Đăng nhập bằng email (tự xác minh); mật khẩu ≥ 10 ký tự gồm hoa, thường, số, ký tự đặc biệt; MFA **tùy chọn** (TOTP, không SMS); khôi phục qua email; `RemovalPolicy.RETAIN` |
+| Managed login | Domain `jars-dev-thphuc06.auth.ap-southeast-1.amazoncognito.com`, `ManagedLoginVersion = 2` + `ManagedLoginBranding` (style mặc định của Cognito) |
+| App client (SPA) | `jars-dev-web-local`: **public client, không có secret**; **chỉ** flow Authorization Code + PKCE (implicit bị từ chối, đã thử); `ExplicitAuthFlows` = SRP + refresh (khai báo tường minh, vì bỏ trống thì Cognito tự bật `CUSTOM_AUTH`); callback `http://localhost:5173/auth/callback` (sai `redirect_uri` → `redirect_mismatch`, đã thử). Client cho domain CloudFront sẽ thêm ở P3.4 |
+| Token | Access token 60 phút (managed login giữ cookie 1 giờ, nên token không nên ngắn hơn), ID token 60 phút, refresh token 30 ngày, bật token revocation; API **chỉ nhận access token** (`token_use=access`) |
 | Resource server | Identifier `jars-api`, scope `jars-api/read`, `jars-api/write` |
 | Lambda trigger | Không có. User nội bộ được tạo lười (lazy) ở request đầu tiên (xem [flows.md](flows.md#f1)) |
 
