@@ -16,6 +16,26 @@
 | 6 | Observability, resilience, polish | 22/02 – 14/03/2027 | ⬜ |
 | – | Buffer trước khi credit hết hạn | 15/03 – 09/04/2027 | |
 
+## Chuẩn bị đầu mỗi phase (research + đọc source cũ)
+
+**Quy trình kickoff** (khoảng 1–2 giờ, trước bước đầu tiên của mỗi phase):
+1. Đọc tài liệu chính thức của các công nghệ trong phase. Kiểm tra version và API có thay đổi so với lúc thiết kế (10/2026) không.
+2. Đọc các file nguồn của repo cũ liệt kê bên dưới. Tách phần **logic** (port sang Java) khỏi phần **glue** (bỏ đi), ghi ra các quy tắc nghiệp vụ, hằng số và test case có thể tái dùng.
+3. Nếu khác với thiết kế thì cập nhật tài liệu hoặc viết ADR **trước khi** code.
+4. Chốt danh sách bước `P<n>.x` của phase (có thể thêm, bớt hoặc tách nhỏ).
+
+Repo cũ: `be` = `ius_backend_agent_mcp`, `ui` = `ius_financial_ui`, `stock` = `ius_dexter_vnstock_PyPortfolioOpt_intergration`. Đường dẫn `be` dưới đây tính từ `src/aws-specialist-agent-mcp-server/` nếu bắt đầu bằng `planner_agent/` hoặc `service_agent/`.
+
+| Phase | Tài liệu cần research | Source cũ cần đọc để port | Tái dùng được gì |
+|---|---|---|---|
+| 0 | Spring Boot 4.1 release notes; Spring Modulith 2.1 reference; bảng tương thích Spring Cloud AWS; Testcontainers + `@ServiceConnection`; Flyway | – | – |
+| 1 | Spring Security OAuth2 Resource Server; claim của Cognito access token; JPA locking (`@Version`), `@EntityGraph`; springdoc cho Boot 4; Amplify Auth (`signInWithRedirect`) | `be/schema.sql`, `be/backend/seed/seed.json`, `be/backend/seed/sparkov_category_mapping.json`, `planner_agent/finance/risk.py`, `planner_agent/finance/taxonomy.py`; `ui/src/hooks/useSupabaseData.ts`, `ui/src/lib/auth.ts`, `ui/src/pages/*.tsx`, `ui/src/pages/Onboarding.tsx` | Danh mục chi tiêu và mapping; câu hỏi onboarding; công thức chấm điểm rủi ro; query mà mỗi màn hình cần |
+| 2 | Spring Modulith events + `Scenario`; `SseEmitter`; Spring Batch 6 (chunk, skip, restart); Spring AOP | `be/infrastructure/lambda/cusum_worker/package/cusum_engine.py`, `cusum_state_manager.py`, `income_engine.py`; `planner_agent/finance/anomaly.py`, `allocation.py`, `goal.py`, `scenario.py`, `spend.py`, `recurring.py`, `legacy_tools.py` (`ingest_statement_vn`, `normalize_and_categorize_txn`); `service_agent/projection_engine.py`, `milestone_engine.py`, `roadmap_compiler.py`, `candidate_ranker.py`; test: `be/tests/test_cusum_sliding_window_local.py`, `test_income_engine.py`, `test_service_agent_mvp.py`; `ui/src/types/roadmap.ts` | Công thức CUSUM (k, h), MAD; quy tắc phân bổ hũ; mô phỏng mục tiêu; cấu trúc roadmap; **dùng test cũ làm golden data** cho test Java |
+| 3 | CDK v2 (ECS patterns, `DatabaseCluster` Serverless v2, CloudFront `VpcOrigin`); ECS draining và health check; GitHub OIDC cho AWS | `be/iac/terraform/ecs-services/*.tf`, `be/iac/terraform/account-bootstrap/*.tf`, `be/DEPLOY.md` | Tham số ECS/ALB/Cognito đã chạy được; những lỗi từng gặp khi deploy |
+| 4 | Spring AI 2.0 (ChatClient, tool calling, chat memory, streaming); Bedrock Guardrails + Converse; Lambda Python container (arm64); vnstock; PyPortfolioOpt | `stock/vnstock/vnstock_service.py`, `stock/dexter/src/investment_advisor/python/pypfopt_optimizer.py`, `optimizer.ts` (heuristic dự phòng), `risk-profile-resolver.ts`, `recommendation-engine.ts`; `be/agent/kb/*.md`, `be/kb/disclaimers.md`, `planner_agent/finance/suitability.py`, `be/agent/router/policy.py`, `be/agent/response/*`; `ui/src/hooks/useChat.ts` | Endpoint vnstock đã dùng; cách gọi optimizer và heuristic khi optimizer lỗi; disclaimer; quy tắc suitability → guardrail và system prompt; nội dung RAG |
+| 5 | Spring Cloud AWS SQS (`@SqsListener`, acknowledgement); SNS/SQS FIFO; `spring-cloud-aws-modulith-events-sns`; W3C trace context | `be/workers/tier1/*` (queue_client, state_store, alert_processor), `be/workers/trigger_worker.py` | Ý tưởng tách alert processor và state store (chỉ tham khảo thiết kế) |
+| 6 | ADOT + X-Ray cho Java; ECS native blue/green + lifecycle hooks; k6; AWS Well-Architected Tool | `be/agent/observability/*` (audit logger, tracing) | Danh sách field trace/audit đáng ghi |
+
 ---
 
 ## Phase 0: Nền móng
