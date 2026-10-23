@@ -1,0 +1,47 @@
+# --- secrets & local config (bài học từ repo hackathon: không commit bất kỳ file env nào) ---
+.env
+.env.*
+!.env.example
+*env*.json
+*.pem
+*.key
+*.p12
+credentials*
+cdk.context.local.json
+
+# --- Java / Maven ---
+target/
+*.class
+.mvn/wrapper/maven-wrapper.jar
+!.mvn/wrapper/maven-wrapper.properties
+
+# --- Node / web ---
+node_modules/
+dist/
+coverage/
+*.tsbuildinfo
+
+# --- Python ---
+__pycache__/
+*.pyc
+.venv/
+.venv-*/
+.pytest_cache/
+
+# --- CDK ---
+cdk.out/
+
+# --- build artifacts (không commit gói deploy) ---
+*.zip
+*.jar
+!**/.mvn/wrapper/*.jar
+
+# --- IDE / OS ---
+.idea/
+.vscode/
+*.iml
+.DS_Store
+Thumbs.db
+
+# --- tools ---
+.codegraph/

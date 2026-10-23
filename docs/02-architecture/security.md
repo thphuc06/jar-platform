@@ -1,0 +1,103 @@
+# Security
+
+## 1. Xác thực (Authentication)
+
+| Lớp | Cơ chế |
+|---|---|
+| Người dùng ↔ web | Cognito managed login, **Authorization Code + PKCE**, app client **không có secret** |
+| web ↔ jars-api | `Authorization: Bearer <access_token>` qua cùng origin CloudFront |
+| jars-api xác thực | `spring-boot-starter-oauth2-resource-server`, `issuer-uri=https://cognito-idp.ap-southeast-1.amazonaws.com/<userPoolId>` |
+
+Cognito access token **không có claim `aud`** mà có `client_id`, nên phải viết thêm validator:
+
+```java
+// Phác thảo — code thật viết ở Phase 1
+OAuth2TokenValidator<Jwt> tokenUse = jwt -> "access".equals(jwt.getClaimAsString("token_use"))
+        ? OAuth2TokenValidatorResult.success()
+        : OAuth2TokenValidatorResult.failure(new OAuth2Error("invalid_token", "token_use must be access", null));
+OAuth2TokenValidator<Jwt> clientId = jwt -> allowedClientIds.contains(jwt.getClaimAsString("client_id")) ? ... ;
+```
+
+**Lưu token ở frontend:** dùng thư viện Amplify Auth (cấu hình mặc định lưu ở localStorage). Đây là trade-off được chấp nhận ở MVP: nếu có lỗi XSS thì token có thể bị đọc. Cách giảm thiểu: CSP chặt, React tự escape, không dùng `dangerouslySetInnerHTML`, access token sống ngắn (60 phút). Phương án mạnh hơn là pattern BFF (cookie HttpOnly), ghi lại để làm sau nếu có thời gian.
+
+## 2. Phân quyền (Authorization)
+
+- Mọi bảng nghiệp vụ có `user_id`. **`userId` luôn lấy từ security context**, không bao giờ lấy từ body hay path.
+- Repository dùng method dạng `findByIdAndUserId(id, userId)`. Không tìm thấy thì trả **404** (không phải 403), để không lộ là tài nguyên đó có tồn tại.
+- **Test IDOR bắt buộc** cho mọi endpoint có `{id}`: user B gọi tài nguyên của user A thì nhận 404.
+- Scope `jars-api/write` cho các method làm thay đổi dữ liệu (`@PreAuthorize("hasAuthority('SCOPE_jars-api/write')")`).
+
+## 3. IAM
+
+Nguyên tắc **least privilege**: không dùng `*` ở resource, trừ khi API của AWS không hỗ trợ resource-level permission.
+
+| Role | Ai assume | Quyền |
+|---|---|---|
+| `jars-dev-api-exec` (execution role) | ECS agent | `ecr:GetAuthorizationToken`, `ecr:BatchGetImage` trên repo `jars/*`; `logs:CreateLogStream`, `logs:PutLogEvents` trên log group `/jars/dev/api`; `secretsmanager:GetSecretValue` trên secret DB |
+| `jars-dev-api-task` (task role) | Code của jars-api | `bedrock:InvokeModel`, `bedrock:InvokeModelWithResponseStream` trên ARN inference profile + foundation model đã chọn; `bedrock:ApplyGuardrail` trên guardrail; `sqs:ReceiveMessage`, `sqs:DeleteMessage`, `sqs:ChangeMessageVisibility`, `sqs:GetQueueAttributes` trên các queue của API; `sns:Publish` trên topic ledger; `s3:PutObject` (để ký presigned URL) + `s3:GetObject` trên `jars-dev-statements/uploads/*`; `lambda:InvokeFunction` trên `quant-fn` |
+| `jars-dev-worker-task` (Phase 5) | insights-worker | Nhận và xóa message trên `jars-insights-ledger.fifo`; publish lên `jars-insights-events.fifo` |
+| `jars-dev-quant-fn` | Lambda | Chỉ có `AWSLambdaBasicExecutionRole` (ghi log) |
+| `jars-github-deploy` | GitHub Actions qua OIDC | Trust policy giới hạn `token.actions.githubusercontent.com:sub = repo:thphuc06/jars-platform:ref:refs/heads/main` (và environment `dev`); quyền: assume các role bootstrap của CDK (`cdk-*-deploy-role`, `cdk-*-file-publishing-role`, `cdk-*-image-publishing-role`) |
+| `jars-dev-scheduler` | EventBridge Scheduler | `sqs:SendMessage` trên `jars-jobs` |
+
+> **Tài khoản người dùng:** hiện CLI đang đăng nhập bằng **root** (`arn:aws:iam::626212071763:root`). Phase 0 phải chuyển sang **IAM Identity Center** (user có permission set AdministratorAccess cho giai đoạn dev), bật MFA cho root và cất root đi. Xem [deployment.md](../05-operations/deployment.md#1-chuẩn-bị-tài-khoản-làm-1-lần).
+
+## 4. Network
+
+Xem [aws-infrastructure.md §3](aws-infrastructure.md#3-network-vpc).
+- ALB **internal**, chỉ nhận traffic từ CloudFront (VPC origin).
+- Task nhận inbound **chỉ từ SG của ALB** (dù task có IP public).
+- DB và cache nằm ở subnet không có route ra internet.
+- Aurora bắt buộc TLS (`rds.force_ssl=1`); Valkey Serverless dùng TLS mặc định.
+
+## 5. Secret và cấu hình
+
+| Loại | Lưu ở đâu | Không bao giờ |
+|---|---|---|
+| DB credentials | Secrets Manager (CDK `Credentials.fromGeneratedSecret`) → ECS `secrets:`. Rotation thủ công ở dev ([runbook](../05-operations/runbook.md#đổi-secret-db)) | Ghi trong biến môi trường plain text của CDK, file `.env` commit |
+| Cấu hình không nhạy cảm (tên queue, model id) | Biến môi trường do CDK truyền vào | – |
+| Cấu hình local | `apps/jars-api/.env.local` (**đã gitignore**) hoặc profile AWS SSO | Commit file `.env` |
+| GitHub → AWS | OIDC, **không có access key** | `AWS_ACCESS_KEY_ID` trong GitHub secrets |
+
+**Kiểm soát rò rỉ:**
+- `gitleaks` chạy ở pre-commit (tùy chọn) và **bắt buộc trong CI**.
+- Bật **GitHub secret scanning + push protection** cho repo.
+- Bài học từ repo cũ: file env mã hóa **UTF-16** lọt qua grep thông thường. Gitleaks quét được nhiều encoding hơn; ngoài ra `.gitignore` chặn luôn `*env*.json`.
+
+## 6. Bảo mật ứng dụng
+
+| Rủi ro | Biện pháp |
+|---|---|
+| Injection (SQL) | JPA/Spring Data với tham số bind; không nối chuỗi SQL |
+| Mass assignment | DTO `record` riêng cho request; không bind thẳng vào entity |
+| Upload file độc | Presigned URL giới hạn `content-length` ≤ 5 MB, content-type `text/csv`; key do server sinh; parser CSV giới hạn số dòng và kích thước dòng |
+| SSRF | Không gọi URL do user cung cấp. Boot 4.1 có `InetAddressFilter` cho HTTP client nếu sau này cần |
+| Lạm dụng LLM (chi phí, prompt injection) | Rate limit theo user; `max-tokens`; tool chỉ đọc + scope theo user; Guardrails |
+| Lộ thông tin qua lỗi | `ProblemDetail` không chứa stack trace; log chi tiết có `traceId` |
+| Dependency có CVE | Dependabot + `mvn org.owasp:dependency-check` (hoặc GitHub dependency review); ECR scan on push |
+| Header bảo mật | CloudFront response headers policy (HSTS, CSP, nosniff, frame-ancestors none) |
+| Lộ dữ liệu cá nhân trong log | Không log body request có số tiền/ghi chú ở mức INFO; mask email trong log |
+
+## 7. Threat model (STRIDE rút gọn)
+
+| Mối đe dọa | Ví dụ | Giảm thiểu |
+|---|---|---|
+| **S**poofing | Dùng JWT giả hoặc đã hết hạn | Xác thực chữ ký qua JWKS, kiểm tra `iss`, `exp`, `token_use`, `client_id` |
+| **T**ampering | Sửa `jarId` của người khác trong body | Kiểm tra quyền sở hữu ở service; trả 404 |
+| **R**epudiation | "Tôi không tạo giao dịch này" | `audit_log` + `traceId` + CloudTrail cho thao tác hạ tầng |
+| **I**nformation disclosure | Gọi thẳng ALB, bỏ qua CloudFront | ALB internal, SG chỉ cho phép CloudFront prefix list |
+| **D**enial of service | Spam endpoint chat | Rate limit; (Phase 6) AWS WAF rate-based rule |
+| **E**levation of privilege | Prompt injection khiến AI gọi tool với `userId` khác | Tool bỏ qua mọi `userId` do LLM truyền vào, chỉ dùng security context |
+
+## 8. Sự cố của repo cũ (hackathon) và việc cần làm
+
+Phát hiện ngày 2026-10-23 khi đọc `swinhackathon/ius_backend_agent_mcp` (repo **public**). **Không ghi giá trị secret ở đây.**
+
+| # | Phát hiện | Mức | Việc phải làm | Trạng thái |
+|---|---|---|---|---|
+| 1 | `infrastructure/lambda/cusum_worker/current_env.json` (UTF-16) chứa connection string Supabase Postgres **có mật khẩu** | 🔴 | Đổi mật khẩu DB trên Supabase; kiểm tra log kết nối; xóa file + purge lịch sử (`git filter-repo`) hoặc archive và chuyển repo sang private | ☐ |
+| 2 | `ops/aws/deploy.env` bị track dù đã nằm trong `.gitignore` | 🟠 | `git rm --cached` | ☐ |
+| 3 | Endpoint stock agent `/ask` không có auth, gọi Claude Sonnet; URL nằm công khai trong `.env.example` | 🟠 | Xác nhận service App Runner đã tắt (tài khoản `626212071763` hiện **không có** App Runner/ECS, có thể nằm ở tài khoản khác) | ☐ |
+| 4 | UI dùng Supabase anon key với `DEFAULT_USER_ID` hardcode | 🟠 | Kiểm tra RLS; tắt project Supabase sau khi chuyển xong | ☐ |
+| 5 | `VITE_COGNITO_CLIENT_SECRET` sẽ bị đóng gói vào JS | 🟠 | Bản mới dùng public client + PKCE | ✅ (thiết kế mới) |
+| 6 | Commit file zip Lambda 4 MB + 27 MB và thư mục `package/` | 🟡 | Không lặp lại: build trong CI | ✅ (thiết kế mới) |
