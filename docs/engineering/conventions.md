@@ -22,7 +22,7 @@
 | Null | Trả `Optional` cho method tìm kiếm; JSpecify `@Nullable` khi cần (Boot 4 / Framework 7 đã dùng JSpecify) |
 | Tiền | Chỉ dùng `Money` / `BigDecimal`; cấm `double` cho tiền (ArchUnit rule) |
 | Thời gian | `Instant` trong domain; `Clock` được inject để test |
-| Exception | Exception nghiệp vụ kế thừa `DomainException(problemType)` và được map sang `ProblemDetail` |
+| Exception | Lỗi nghiệp vụ ném exception trong `shared` (sealed `DomainException`): `NotFoundException` (404), `BusinessRuleViolationException` (422), `ConflictException` (409), kèm `code` kebab-case. Các exception này **không biết HTTP**; `platform.web.ProblemDetailsExceptionHandler` ánh xạ sang ProblemDetail. Không tự viết `try/catch` để trả response lỗi trong controller |
 | Log | SLF4J, format JSON; không log PII hay số tiền ở INFO; có `traceId` trong MDC |
 | Config | `@ConfigurationProperties` (record) có validate; không dùng `@Value` rải rác |
 

@@ -23,6 +23,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -79,6 +80,25 @@ class UserProvisioningIntegrationTest {
         assertThat(rowsFor(sub)).isEqualTo(1);
         verify(userInfo, times(1)).fetch(anyString()); // only the first request needed the e-mail
         assertThat(events.stream(UserRegistered.class)).hasSize(1);
+    }
+
+    @Test
+    void sameEmailUnderANewCognitoAccount_is409EmailAlreadyRegistered() {
+        // e.g. the user deleted their Cognito account and signed up again: new sub, same e-mail
+        String email = "reused-" + UUID.randomUUID() + "@example.com";
+        registrar.register("old-sub-" + UUID.randomUUID(), email);
+        String newSub = "new-sub-" + UUID.randomUUID();
+        given(userInfo.fetch(anyString())).willReturn(new UserInfoClient.UserInfo(newSub, email.toUpperCase()));
+
+        assertThat(mvc.get()
+                        .uri("/api/v1/me")
+                        .with(jwt().jwt(j -> j.subject(newSub)).authorities(READ)))
+                .hasStatus(HttpStatus.CONFLICT)
+                .hasContentType(MediaType.APPLICATION_PROBLEM_JSON)
+                .bodyJson()
+                .extractingPath("$.type")
+                .isEqualTo("https://jars.local/problems/email-already-registered");
+        assertThat(rowsFor(newSub)).isZero();
     }
 
     @Test

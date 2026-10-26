@@ -1,5 +1,7 @@
 package io.github.thphuc06.jars.platform.security;
 
+import io.github.thphuc06.jars.platform.web.TraceIdFilter;
+import io.github.thphuc06.jars.shared.ProblemTypes;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
@@ -48,11 +50,15 @@ final class ProblemDetailSecurityHandlers {
             HttpServletRequest request, HttpServletResponse response, HttpStatus status, String type, String detail)
             throws IOException {
         Map<String, Object> problem = new LinkedHashMap<>();
-        problem.put("type", "https://jars.local/problems/" + type);
+        problem.put("type", ProblemTypes.BASE + type);
         problem.put("title", status.getReasonPhrase());
         problem.put("status", status.value());
         problem.put("detail", detail);
         problem.put("instance", request.getRequestURI());
+        String traceId = TraceIdFilter.currentTraceId(); // the filter runs before Spring Security
+        if (traceId != null) {
+            problem.put("traceId", traceId);
+        }
         response.setStatus(status.value());
         response.setContentType(MediaType.APPLICATION_PROBLEM_JSON_VALUE);
         JSON.writeValue(response.getOutputStream(), problem);

@@ -25,6 +25,11 @@ spring:
 server:
   port: 8080
 
+logging:
+  pattern:
+    # every log line carries the request's trace id (TraceIdFilter), e.g. "INFO [4bf92f35...]"
+    level: "%5p [%X{traceId:-}]"
+
 management:
   endpoints:
     web:

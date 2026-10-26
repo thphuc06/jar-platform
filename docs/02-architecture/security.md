@@ -73,7 +73,7 @@ Xem [aws-infrastructure.md §3](aws-infrastructure.md#3-network-vpc).
 | Upload file độc | Presigned URL giới hạn `content-length` ≤ 5 MB, content-type `text/csv`; key do server sinh; parser CSV giới hạn số dòng và kích thước dòng |
 | SSRF | Không gọi URL do user cung cấp. Boot 4.1 có `InetAddressFilter` cho HTTP client nếu sau này cần |
 | Lạm dụng LLM (chi phí, prompt injection) | Rate limit theo user; `max-tokens`; tool chỉ đọc + scope theo user; Guardrails |
-| Lộ thông tin qua lỗi | `ProblemDetail` không chứa stack trace; log chi tiết có `traceId` |
+| Lộ thông tin qua lỗi | ✅ (P1.3) `ProblemDetail` không chứa stack trace, tên exception hay SQL (có test kiểm tra: lỗi 500 với message chứa "password" không lọt ra response); log chi tiết phía server có `traceId`. ⚠️ Message của exception vẫn được ghi vào **log**, nên không bao giờ đưa secret hoặc PII vào message |
 | Dependency có CVE | Dependabot + `mvn org.owasp:dependency-check` (hoặc GitHub dependency review); ECR scan on push |
 | Header bảo mật | CloudFront response headers policy (HSTS, CSP, nosniff, frame-ancestors none) |
 | Lộ dữ liệu cá nhân trong log | Không log body request có số tiền/ghi chú ở mức INFO; mask email trong log |

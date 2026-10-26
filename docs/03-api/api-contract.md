@@ -10,11 +10,24 @@
 | Định dạng | JSON UTF-8, field `camelCase`; tiền là **string** dạng số thập phân (`"85000.00"`) kèm `currency`, tránh JS làm tròn số |
 | Thời gian | ISO-8601 UTC (`2026-11-15T03:21:09Z`); tháng dạng `YYYY-MM` |
 | Auth | `Authorization: Bearer <Cognito access token>` cho mọi endpoint trừ `/api/v1/health`. Metadata RFC 9728 công khai tại `/.well-known/oauth-protected-resource` |
-| Lỗi | **RFC 9457 `application/problem+json`** |
+| Lỗi | **RFC 9457 `application/problem+json`**, luôn có `type`, `title`, `status`, `detail`, `instance`, **`traceId`**. `type` = `https://jars.local/problems/{code}`: `code` là định danh ổn định (UI dịch thông báo theo `code`, còn `detail` là tiếng Anh dành cho developer). Validation có thêm `errors: [{field, message}]` |
 | Phân trang | **Cursor (keyset)**: `?limit=50&cursor=<opaque>` → `{items, nextCursor}` |
 | Idempotency | Header `Idempotency-Key` (UUID) **bắt buộc** với các POST làm thay đổi tiền |
 | Versioning | Chỉ đổi `/v1` → `/v2` khi phá vỡ tương thích; thêm field optional thì không đổi |
-| Correlation | Response có header `traceparent` (W3C). Nên log `traceId` |
+| Correlation | Gửi `traceparent` (W3C) thì server tiếp tục trace đó; không gửi thì server tạo mới. Response **luôn** có header `traceparent`. Mọi dòng log phía server đều có `traceId` (✅ P1.3) |
+
+### Mã lỗi (`code`) hiện có (✅ P1.3)
+
+| `code` | HTTP | Khi nào |
+|---|---|---|
+| `validation-failed` | 422 | `@Valid` body hoặc ràng buộc trên `@RequestParam`/`@PathVariable` sai; kèm `errors[]` |
+| `{resource}-not-found` | 404 | Ví dụ `jar-not-found`. Không tồn tại **hoặc** không thuộc user |
+| *(mã nghiệp vụ)* | 422 | Ví dụ `insufficient-jar-balance` (BR-2) |
+| `email-already-registered` | 409 | Email đã gắn với tài khoản Cognito khác |
+| `conflict` | 409 | Ràng buộc DB bị vi phạm mà code chưa kiểm tra trước (không lộ SQL) |
+| `unauthorized` / `forbidden` | 401 / 403 | Lỗi xác thực / thiếu scope (do Spring Security sinh ra) |
+| `internal-error` | 500 | Lỗi không lường trước; không có stack trace; client nên gửi kèm `traceId` khi báo lỗi |
+| `about:blank` | 400, 404, 405, 415 | Lỗi chuẩn của Spring MVC (JSON hỏng, sai kiểu tham số, đường dẫn không tồn tại, sai method) |
 
 ### Ví dụ lỗi
 
@@ -25,8 +38,7 @@
   "status": 422,
   "detail": "Hũ PLAY còn 120000.00 VND, yêu cầu chi 200000.00 VND",
   "instance": "/api/v1/transactions",
-  "traceId": "4bf92f3577b34da6a3ce929d0e0e4736",
-  "errors": [{ "field": "amount", "message": "vượt số dư" }]
+  "traceId": "4bf92f3577b34da6a3ce929d0e0e4736"
 }
 ```
 
