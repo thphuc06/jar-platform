@@ -42,8 +42,8 @@ class UserRegistrar {
             throw e;
         }
         if (inserted == 1) {
-            // published inside the transaction; listeners added in P1.4 run only after commit
-            events.publishEvent(new UserRegistered(newId, email.trim(), DEFAULT_LOCALE));
+            // written to the outbox in THIS transaction; listeners run only after commit (rolled back = never sent)
+            events.publishEvent(new UserRegistered(newId, DEFAULT_LOCALE));
         }
         // under READ COMMITTED this new statement sees the row committed by a concurrent first request
         return users.findByCognitoSub(cognitoSub)

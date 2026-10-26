@@ -31,7 +31,7 @@ Mọi domain event ra khỏi process đều có cấu trúc chung (JSON, đặt 
 
 | Event | Phát bởi | Nghe bởi | Payload chính | Externalize (Phase 5) |
 |---|---|---|---|---|
-| `UserRegistered` | identity | ledger (tạo 6 hũ mặc định + danh mục mặc định) | `userId`, `email`, `locale` | Không |
+| `UserRegistered` | identity | ledger (✅ P1.4: tạo 6 hũ + hũ ẩn `POOL`; danh mục mặc định là của hệ thống, seed sẵn trong V3, không tạo theo user) | `userId`, `locale`. **Không có `email`**: event được lưu vào outbox, nên PII trong event bị chép sang bảng thứ hai. Listener cần email thì hỏi `IdentityApi` | Không |
 | `RiskProfileAssessed` | identity | advisor (ngữ cảnh chat) | `riskLevel`, `score` | Không |
 | `TransactionPosted` | ledger | insights (CUSUM/MAD, read model), budgeting (đã chi của kỳ) | `transactionId`, `type`, `amount`, `currency`, `jarId`, `categoryId`, `occurredAt`, `source` | **Có** → `jars-ledger-events.fifo`, group = `userId` |
 | `TransactionRecategorized` | ledger | insights | `transactionId`, `oldCategoryId`, `newCategoryId`, `oldJarId`, `newJarId` | **Có** |
@@ -49,6 +49,20 @@ Mọi domain event ra khỏi process đều có cấu trúc chung (JSON, đặt 
 | EventBridge Scheduler `month-close` | `cron(5 0 1 * ? *)`, TZ `Asia/Ho_Chi_Minh` | SQS `jars-jobs` | `{"job":"MONTH_CLOSE","month":"2026-10"}` |
 
 ## 5. Đảm bảo giao nhận
+
+**In-process (đang chạy từ P1.4):** `@ApplicationModuleListener` = `@TransactionalEventListener(AFTER_COMMIT)` + `@Async` + `@Transactional(REQUIRES_NEW)`.
+
+| Tình huống | Điều xảy ra |
+|---|---|
+| Transaction phát event commit | Mỗi listener quan tâm có 1 dòng `event_publication` (ghi trong cùng transaction), listener chạy trên thread khác |
+| Transaction phát event rollback | Dòng outbox cũng rollback, listener không chạy |
+| Listener thành công | Dòng bị xóa (`completion-mode=delete`) |
+| Listener ném exception | Transaction của listener rollback, dòng ở lại với `status=FAILED`. Gửi lại bằng `FailedEventPublications.resubmit(...)` (đã có test). **Chưa có job tự động** (P2.1) |
+| App chết giữa chừng | Dòng ở lại (chưa hoàn tất). Có thể bật `spring.modulith.events.republish-outstanding-events-on-restart`, nhưng **không** bật khi có nhiều instance (mọi instance cùng gửi lại) |
+
+Listener khai báo `id` cố định (ví dụ `ledger.default-jars`), vì cột `listener_id` mặc định là tên method đầy đủ: đổi tên class hoặc method sẽ làm các dòng đang chờ không còn khớp với listener nào. Listener phải **idempotent** vì việc gửi lại có thể trùng (`DefaultJarsProvisioner`: đã có hũ thì bỏ qua, unique index `uk_jars_user_code` chặn ở tầng DB).
+
+**Khi đã externalize (Phase 5):**
 
 | Đảm bảo | Cách đạt được |
 |---|---|

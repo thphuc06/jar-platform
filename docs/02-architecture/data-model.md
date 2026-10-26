@@ -8,12 +8,14 @@
 | Version | File | Nội dung | Bước |
 |---|---|---|---|
 | V1 | `V1__baseline_users.sql` | Bảng `users`: `id` UUID (app sinh), `cognito_sub` UNIQUE, `email` UNIQUE **không phân biệt hoa/thường** (unique index trên `lower(email)`), `locale` mặc định `vi-VN`, `created_at`/`updated_at` | P0.6 |
+| V2 | `V2__event_publication_registry.sql` | Bảng outbox `event_publication` của Spring Modulith, chép từ DDL **v2** chính thức của `spring-modulith-events-jdbc` 2.1.2 (có `status`, `completion_attempts`, `last_resubmission_date`). Khi nâng Modulith: so sánh lại với file `schemas/v2/schema-postgresql.sql` trong jar | P1.4 |
+| V3 | `V3__ledger_jars_and_categories.sql` | `jars` (CHECK: code hợp lệ, `POOL` ⇔ không có `target_pct`, `POOL` không archive, `balance >= 0`; unique `(user_id, code)` trừ `CUSTOM`) và `categories` (`user_id` NULL = hệ thống; EXPENSE không gợi ý `POOL`; tên unique theo `(user_id, kind, lower(name))` **`NULLS NOT DISTINCT`**) + seed 15 danh mục BR-3 với id cố định | P1.4 |
 
 ## 1. Quy ước
 
 | Chủ đề | Quy ước | Lý do |
 |---|---|---|
-| Khóa chính | `UUID` sinh ở app theo **UUIDv7** (có thứ tự theo thời gian), trong JPA dùng `@UuidGenerator(style = VERSION_7)` của Hibernate 7 | Không lộ số lượng bản ghi, index B-tree không bị phân mảnh như UUIDv4 |
+| Khóa chính | `UUID` sinh ở app theo **UUIDv7** (có thứ tự theo thời gian) bằng `shared.Ids.newId()`, gán trong factory method của entity. Entity có `@Version Long version` (kiểu **wrapper**): Spring Data coi `version == null` là entity mới và gọi `persist` thay vì `merge` | Không lộ số lượng bản ghi, index B-tree không bị phân mảnh như UUIDv4. Có id ngay trước khi lưu (dùng được trong event). Không dùng `@UuidGenerator` để cả app chỉ có một bộ sinh id |
 | Tiền | `NUMERIC(19,2)` + cột `currency CHAR(3)`; trong Java dùng `BigDecimal` bọc trong record `Money` | Không bao giờ dùng `double` hay `float`. VND không có đơn vị lẻ nhưng vẫn để scale 2 để sau này mở rộng đa tiền tệ ([ADR-0014](../04-adr/0014-money-and-ledger-model.md)) |
 | Dấu của số tiền | `transactions.amount` luôn **> 0**, hướng dòng tiền thể hiện qua cột `type`. `jar_entries.amount` **có dấu** (+ vào hũ, − ra khỏi hũ) | Dữ liệu người dùng nhập thì dễ hiểu, còn sổ cái thì dễ cộng dồn |
 | Thời gian | `TIMESTAMPTZ`, lưu UTC; trong Java dùng `Instant` | Quy đổi sang giờ `Asia/Ho_Chi_Minh` chỉ khi tính "tháng" hoặc khi hiển thị |
@@ -188,7 +190,7 @@ erDiagram
 |---|---|---|
 | `idempotency_keys` (`user_id`, `key`) PK, `request_hash`, `status_code`, `response_body JSONB`, `expires_at` | ledger (dùng chung qua filter) | Header `Idempotency-Key` cho các POST làm thay đổi tiền ([api-contract.md](../03-api/api-contract.md#4-idempotency)) |
 | `processed_messages` (`consumer`, `message_id`) PK, `processed_at` | platform | **Inbox**: bỏ qua message SQS trùng (at-least-once) |
-| `event_publication` (+ `_archive`) | Spring Modulith tự quản lý | **Outbox**: event được ghi cùng transaction nghiệp vụ |
+| `event_publication` | Spring Modulith (bản lưu JDBC), Flyway V2 tạo bảng | **Outbox**: mỗi listener quan tâm có 1 dòng, ghi cùng transaction nghiệp vụ. `completion-mode=delete`: listener thành công thì xóa dòng, lỗi thì giữ (`status=FAILED`) để gửi lại. Không dùng bảng `_archive` |
 | `monthly_jar_spend` (`user_id`, `jar_id`, `month`) PK, `spent`, `txn_count` | insights | **Read model** cho dashboard (CQRS-lite), cập nhật từ event |
 | `allocation_decisions` | budgeting | Lưu user chấp nhận, sửa hay bỏ qua gợi ý phân bổ, dùng để cải thiện gợi ý |
 | `audit_log` | platform | `actor`, `action`, `entity_type`, `entity_id`, `trace_id`, `payload JSONB` |

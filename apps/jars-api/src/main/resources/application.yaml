@@ -21,6 +21,12 @@ spring:
     hibernate:
       # Flyway owns the schema; Hibernate only checks that entities match it and fails fast if not
       ddl-auto: validate
+  modulith:
+    events:
+      # the outbox is a work queue, not history: a publication row is deleted once its listener succeeded
+      # (failed ones stay, see docs/02-architecture/event-catalog.md §5). Flyway V2 owns the table, so
+      # spring.modulith.events.jdbc.schema-initialization stays at its default (disabled).
+      completion-mode: delete
 
 server:
   port: 8080

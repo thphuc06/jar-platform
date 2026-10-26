@@ -1,6 +1,7 @@
 package io.github.thphuc06.jars.identity.internal;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.awaitility.Awaitility.await;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.times;
@@ -9,6 +10,7 @@ import static org.springframework.security.test.web.servlet.request.SecurityMock
 
 import io.github.thphuc06.jars.TestcontainersConfiguration;
 import io.github.thphuc06.jars.identity.UserRegistered;
+import java.time.Duration;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.Callable;
@@ -31,7 +33,10 @@ import org.springframework.test.context.event.ApplicationEvents;
 import org.springframework.test.context.event.RecordApplicationEvents;
 import org.springframework.test.web.servlet.assertj.MockMvcTester;
 
-/** Flow F1 end to end on PostgreSQL 17: token → GET /me → user row created once, even under concurrency. */
+/**
+ * Flow F1 end to end on PostgreSQL 17: token → GET /me → user row created once, even under concurrency → (after
+ * commit, asynchronously) the ledger creates the 7 default jars.
+ */
 @SpringBootTest
 @AutoConfigureMockMvc
 @RecordApplicationEvents
@@ -54,6 +59,18 @@ class UserProvisioningIntegrationTest {
 
     @MockitoBean
     UserInfoClient userInfo;
+
+    private long jarsFor(String sub) {
+        return jdbc.sql("SELECT count(*) FROM jars j JOIN users u ON u.id = j.user_id WHERE u.cognito_sub = ?")
+                .param(sub)
+                .query(Long.class)
+                .single();
+    }
+
+    /** The ledger listener runs on another thread after commit, so the jars appear shortly after the response. */
+    private void awaitDefaultJars(String sub) {
+        await().atMost(Duration.ofSeconds(10)).until(() -> jarsFor(sub) == 7);
+    }
 
     private long rowsFor(String sub) {
         return jdbc.sql("SELECT count(*) FROM users WHERE cognito_sub = ?")
@@ -80,6 +97,7 @@ class UserProvisioningIntegrationTest {
         assertThat(rowsFor(sub)).isEqualTo(1);
         verify(userInfo, times(1)).fetch(anyString()); // only the first request needed the e-mail
         assertThat(events.stream(UserRegistered.class)).hasSize(1);
+        awaitDefaultJars(sub);
     }
 
     @Test
@@ -132,5 +150,6 @@ class UserProvisioningIntegrationTest {
         assertThat(rowsFor(sub)).isEqualTo(1);
         assertThat(events.stream(UserRegistered.class).filter(e -> e.userId().equals(ids.getFirst())))
                 .hasSize(1);
+        awaitDefaultJars(sub); // exactly one event, so exactly one set of jars
     }
 }

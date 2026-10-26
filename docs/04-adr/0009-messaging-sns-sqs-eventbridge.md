@@ -33,5 +33,8 @@
 - ⚠️ Không có replay: muốn rebuild read model `monthly_jar_spend` thì phải chạy job đọc lại từ bảng `transactions`.
 - ⚠️ Phỏng vấn hỏi Kafka thì cần nắm bảng ánh xạ khái niệm trong [event-catalog.md §6](../02-architecture/event-catalog.md#6-ánh-xạ-sang-khái-niệm-kafka-để-trả-lời-phỏng-vấn) và làm lab local.
 
+## Ghi chú triển khai
+- **P1.4 (2026-10-26):** registry dùng bản lưu **JDBC** (`spring-modulith-starter-jdbc`), không dùng bản JPA. Lý do: module JDBC có sẵn file DDL chính thức cho từng database và từng version schema (`schemas/v2/schema-postgresql.sql`), nên Flyway V2 chép nguyên và quản lý được; còn bản JPA là một entity mà Hibernate phải khớp với bảng tự viết khi `ddl-auto=validate`. Cả hai đều ghi trong **cùng transaction** với JPA (`JpaTransactionManager` dùng chung connection với JDBC). `completion-mode=delete`: outbox là hàng đợi việc, không phải lịch sử.
+
 ## Xem lại khi
 Cần replay hoặc stream processing (windowing, join); hoặc throughput vượt giới hạn của FIFO; hoặc có ngân sách cho MSK.
