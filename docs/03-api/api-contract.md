@@ -79,7 +79,7 @@
 | GET | `/transactions/{id}` | ✅ (P1.7) Một giao dịch, cùng dạng với item ở trên; của user khác → 404 | 1 |
 | POST | `/transactions` | ✅ (P1.5) `{type: INCOME/EXPENSE, amount, jarId?, categoryId?, counterparty?, note?, occurredAt?}` → 201 + `Location` + `{transaction, jars: [{id, code, balance}]}` (số dư mới của các hũ bị ảnh hưởng). INCOME không có `jarId` thì vào `POOL`; EXPENSE bắt buộc có `jarId` khác `POOL` ([BR-2](../01-product/business-rules.md)). `amount` nhận string hoặc number, phải là số đồng nguyên dương (BR-5, `@VndAmount`) (**Idempotency-Key bắt buộc**, ✅ P1.6) | 1 |
 | PATCH | `/transactions/{id}` | ✅ (P1.7) `{categoryId?, note?, jarId?}` theo kiểu merge-patch: **không gửi** = giữ nguyên, gửi **`null`** = xóa (`categoryId`, `note`). Đổi hũ sinh cặp bút toán `ADJUST`; trả 200 `{transaction, jars}` (các hũ đổi số dư). Tự nhiên idempotent nên **không** cần Idempotency-Key. Giao dịch `JAR_TRANSFER` chỉ sửa được `note` | 1 |
-| GET | `/balances/daily?days=30` | Chuỗi số dư theo ngày (biểu đồ) | 1 |
+| GET | `/balances/daily?days=30` | ✅ (P1.9) `{items: [{date, balance}], currency}`: tổng số dư cuối mỗi ngày (giờ VN) trong `days` ngày (1–366), cũ nhất trước, hôm nay cuối; tính theo `occurredAt` (số dư đầu kỳ + cộng dồn) | 1 |
 
 ### Budgeting
 | Method | Path | Mô tả | Phase |
@@ -100,7 +100,7 @@
 ### Insights và notification
 | Method | Path | Mô tả | Phase |
 |---|---|---|---|
-| GET | `/dashboard?month=YYYY-MM` | Một request trả đủ: số dư, thu/chi tháng, chi theo danh mục, chi theo hũ, xu hướng 6 tháng | 1–2 |
+| GET | `/dashboard?month=YYYY-MM` | ✅ (P1.9, trong module ledger) Một request trả đủ: `balances {total, unallocated, allocated}`, `income`, `expense`, `net` của tháng, `byCategory [{categoryId, name, amount}]` (lớn nhất trước; không có danh mục → `null`), `byJar [{jarId, code, name, balance, spent}]` (mọi hũ trừ POOL), `trend` 6 tháng kết thúc ở `month` (tháng trống = 0). Tháng theo **giờ Việt Nam**, mặc định là tháng hiện tại. Chuyển sang read model của `insights` ở P2.3 | 1–2 |
 | GET | `/anomalies?status=OPEN` | Danh sách cảnh báo | 2 |
 | POST | `/anomalies/{id}/feedback` | `{label: CONFIRMED / EXPECTED / FALSE_POSITIVE}` | 2 |
 | GET | `/notifications?limit&cursor` | Danh sách thông báo | 2 |

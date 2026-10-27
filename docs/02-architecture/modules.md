@@ -49,6 +49,8 @@ Thêm vào đó là các thành phần **hạ tầng không phải module nghi�
 
 > **Đã cài đặt (P0.7):** `JarsApplication` có `@Modulithic(systemName = "Jars Platform", sharedModules = {"platform", "shared"})`; `platform/package-info.java` có `@ApplicationModule(displayName = "Platform (infrastructure)")`. `ModularityTests` gọi `verify()` ở mọi build và sinh diagram module vào `target/spring-modulith-docs` (`components.puml`).
 >
+> **Đã cài đặt (P1.9):** `GET /dashboard` và `GET /balances/daily` **tạm nằm trong `ledger`** (`DashboardQueries`, aggregate SQL trên bảng của chính ledger), vì `insights` chưa có read model mà cũng không được đọc bảng của ledger. Ở P2.3, dashboard chuyển sang `insights`, đọc `monthly_jar_spend` cập nhật bằng event `TransactionPosted`/`TransactionRecategorized`; đường dẫn API giữ nguyên.
+>
 > **Đã cài đặt (P1.8):** API public đầu tiên giữa 2 module nghiệp vụ: `ledger.LedgerApi` (`jars(userId)`, `jar(userId, jarId)` → `JarSummary`, `code` là string để enum `JarCode` vẫn nằm trong ledger). `goals` có `allowedDependencies = {identity, ledger, shared}`; danh sách mục tiêu gọi `jars(userId)` **một lần** rồi ghép trong bộ nhớ (tránh N+1 xuyên module). Đã thử: `goals` dùng `ledger.internal.LedgerQueries` thì `verify()` báo vi phạm. `MoneyFormat` và `BusinessTime` (giờ VN) chuyển vào `shared`.
 >
 > **Đã cài đặt (P1.4):** đồ thị ở §3 được kiểm tra bằng `@ApplicationModule(allowedDependencies = ...)` trên từng module (bắt đầu từ `ledger = {identity, shared}`). Đã thử: `ledger` dùng `platform.security.SecurityConfig` thì `verify()` báo vi phạm. Lưu ý: shared module (`platform`, `shared`) được tự động cho phép, nhưng **chỉ phần base**; named interface như `platform :: security` vẫn phải khai báo rõ.
