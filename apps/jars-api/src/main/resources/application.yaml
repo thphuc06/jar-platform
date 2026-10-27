@@ -14,6 +14,13 @@ spring:
     hikari:
       # every connection uses the "jars" schema; Flyway creates it on first run
       schema: jars
+      # Aurora Serverless v2 pauses (0 ACU, no compute cost) only when NO connection is open for the auto-pause
+      # duration. Hikari's default keeps 10 idle connections forever: the database would never pause (~$73/month).
+      # Measured locally (P3.3): default = 10 connections held while idle; with these settings = 0 after startup.
+      minimum-idle: 0
+      idle-timeout: 30000 # milliseconds: HikariConfig takes a long, "30s" does not bind
+      # keepalive pings would only touch connections the pool still holds; disabled to keep the intent obvious
+      keepalive-time: 0
   flyway:
     default-schema: jars
     schemas: jars

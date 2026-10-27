@@ -127,6 +127,8 @@ Docs: [ECS blue/green deployments](https://docs.aws.amazon.com/AmazonECS/latest/
 
 **Phương án dự phòng:** RDS PostgreSQL `db.t4g.micro` ($0.025/giờ ≈ $18/tháng, cố định). Chỉ cần đổi một CDK context flag `-c dbMode=rds`. Xem [ADR-0008](../04-adr/0008-database-aurora-serverless-v2.md).
 
+> **Đã cài đặt (P3.3, [DataStack](../../infra/cdk/src/main/java/io/github/thphuc06/jars/infra/DataStack.java)):** Aurora PostgreSQL **17.9**, 0–2 ACU, pause sau 300 s; subnet `data` + SG `db`; secret `jars-dev-db-credentials` (user `jars_admin`, mật khẩu do Secrets Manager sinh, cluster nhận qua dynamic reference); mã hóa, IAM DB auth bật, **RDS Data API** bật (chạy SQL qua API của AWS, không cần đường mạng vào subnet isolated); deletion protection + `SNAPSHOT`; backup 1 ngày; alarm `jars-dev-db-never-pauses` (Minimum mỗi giờ > 0 trong 6 giờ → SNS). Chưa có S3 bucket `statements` (thuộc tính năng import, làm cùng P2.8). Phía app: Hikari `minimum-idle=0`, `idle-timeout=30000` ms, `keepalive-time=0`; đo ở local: mặc định giữ **10** kết nối khi rảnh, cấu hình mới về **0** sau khoảng 60 s (có test). cdk-nag: acknowledge SMG4 (xoay secret cần Lambda có đường tới Secrets Manager và DB; hướng thay thế là IAM DB auth).
+
 Docs: [Aurora Serverless v2 auto-pause](https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/aurora-serverless-v2-auto-pause.html).
 
 ## 6. Auth: Cognito

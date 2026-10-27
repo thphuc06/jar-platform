@@ -14,7 +14,7 @@ public final class JarsInfraApp {
         App app = new App();
         EnvConfig config = EnvConfig.from(app.getNode(), System.getenv("CDK_DEFAULT_ACCOUNT"));
 
-        new FoundationStack(
+        FoundationStack foundation = new FoundationStack(
                 app,
                 "JarsFoundation",
                 StackProps.builder()
@@ -23,7 +23,7 @@ public final class JarsInfraApp {
                         .description("Jars Platform - ECR, GitHub OIDC deploy role, alarm topic, cost budget")
                         .build(),
                 config);
-        new NetworkStack(
+        NetworkStack network = new NetworkStack(
                 app,
                 "JarsNetwork",
                 StackProps.builder()
@@ -32,6 +32,18 @@ public final class JarsInfraApp {
                         .description("Jars Platform - VPC without NAT, security groups")
                         .build(),
                 config);
+        new DataStack(
+                app,
+                "JarsData",
+                StackProps.builder()
+                        .env(config.awsEnvironment())
+                        .stackName(config.name("data"))
+                        .description(
+                                "Jars Platform - Aurora PostgreSQL Serverless v2 (scales to zero), never-pauses alarm")
+                        .build(),
+                config,
+                network,
+                foundation.alarms());
         new AuthStack(
                 app,
                 "JarsAuth",

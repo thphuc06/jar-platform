@@ -32,7 +32,7 @@ Tham chiếu đầy đủ: [well-architected-review.md](../02-architecture/well-
 |---|---|---|
 | Phase 1 ✅ (23/10) | `npx cdk deploy JarsAuth` → stack `jars-dev-auth` | Cần Cognito để có JWT thật khi chạy local |
 | Phase 3, P3.2 ✅ (27/10) | `cdk deploy JarsFoundation JarsNetwork` → `jars-dev-foundation`, `jars-dev-network` | ECR, OIDC deploy role, SNS alarm, Budget; VPC + security group. Không tính phí theo giờ |
-| Phase 3, P3.3 | `cdk deploy JarsData` | Aurora (tính phí theo ACU) |
+| Phase 3, P3.3 | `cdk deploy JarsData` → `jars-dev-data` | Aurora (tính phí theo ACU khi thức; pause sau 5 phút không có kết nối). Xóa stack: tắt deletion protection trước, stack để lại snapshot |
 | Phase 3 | Push image đầu tiên lên ECR (bằng CI hoặc tay), rồi `cdk deploy JarsApp -c imageTag=<sha>` | Lên app |
 | Phase 4 | `cdk deploy JarsQuant JarsApp` | Thêm quant-fn, Valkey, quyền Bedrock |
 | Phase 5 | `cdk deploy JarsMessaging JarsApp` (+ service worker) | SNS/SQS FIFO + insights-worker |
