@@ -85,7 +85,14 @@ credential_process = aws configure export-credentials --profile jars-dev --forma
 
 ## 6. Dữ liệu mẫu
 
-Phase 1 sẽ viết `SeedDataRunner` (chỉ chạy ở profile `local`): tạo 1 user demo, 6 hũ, khoảng 3 tháng giao dịch giả lập (ý tưởng từ `backend/seed/seed.json` của bản cũ), và một vài "cú sốc chi tiêu" để demo CUSUM.
+✅ P1.12: `DemoDataSeeder` (chỉ ở profile `local`, chỉ khi được yêu cầu). Đăng nhập web app một lần để có user, rồi:
+
+```bash
+cd apps/jars-api
+./mvnw spring-boot:run -Dspring-boot.run.arguments=--jars.seed.email=you@example.com
+```
+
+Sinh 3 tháng đủ + tháng này tới hôm qua (giờ VN): lương 20 triệu mỗi tháng phân bổ theo `targetPct`, chi tiêu hằng ngày, hóa đơn cố định, thu nhập tự do, và **một cú sốc chi tiêu** tháng trước (để demo CUSUM ở Phase 2). Đi qua `PostingService` thật, nên dữ liệu tuân thủ mọi quy tắc nghiệp vụ. User đã có giao dịch thì không sinh thêm; muốn làm lại từ đầu: `docker compose -f ../../local/compose.yaml down -v`. Ý tưởng id/key tất định lấy từ seeder Python cũ (`_stable_uuid`).
 
 ## 7. Lỗi hay gặp
 

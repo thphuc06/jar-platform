@@ -11,6 +11,10 @@ interface UserRepository extends JpaRepository<User, UUID> {
 
     Optional<User> findByCognitoSub(String cognitoSub);
 
+    /** lower(email) on both sides: the same expression as the unique index uk_users_email_lower, so it is used. */
+    @Query("select u.id from User u where lower(u.email) = lower(:email)")
+    Optional<UUID> findIdByEmail(@Param("email") String email);
+
     /**
      * Race-safe "create if missing": when two first requests of the same user arrive together, both run this
      * statement but only one row is inserted; the other waits for the first transaction and then does nothing.

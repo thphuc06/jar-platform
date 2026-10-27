@@ -80,10 +80,11 @@ Phase 4 cộng thêm: Valkey khoảng $6 + Bedrock khoảng $3–5 (có rate lim
 
 | Giai đoạn (ước lượng) | Chế độ mặc định | Dự kiến chi |
 |---|---|---|
-| Phase 0–2 (26/10 – 20/12/2026): dev local | Chỉ có `JarsAuth` (Cognito) + Bedrock thử nghiệm | ≈ $1–3 |
-| Phase 3 (21/12/2026 – 03/01/2027) | RUNNING khi đang làm, TEARDOWN khi nghỉ | ≈ $15–25 |
-| Phase 4–6 (01–02/2027) | TEARDOWN mặc định; RUNNING vào ngày làm phần cloud hoặc demo | ≈ $30–50 |
-| **Tổng dự kiến cho Jars** | | **≈ $50–80** |
+| Phase 0–1 (23/10 – 27/10/2026, xong): dev local | Chỉ có `JarsAuth` (Cognito) + Bedrock thử nghiệm | ≈ $1–3 |
+| Phase 3 (28/10 – 15/11/2026; **làm trước Phase 2** từ 27/10, xem roadmap) | RUNNING khi đang làm, TEARDOWN khi nghỉ | ≈ $15–25 |
+| Phase 2 (16/11 – 06/12/2026) | TEARDOWN mặc định; deploy để kiểm chứng tính năng trên AWS (khoản này mới có vì đã deploy sớm) | ≈ $5–15 |
+| Phase 4–6 (12/2026 – 03/2027) | TEARDOWN mặc định; RUNNING vào ngày làm phần cloud hoặc demo | ≈ $30–50 |
+| **Tổng dự kiến cho Jars** | | **≈ $55–95** (trước khi đổi thứ tự: $50–80) |
 
 **Quy tắc vận hành:**
 1. **Mặc định là TEARDOWN.** Chỉ `cdk deploy JarsApp` khi cần làm phần cloud hoặc demo (khoảng 10–15 phút, phần lớn do CloudFront).

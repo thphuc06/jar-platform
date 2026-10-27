@@ -22,7 +22,7 @@
 | `code` | HTTP | Khi nào |
 |---|---|---|
 | `validation-failed` | 422 | `@Valid` body hoặc ràng buộc trên `@RequestParam`/`@PathVariable` sai; kèm `errors[]` |
-| `{resource}-not-found` | 404 | Ví dụ `jar-not-found`. Không tồn tại **hoặc** không thuộc user |
+| `{resource}-not-found` | 404 | Ví dụ `jar-not-found`. Không tồn tại **hoặc** không thuộc user (không trả 403: 403 xác nhận rằng id đó tồn tại). Đã kiểm chứng ở P1.12 (`CrossUserAccessTest`) cho mọi `{id}` trên path, id trong body và bộ lọc |
 | *(mã nghiệp vụ)* | 422 | ✅ P1.5: `insufficient-jar-balance`, `expense-requires-jar`, `expense-from-pool`, `jar-archived`, `category-kind-mismatch`, `same-jar-transfer`, `use-transfer-endpoint`, `occurred-at-in-future` (lệch quá 5 phút); P1.7: `transfer-has-no-category`, `transfer-jars-immutable`; P1.8: `target-date-not-in-future`, `funding-jar-is-pool`, `funding-jar-archived`, `use-delete-to-archive` |
 | `email-already-registered` | 409 | Email đã gắn với tài khoản Cognito khác |
 | `invalid-cursor` | 422 | `cursor` không phải do API trả về (✅ P1.7) |

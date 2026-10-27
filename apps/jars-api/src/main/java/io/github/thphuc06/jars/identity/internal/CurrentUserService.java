@@ -2,10 +2,13 @@ package io.github.thphuc06.jars.identity.internal;
 
 import io.github.thphuc06.jars.identity.CurrentUser;
 import io.github.thphuc06.jars.identity.IdentityApi;
+import java.util.Optional;
+import java.util.UUID;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 /** Resolves the caller from the security context. The user id ALWAYS comes from the verified token, never from input. */
 @Service
@@ -37,5 +40,11 @@ class CurrentUserService implements IdentityApi {
                     return registrar.register(sub, email);
                 })
                 .toCurrentUser();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<UUID> findUserIdByEmail(String email) {
+        return users.findIdByEmail(email.trim());
     }
 }

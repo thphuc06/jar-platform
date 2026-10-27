@@ -8,4 +8,6 @@ interface LedgerTransactionRepository extends JpaRepository<LedgerTransaction, U
 
     /** The only way to load a transaction for a change: one of another user is "not found" (IDOR protection). */
     Optional<LedgerTransaction> findByIdAndUserId(UUID id, UUID userId);
+
+    boolean existsByUserId(UUID userId);
 }

@@ -7,14 +7,16 @@
 | Phase | Mục tiêu | Thời gian (ước lượng) | Trạng thái |
 |---|---|---|---|
 | 0 | Nền móng: bảo mật, tài khoản, repo, skeleton | 26/10 – 01/11/2026 → **xong 23/10** | ✅ |
-| 1 | Monolith lõi + Auth + nối UI | 02/11 – 29/11/2026 | ⬜ |
-| 2 | Nghiệp vụ tài chính + event in-process | 30/11 – 20/12/2026 | ⬜ |
-| 3 | Deploy AWS MVP | 21/12/2026 – 03/01/2027 | ⬜ |
-| ⭐ | **Mốc CV-ready**: có link demo + README | ~03/01/2027 | |
-| 4 | AI advisor + quant + cache | 04/01 – 24/01/2027 | ⬜ |
-| 5 | Tách service theo event (SNS/SQS FIFO) | 25/01 – 21/02/2027 (có Tết) | ⬜ |
+| 1 | Monolith lõi + Auth + nối UI | 02/11 – 29/11/2026 → **xong 27/10** | ✅ |
+| 3 | Deploy AWS MVP (**làm trước Phase 2**, xem dưới) | 28/10 – 15/11/2026 | ⬜ |
+| ⭐ | **Mốc CV-ready**: có link demo + README | ~15/11/2026 (trước: ~03/01/2027) | |
+| 2 | Nghiệp vụ tài chính + event in-process | 16/11 – 06/12/2026 | ⬜ |
+| 4 | AI advisor + quant + cache | 07/12/2026 – 03/01/2027 | ⬜ |
+| 5 | Tách service theo event (SNS/SQS FIFO) | 04/01 – 21/02/2027 (có Tết) | ⬜ |
 | 6 | Observability, resilience, polish | 22/02 – 14/03/2027 | ⬜ |
 | – | Buffer trước khi credit hết hạn | 15/03 – 09/04/2027 | |
+
+> **Đổi thứ tự (2026-10-27, sau P1.12):** làm **Phase 3 ngay sau Phase 1**, rồi mới tới Phase 2. Lý do: mục tiêu là xin việc Java Backend + AWS, và thứ nhà tuyển dụng thấy đầu tiên là link demo chạy thật; deploy sớm cũng khiến mọi tính năng sau được kiểm chứng trên AWS ngay. Đánh đổi: hạ tầng chạy lâu hơn (giảm bằng SLEEP/TEARDOWN và Aurora min 0 ACU). **Mã bước giữ nguyên** (P2.x, P3.x) để không làm sai các tham chiếu trong ADR, commit và ghi chú học tập; chỉ thứ tự thực hiện thay đổi. Phụ thuộc duy nhất ngược chiều: **P3.5** (S3 → EventBridge → SQS cho import, Scheduler cho job) cần tính năng của P2.8 và P2.1, nên làm cùng P2.8.
 
 ## Chuẩn bị đầu mỗi phase (research + đọc source cũ)
 
@@ -86,11 +88,27 @@ Ký hiệu: 👤 bạn tự làm (console, quyết định) · 🤖 làm cùng t
   - [x] **P1.11a** (27/10) Nền `apps/web` + đăng nhập + client có kiểu: UI kit (49 component shadcn, layout, PWA) chép từ UI cũ; **bỏ** `lib/supabase.ts` (anon key JWT + user id gõ cứng), `lib/auth.ts` (`USER_PASSWORD_AUTH` + client secret), `lib/api.ts`, ảnh OG trên R2 của Lovable, Google Fonts (tự host bằng `@fontsource`). Vite 5 (hết bảo trì từ 10/2025) → **8.3**, React 18 + Tailwind 3 giữ nguyên; `react-router` 6 → 7 (open redirect qua `\` trong `useNavigate`, nhánh 6 không có bản vá); gỡ `zod` (lỗ hổng high, không ai dùng). `.npmrc` `min-release-age=14`, bản vá bảo mật được đi tắt có chủ đích → `npm audit` 0. Đăng nhập **`oidc-client-ts`** ([ADR-0020](../04-adr/0020-spa-auth-oidc-client-ts.md), thay Amplify Auth của ADR-0010): PKCE, sessionStorage, refresh + thu hồi khi logout, `logout_uri` của Cognito, `returnTo` chống open redirect; flow F1 sau đăng nhập (chưa có hồ sơ rủi ro → Onboarding). `gen:api` + `api:check`; `openapi-fetch` + middleware access token + `ApiError` (RFC 9457). Onboarding và Profile nối API thật; các màn khác hiện "chuyển ở P1.11b/c". Job CI `web` (`npm ci --ignore-scripts`, `api:check`, lint, typecheck strict, test, build). **Đo được:** probe Cognito thật (logout chuẩn OIDC bị bỏ qua; `offline_access` → `invalid_scope`; sai cổng → `redirect_mismatch`); bundle auth: Amplify 30,7 kB vs oidc 19,3 kB gzip; 25 test web, 6/6 mutant bị bắt (1 test ban đầu là false negative, đã sửa); proxy Vite → API thật: health 200, `/jars` 401 ProblemDetail. Bundle app 146 kB gzip. [Ghi chú](../learning/P1.11a-web-auth-pkce.md)
   - [x] **P1.11b** (27/10) Dashboard: một `GET /dashboard` (số dư tổng/đã phân bổ/chưa phân bổ, thu/chi tháng, chi theo danh mục, theo hũ (link sang Inbox lọc theo hũ), xu hướng 6 tháng) + đường số dư 30 ngày + 5 giao dịch mới nhất; chuyển tháng bằng `?month=` (không cho đi quá tháng hiện tại theo **giờ VN**). Money Inbox: `useInfiniteQuery` theo cursor, lọc phía server (`type`, `categoryId`, `jarId`) lưu trong URL, hộp thoại sửa (merge patch: chỉ gửi field đã đổi, `null` = xóa danh mục, chỉ danh mục cùng loại, chuyển hũ; giao dịch chuyển hũ chỉ sửa ghi chú) rồi làm mới mọi màn liên quan tới tiền. Ngày giờ hiển thị theo **giờ VN** (khớp cách server chia tháng). Tách chunk theo route (`React.lazy`): recharts chỉ nằm trong chunk Dashboard. **Đo được:** 36 test web, 7/7 mutant bị bắt; mutant "dùng múi giờ trình duyệt" **vẫn xanh trên máy đặt giờ VN** → test giờ luôn chạy ở UTC. Bundle: recharts làm JS tăng 146 → 263 kB gzip; sau khi tách: phần chung khoảng 141 kB, Dashboard 106 kB. [Ghi chú](../learning/P1.11b-dashboard-inbox.md)
   - [x] **P1.11c** (27/10) Spend/Income (`POST /transactions`; thêm ghi thu nhập vì UI cũ không có), Budget Jars (`POST /jars/transfers` từ `POOL` hoặc giữa hai hũ, gợi ý theo `targetPct` bằng BigInt), Goals (CRUD, merge patch, đánh dấu đạt, archive). **Idempotency-Key ở client:** giữ key khi gửi lại cùng nội dung, key mới khi nội dung đổi hoặc sau khi thành công; tự retry lỗi mạng/5xx với cùng key; báo khi server replay. **Lỗ hổng API tìm ra khi viết client:** `GET /jars` không trả id của `POOL` (test backend phải đọc từ DB) → thêm `poolJarId` (thay đổi chỉ thêm field; contract test → `api:check` → `tsc` chỉ đúng fixture phải sửa). **Bug của chính mình bắt được trước khi commit:** `parseAmount("85000.00")` ra 8500000 (gấp 100 lần). Hết mock trong `apps/web`. **Đo được:** 72 test web, 8/8 mutant bị bắt; 203 test backend. [Ghi chú](../learning/P1.11c-money-writes-idempotency.md)
-- [ ] **P1.12** Test IDOR cho mọi endpoint có `{id}`; `SeedDataRunner` cho profile `local`.
+- [x] **P1.12** (27/10) **Test IDOR** (`CrossUserAccessTest`): user B dùng id của user A ở mọi operation có `{id}` (danh sách lấy từ OpenAPI, nên endpoint `{id}` mới mà chưa có ca kiểm tra là build fail), ở body (`jarId`, `fromJarId`, `toJarId`, `fundingJarId`, đổi hũ giao dịch của chính mình sang hũ của A) và ở bộ lọc (`?jarId=`): luôn **404 giống id không tồn tại**, lọc thì ra trang rỗng, dữ liệu của A không đổi. **Đo được:** 4 mutant (bỏ kiểm tra chủ sở hữu ở 3 chỗ, thêm endpoint `{id}` không có test) đều bị bắt; khi service bỏ kiểm tra chủ hũ, **FK kép `(jar_id, user_id)` của V4 vẫn chặn** (409, không có tiền nào bị chuyển). **Dữ liệu demo** (`DemoDataSeeder`, profile `local`, `--jars.seed.email=...`): `DemoDataPlan` thuần và tất định (3 tháng đủ + tháng này, lương 20 triệu phân bổ theo `targetPct`, chi tiêu hằng ngày, hóa đơn, thu nhập tự do, 1 cú sốc chi tiêu), mô phỏng số dư để không chi quá; chạy qua `PostingService` với Idempotency-Key tất định; user đã có giao dịch thì bỏ qua. `IdentityApi.findUserIdByEmail`. **Phát hiện:** với lương 15 triệu, kế hoạch lặng lẽ bỏ nhiều khoản chi (cả cú sốc) → test đếm khoản chi bị bỏ. 211 test. **Phase 1 xong.** [Ghi chú](../learning/P1.12-idor-and-demo-data.md)
 
 **Kỹ năng:** Spring Security / JWT, JPA relationships, transaction và locking, idempotency, pagination, N+1, OpenAPI, test.
 
-## Phase 2: Nghiệp vụ tài chính + event in-process
+## Phase 3: Deploy AWS MVP (làm ngay sau Phase 1)
+
+**Mục tiêu:** có link demo. **Deliverable:** [Phase 3 diagram](../diagrams/aws-phase3-mvp.png) chạy thật; tạo lại được toàn bộ bằng CDK.
+
+- [ ] **P3.1** Dockerfile multi-stage (layered jar, arm64, non-root user, chạy được với read-only root filesystem + `/tmp`) + chạy thử image ở local; graceful shutdown (`server.shutdown=graceful`).
+- [ ] **P3.2** `JarsFoundation` (ECR, Budgets, OIDC role) + `JarsNetwork` (VPC không NAT) + CDK assertions test.
+- [ ] **P3.3** `JarsData` (Aurora Serverless v2 min 0) + alarm ACU; kiểm tra auto-pause hoạt động.
+- [ ] **P3.4** `JarsApp`: ECS Fargate + internal ALB + CloudFront (S3 OAC + VPC origin) + Cognito app client. `server.forward-headers-strategy` để URL trong `WWW-Authenticate: resource_metadata` là origin công khai (thấy ở P1.11a: qua proxy, API trả `http://localhost:8080/...`); CSP chặt bằng CloudFront response headers. Áp dụng [vòng đời task](../02-architecture/aws-infrastructure.md#vòng-đời-task-khởi-động-dừng-draining) (grace period 90 s, deregistration delay 30 s, `stopTimeout` 30 s); S3 `enforceSSL`.
+- [ ] **P3.5** ⏭ **Dời: làm cùng P2.8** (cần tính năng import và job của Phase 2). `JarsMessaging`: S3 (bucket import, lifecycle xóa CSV sau 7 ngày) → EventBridge → SQS `jars-imports`; Scheduler → `jars-jobs`; `@SqsListener` (luồng [F5](../02-architecture/flows.md#f5), [F6](../02-architecture/flows.md#f6)).
+- [ ] **P3.6** `deploy-dev.yml` (OIDC) + checklist sau deploy.
+- [ ] **P3.7** Script hoặc lệnh SLEEP / TEARDOWN đã thử thật; ghi nhật ký chi phí tuần đầu.
+- [ ] **P3.8** README bản tiếng Anh (cho recruiter) + ảnh chụp màn hình + link demo.
+- [ ] **P3.9** Review lần 1 bằng **AWS Well-Architected Tool** (miễn phí); bật GuardDuty dùng thử 30 ngày; cập nhật [well-architected-review.md](../02-architecture/well-architected-review.md).
+
+**Kỹ năng:** Docker, ECS, ALB, CloudFront, Aurora, IAM, CDK, CI/CD, tối ưu chi phí.
+
+## Phase 2: Nghiệp vụ tài chính + event in-process (làm sau Phase 3)
 
 **Mục tiêu:** toàn bộ logic xác định của bản cũ chạy bằng Java. **Deliverable:** cảnh báo bất thường hiện realtime trên UI; import CSV hoạt động ở local.
 
@@ -105,22 +123,6 @@ Ký hiệu: 👤 bạn tự làm (console, quyết định) · 🤖 làm cùng t
 - [ ] **P2.9** Audit log bằng AOP + MDC `traceId`.
 
 **Kỹ năng:** event-driven trong monolith, outbox, async, SSE, thuật toán thống kê, Spring Batch, AOP, strategy pattern.
-
-## Phase 3: Deploy AWS MVP
-
-**Mục tiêu:** có link demo. **Deliverable:** [Phase 3 diagram](../diagrams/aws-phase3-mvp.png) chạy thật; tạo lại được toàn bộ bằng CDK.
-
-- [ ] **P3.1** Dockerfile multi-stage (layered jar, arm64, non-root user, chạy được với read-only root filesystem + `/tmp`) + chạy thử image ở local; graceful shutdown (`server.shutdown=graceful`).
-- [ ] **P3.2** `JarsFoundation` (ECR, Budgets, OIDC role) + `JarsNetwork` (VPC không NAT) + CDK assertions test.
-- [ ] **P3.3** `JarsData` (Aurora Serverless v2 min 0) + alarm ACU; kiểm tra auto-pause hoạt động.
-- [ ] **P3.4** `JarsApp`: ECS Fargate + internal ALB + CloudFront (S3 OAC + VPC origin) + Cognito app client. `server.forward-headers-strategy` để URL trong `WWW-Authenticate: resource_metadata` là origin công khai (thấy ở P1.11a: qua proxy, API trả `http://localhost:8080/...`); CSP chặt bằng CloudFront response headers. Áp dụng [vòng đời task](../02-architecture/aws-infrastructure.md#vòng-đời-task-khởi-động-dừng-draining) (grace period 90 s, deregistration delay 30 s, `stopTimeout` 30 s); S3 `enforceSSL` + lifecycle xóa CSV sau 7 ngày.
-- [ ] **P3.5** `JarsMessaging`: S3 → EventBridge → SQS `jars-imports`; Scheduler → `jars-jobs`; `@SqsListener` (luồng [F5](../02-architecture/flows.md#f5), [F6](../02-architecture/flows.md#f6)).
-- [ ] **P3.6** `deploy-dev.yml` (OIDC) + checklist sau deploy.
-- [ ] **P3.7** Script hoặc lệnh SLEEP / TEARDOWN đã thử thật; ghi nhật ký chi phí tuần đầu.
-- [ ] **P3.8** README bản tiếng Anh (cho recruiter) + ảnh chụp màn hình + link demo.
-- [ ] **P3.9** Review lần 1 bằng **AWS Well-Architected Tool** (miễn phí); bật GuardDuty dùng thử 30 ngày; cập nhật [well-architected-review.md](../02-architecture/well-architected-review.md).
-
-**Kỹ năng:** Docker, ECS, ALB, CloudFront, Aurora, IAM, CDK, CI/CD, tối ưu chi phí.
 
 ## Phase 4: AI advisor + quant + cache
 
@@ -179,3 +181,4 @@ Ký hiệu: 👤 bạn tự làm (console, quyết định) · 🤖 làm cùng t
 | 2026-10-27 | P1.11a ✅ | Tách P1.11 thành a/b/c (mô hình hũ của UI cũ khác hẳn). Nền web + `oidc-client-ts` (ADR-0020) + client có kiểu. Vướng: repo cũ có anon key Supabase gõ cứng (không chép); `min-release-age` chặn luôn bản vá bảo mật → đi tắt có chủ đích; `@vitejs/plugin-react` 6 xung đột peer Babel 7/8 với `workbox-build` → giữ SWC; `openapi-fetch` giữ cố định `fetch` lúc tạo client; một test "không gọi API" luôn xanh dù code sai (assert trước khi effect chạy). [Ghi chú](../learning/P1.11a-web-auth-pkce.md) |
 | 2026-10-27 | P1.11b ✅ | Dashboard + Money Inbox trên API thật. Vướng: test ngày giờ xanh "nhờ" máy đặt giờ VN (mutant bỏ `timeZone` không bị bắt) → ghim `TZ=UTC` cho Vitest; recharts gần gấp đôi bundle → tách theo route; bỏ ô tìm kiếm vì API chưa có và lọc trên trang đã tải là sai. Đã thống nhất: làm Phase 3 (deploy) ngay sau Phase 1, sắp lại roadmap ở P1.12. [Ghi chú](../learning/P1.11b-dashboard-inbox.md) |
 | 2026-10-27 | P1.11c ✅ | Ghi tiền từ UI với Idempotency-Key; P1.11 xong, `apps/web` hết mock. Vướng: API thiếu `poolJarId` (chỉ lộ ra khi viết client); `parseAmount` bỏ mọi dấu phân cách nên `"85000.00"` thành 8,5 triệu (sửa: 3 chữ số sau dấu = nhóm nghìn, 1–2 chữ số = phần thập phân, phải bằng 0); ESLint `no-loss-of-precision` từ chối literal 17 chữ số trong test; `done()` chỉ được unit test bắt (hộp thoại unmount nên trang không lộ ra). [Ghi chú](../learning/P1.11c-money-writes-idempotency.md) |
+| 2026-10-27 | P1.12 ✅ | Test IDOR sinh từ OpenAPI + dữ liệu demo; **Phase 1 xong**; đổi thứ tự: Phase 3 trước Phase 2 (mã bước giữ nguyên, P3.5 dời xuống cùng P2.8). Vướng: một ca IDOR ban đầu trả 422 vì dùng giao dịch chuyển hũ (quy tắc nghiệp vụ trả lời trước, không lộ gì); kế hoạch demo bỏ lặng lẽ các khoản chi khi ngân sách không đủ. [Ghi chú](../learning/P1.12-idor-and-demo-data.md) |
