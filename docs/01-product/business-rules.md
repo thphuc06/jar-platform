@@ -30,7 +30,10 @@ Khi user được tạo (event `UserRegistered`), module `ledger` tạo **6 hũ 
 - `amount` luôn **> 0**; hướng tiền do `type` quyết định.
 - **Không cho chi vượt số dư hũ** (mặc định). Thiếu số dư thì trả 422 `insufficient-jar-balance`. Cờ cho phép âm (thấu chi) để sau, nếu cần.
 - Tổng số dư của user = Σ `balance` mọi hũ (kể cả `POOL`). "Đã phân bổ" = Σ các hũ ≠ `POOL`. Hai con số này đúng với màn Budget Jars cũ.
-- Sửa giao dịch: chỉ đổi được `categoryId`, `note`, và **`jarId` (đổi hũ thì sinh cặp bút toán đảo)**. Không sửa `amount`; muốn đổi số tiền thì tạo giao dịch điều chỉnh.
+- Sửa giao dịch: chỉ đổi được `categoryId`, `note`, và **`jarId` (đổi hũ thì sinh cặp bút toán đảo)**. Không sửa `amount`; muốn đổi số tiền thì tạo giao dịch điều chỉnh. Chi tiết (✅ P1.7):
+  - Chuyển một **EXPENSE** sang hũ khác: hũ cũ được hoàn tiền, hũ mới phải đủ số dư và không được là `POOL`.
+  - Chuyển một **INCOME** sang hũ khác: hũ cũ phải **còn đủ** số tiền đó. Nếu thu nhập đã được phân bổ hoặc tiêu từ `POOL` thì không lấy lại được (422 `insufficient-jar-balance`).
+  - **JAR_TRANSFER**: chỉ sửa `note`. Không có danh mục; muốn đổi hũ thì ghi một lần chuyển mới.
 
 ## BR-3. Danh mục mặc định (`categories.user_id IS NULL`)
 

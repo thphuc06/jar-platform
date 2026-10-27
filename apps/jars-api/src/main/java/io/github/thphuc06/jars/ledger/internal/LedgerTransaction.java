@@ -7,26 +7,38 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
+import jakarta.persistence.FetchType;
 import jakarta.persistence.Id;
-import jakarta.persistence.PostLoad;
-import jakarta.persistence.PostPersist;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
+import jakarta.persistence.NamedAttributeNode;
+import jakarta.persistence.NamedEntityGraph;
 import jakarta.persistence.Table;
-import jakarta.persistence.Transient;
+import jakarta.persistence.Version;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.UUID;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 import org.jspecify.annotations.Nullable;
-import org.springframework.data.domain.Persistable;
 
 /**
- * Row of table {@code transactions} (Flyway V4): what the user did. Named LedgerTransaction to avoid confusion with
- * database transactions and {@code @Transactional}. The amount is never changed after creation (ADR-0014).
+ * Row of table {@code transactions} (Flyway V4, V6): what the user did. Named LedgerTransaction to avoid confusion
+ * with database transactions and {@code @Transactional}. The amount and type never change (ADR-0014); category, note
+ * and jar may be amended (BR-2), always together with the matching ledger entries.
+ *
+ * <p>Every reference is mapped twice: as an id column that the code writes ({@code jarId}) and as a read-only lazy
+ * association ({@code jar}) that list queries can fetch in the same SELECT via the {@link #WITH_REFERENCES} graph.
  */
 @Entity
 @Table(name = "transactions")
-class LedgerTransaction implements Persistable<UUID> {
+@NamedEntityGraph(
+        name = LedgerTransaction.WITH_REFERENCES,
+        attributeNodes = {@NamedAttributeNode("jar"), @NamedAttributeNode("toJar"), @NamedAttributeNode("category")})
+class LedgerTransaction {
+
+    /** Fetches jar, destination jar and category with the transaction: one query for a whole page, no N+1. */
+    static final String WITH_REFERENCES = "LedgerTransaction.withReferences";
 
     @Id
     private UUID id;
@@ -48,11 +60,23 @@ class LedgerTransaction implements Persistable<UUID> {
     @Column(name = "jar_id", nullable = false)
     private UUID jarId;
 
-    @Column(name = "to_jar_id")
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "jar_id", insertable = false, updatable = false)
+    private Jar jar;
+
+    @Column(name = "to_jar_id", updatable = false)
     private UUID toJarId;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "to_jar_id", insertable = false, updatable = false)
+    private Jar toJar;
 
     @Column(name = "category_id")
     private UUID categoryId;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "category_id", insertable = false, updatable = false)
+    private Category category;
 
     private String counterparty;
 
@@ -64,12 +88,12 @@ class LedgerTransaction implements Persistable<UUID> {
     @Column(nullable = false, updatable = false)
     private String source;
 
+    /** Optimistic lock (V6); also tells Spring Data that a new transaction must be persisted, not merged. */
+    @Version
+    private Long version;
+
     @Column(name = "created_at", nullable = false, insertable = false, updatable = false)
     private Instant createdAt;
-
-    /** See {@link JarEntry}: assigned id and no {@code @Version}, so "new" must be stated explicitly. */
-    @Transient
-    private boolean persisted;
 
     protected LedgerTransaction() {} // for JPA
 
@@ -131,24 +155,26 @@ class LedgerTransaction implements Persistable<UUID> {
         return new TransactionPosted(id, userId, type, amount, currency, jarId, toJarId, categoryId, occurredAt);
     }
 
-    @Override
-    public UUID getId() {
-        return id;
+    /** Only the reference changes; the caller has already checked that the category fits the type. */
+    void changeCategory(@Nullable UUID newCategoryId) {
+        this.categoryId = newCategoryId;
     }
 
-    @Override
-    public boolean isNew() {
-        return !persisted;
+    void changeNote(@Nullable String newNote) {
+        this.note = newNote;
     }
 
-    @PostPersist
-    @PostLoad
-    void markPersisted() {
-        persisted = true;
+    /** Only the reference changes; the caller moves the money with a pair of ADJUST entries in the same transaction. */
+    void moveTo(Jar newJar) {
+        this.jarId = newJar.id();
     }
 
     UUID id() {
         return id;
+    }
+
+    UUID userId() {
+        return userId;
     }
 
     TransactionType type() {
@@ -167,14 +193,29 @@ class LedgerTransaction implements Persistable<UUID> {
         return jarId;
     }
 
+    /** Lazy: inside a transaction, or loaded with {@link #WITH_REFERENCES}. */
+    Jar jar() {
+        return jar;
+    }
+
     @Nullable
     UUID toJarId() {
         return toJarId;
     }
 
     @Nullable
+    Jar toJar() {
+        return toJar;
+    }
+
+    @Nullable
     UUID categoryId() {
         return categoryId;
+    }
+
+    @Nullable
+    Category category() {
+        return category;
     }
 
     @Nullable

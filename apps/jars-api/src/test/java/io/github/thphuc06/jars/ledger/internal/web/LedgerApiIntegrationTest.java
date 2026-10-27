@@ -8,6 +8,7 @@ import io.github.thphuc06.jars.TestcontainersConfiguration;
 import io.github.thphuc06.jars.identity.CurrentUser;
 import io.github.thphuc06.jars.identity.IdentityApi;
 import io.github.thphuc06.jars.ledger.TransactionPosted;
+import io.github.thphuc06.jars.ledger.TransactionRecategorized;
 import io.github.thphuc06.jars.ledger.TransactionType;
 import java.util.List;
 import java.util.UUID;
@@ -329,6 +330,138 @@ class LedgerApiIntegrationTest {
         assertThat(rows("transactions")).isZero();
     }
 
+    // --- Money Inbox and amendments (P1.7) ---
+
+    @Test
+    void listTransactions_showsJarAndCategoryNames_newestFirst() {
+        fundPlay("100000");
+        post("/api/v1/transactions", expenseWithCategory(jarId("PLAY"), "85000", FOOD));
+
+        assertThat(get("/api/v1/transactions?limit=2"))
+                .hasStatus(HttpStatus.OK)
+                .bodyJson()
+                .isLenientlyEqualTo("""
+                        {"items": [{"type": "EXPENSE", "amount": "85000.00",
+                                    "jar": {"code": "PLAY", "name": "Hưởng thụ"},
+                                    "category": {"name": "Ăn uống"}},
+                                   {"type": "JAR_TRANSFER", "jar": {"code": "POOL"}, "toJar": {"code": "PLAY"}}]}
+                        """);
+        assertThat(get("/api/v1/transactions?limit=2"))
+                .bodyJson()
+                .extractingPath("$.nextCursor")
+                .isNotNull(); // the income is on the next page
+    }
+
+    @Test
+    void listTransactions_limitOutOfRange_isAValidationError() {
+        assertProblem(get("/api/v1/transactions?limit=500"), HttpStatus.UNPROCESSABLE_CONTENT, "validation-failed");
+    }
+
+    @Test
+    void getTransaction_ofAnotherUser_is404() {
+        String location = post("/api/v1/transactions", "{\"type\": \"INCOME\", \"amount\": \"1000\"}")
+                .getResponse()
+                .getHeader("Location");
+        assertThat(get(location)).hasStatus(HttpStatus.OK);
+
+        userId = insertUser();
+        assertProblem(get(location), HttpStatus.NOT_FOUND, "transaction-not-found");
+    }
+
+    @Test
+    void patch_movesAnExpenseToAnotherJar_withAReversingPairOfEntries() {
+        fundPlay("100000");
+        fundJar("NEC", "50000");
+        UUID expenseId = idOf(post("/api/v1/transactions", expense(jarId("PLAY"), "30000")));
+
+        assertThat(patch(expenseId, "{\"jarId\": \"%s\"}".formatted(jarId("NEC"))))
+                .hasStatus(HttpStatus.OK)
+                .bodyJson()
+                .isLenientlyEqualTo("""
+                        {"transaction": {"jarId": "%s", "amount": "30000.00"},
+                         "jars": [{"code": "PLAY", "balance": "100000.00"}, {"code": "NEC", "balance": "20000.00"}]}
+                        """.formatted(jarId("NEC")));
+        assertThat(entryTypesOf(expenseId)).containsExactly("SPEND", "ADJUST", "ADJUST");
+        assertThat(jarsWhoseBalanceDiffersFromTheirEntries()).isEmpty();
+        assertThat(events.stream(TransactionRecategorized.class)
+                        .filter(e -> e.transactionId().equals(expenseId)))
+                .singleElement()
+                .satisfies(e -> {
+                    assertThat(e.oldJarId()).isEqualTo(jarId("PLAY"));
+                    assertThat(e.newJarId()).isEqualTo(jarId("NEC"));
+                });
+    }
+
+    @Test
+    void patch_movingToAJarThatCannotPay_is422_andChangesNothing() {
+        fundPlay("100000");
+        UUID expenseId = idOf(post("/api/v1/transactions", expense(jarId("PLAY"), "30000")));
+
+        assertProblem(
+                patch(expenseId, "{\"jarId\": \"%s\"}".formatted(jarId("EDU"))), // EDU is empty
+                HttpStatus.UNPROCESSABLE_CONTENT,
+                "insufficient-jar-balance");
+        assertThat(entryTypesOf(expenseId)).containsExactly("SPEND");
+    }
+
+    @Test
+    void patch_incomeAlreadyAllocated_cannotBeTakenBackFromPool() {
+        UUID incomeId = idOf(post("/api/v1/transactions", "{\"type\": \"INCOME\", \"amount\": \"100000\"}"));
+        post("/api/v1/jars/transfers", """
+                {"fromJarId": "%s", "toJarId": "%s", "amount": "100000"}
+                """.formatted(jarId("POOL"), jarId("PLAY")));
+
+        assertProblem(
+                patch(incomeId, "{\"jarId\": \"%s\"}".formatted(jarId("LTSS"))),
+                HttpStatus.UNPROCESSABLE_CONTENT,
+                "insufficient-jar-balance");
+    }
+
+    @Test
+    void patch_categoryAndNote_explicitNullClears_absentKeeps() {
+        fundPlay("100000");
+        UUID expenseId = idOf(post("/api/v1/transactions", """
+                {"type": "EXPENSE", "amount": "1000", "jarId": "%s", "categoryId": "%s", "note": "trà sữa"}
+                """.formatted(jarId("PLAY"), FOOD)));
+
+        patch(expenseId, "{\"note\": null}"); // categoryId absent: unchanged
+
+        assertThat(get("/api/v1/transactions/" + expenseId)).bodyJson().isLenientlyEqualTo("""
+                        {"category": {"id": "%s"}, "note": null}
+                        """.formatted(FOOD));
+    }
+
+    @Test
+    void patch_categoryOfTheWrongKind_is422() {
+        UUID incomeId = idOf(post("/api/v1/transactions", "{\"type\": \"INCOME\", \"amount\": \"1000\"}"));
+
+        assertProblem(
+                patch(incomeId, "{\"categoryId\": \"%s\"}".formatted(FOOD)),
+                HttpStatus.UNPROCESSABLE_CONTENT,
+                "category-kind-mismatch");
+    }
+
+    @Test
+    void patch_transferJars_is422() {
+        fundPlay("1000");
+        UUID transferId = idOf(post("/api/v1/jars/transfers", """
+                {"fromJarId": "%s", "toJarId": "%s", "amount": "1000"}
+                """.formatted(jarId("PLAY"), jarId("NEC"))));
+
+        assertProblem(
+                patch(transferId, "{\"jarId\": \"%s\"}".formatted(jarId("EDU"))),
+                HttpStatus.UNPROCESSABLE_CONTENT,
+                "transfer-jars-immutable");
+    }
+
+    @Test
+    void patch_transactionOfAnotherUser_is404() {
+        UUID incomeId = idOf(post("/api/v1/transactions", "{\"type\": \"INCOME\", \"amount\": \"1000\"}"));
+
+        userId = insertUser();
+        assertProblem(patch(incomeId, "{\"note\": \"mine now\"}"), HttpStatus.NOT_FOUND, "transaction-not-found");
+    }
+
     @Test
     void getCategories_listsTheSystemDefaults() {
         assertThat(get("/api/v1/categories"))
@@ -357,6 +490,40 @@ class LedgerApiIntegrationTest {
                 .content(json)
                 .with(jwt().authorities(WRITE))
                 .exchange();
+    }
+
+    private MvcTestResult patch(UUID transactionId, String json) {
+        return mvc.patch()
+                .uri("/api/v1/transactions/" + transactionId)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json)
+                .with(jwt().authorities(WRITE))
+                .exchange();
+    }
+
+    private static UUID idOf(MvcTestResult created) {
+        String location = created.getResponse().getHeader("Location");
+        return UUID.fromString(location.substring(location.lastIndexOf('/') + 1));
+    }
+
+    private static String expenseWithCategory(UUID jarId, String amount, String categoryId) {
+        return """
+                {"type": "EXPENSE", "amount": "%s", "jarId": "%s", "categoryId": "%s"}
+                """.formatted(amount, jarId, categoryId);
+    }
+
+    private List<String> entryTypesOf(UUID transactionId) {
+        return jdbc.sql("SELECT entry_type FROM jar_entries WHERE transaction_id = ? ORDER BY created_at, amount")
+                .param(transactionId)
+                .query(String.class)
+                .list();
+    }
+
+    private void fundJar(String code, String amount) {
+        post("/api/v1/transactions", "{\"type\": \"INCOME\", \"amount\": \"%s\"}".formatted(amount));
+        post("/api/v1/jars/transfers", """
+                {"fromJarId": "%s", "toJarId": "%s", "amount": "%s"}
+                """.formatted(jarId("POOL"), jarId(code), amount));
     }
 
     private void fundPlay(String amount) {

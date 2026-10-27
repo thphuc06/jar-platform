@@ -1,5 +1,6 @@
 package io.github.thphuc06.jars.ledger.internal;
 
+import io.github.thphuc06.jars.ledger.TransactionRecategorized;
 import io.github.thphuc06.jars.ledger.TransactionType;
 import io.github.thphuc06.jars.shared.BusinessRuleViolationException;
 import io.github.thphuc06.jars.shared.NotFoundException;
@@ -8,7 +9,11 @@ import java.math.RoundingMode;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.function.Supplier;
 import org.jspecify.annotations.Nullable;
@@ -131,6 +136,15 @@ public class PostingService {
         }
     }
 
+    /**
+     * PATCH semantics per field: {@code null} = not sent, unchanged; {@code Optional.empty()} = sent as JSON null,
+     * cleared; a value = new value. {@code jarId} cannot be cleared, so it is a plain nullable id.
+     */
+    public record Amendment(
+            @Nullable Optional<UUID> categoryId,
+            @Nullable Optional<String> note,
+            @Nullable UUID jarId) {}
+
     /** The recorded transaction and the jars it changed, with their new balances. */
     public record Posting(TransactionView transaction, List<JarView> jars) {}
 
@@ -159,6 +173,15 @@ public class PostingService {
                 "POST /api/v1/jars/transfers",
                 normalized,
                 () -> jarTransfer(userId, normalized));
+    }
+
+    /**
+     * PATCH /transactions/{id} (BR-2): category, note and jar may change; amount and type never do. Moving money to
+     * another jar writes a reversing pair of ADJUST entries, so the ledger keeps the full history. Naturally
+     * idempotent (applying the same change twice changes nothing the second time), so no Idempotency-Key is needed.
+     */
+    public Posting amend(UUID userId, UUID transactionId, Amendment change) {
+        return retry.invoke(() -> transaction.execute(status -> applyAmendment(userId, transactionId, change)));
     }
 
     /**
@@ -225,6 +248,75 @@ public class PostingService {
         return record(transfer, List.of(out, in), List.of(from, to));
     }
 
+    private Posting applyAmendment(UUID userId, UUID transactionId, Amendment change) {
+        LedgerTransaction txn = transactions
+                .findByIdAndUserId(transactionId, userId)
+                .orElseThrow(() -> new NotFoundException("transaction", transactionId));
+        boolean isTransfer = txn.type() == TransactionType.JAR_TRANSFER;
+        UUID oldCategoryId = txn.categoryId();
+        UUID oldJarId = txn.jarId();
+
+        if (change.categoryId() != null) {
+            if (isTransfer) {
+                throw new BusinessRuleViolationException(
+                        "transfer-has-no-category", "A transfer between jars has no category");
+            }
+            txn.changeCategory(checkedCategory(userId, change.categoryId().orElse(null), categoryKindOf(txn)));
+        }
+        if (change.note() != null) {
+            txn.changeNote(change.note().filter(note -> !note.isBlank()).orElse(null));
+        }
+
+        List<Jar> changedJars = new ArrayList<>();
+        if (change.jarId() != null && !change.jarId().equals(oldJarId)) {
+            if (isTransfer) {
+                throw new BusinessRuleViolationException(
+                        "transfer-jars-immutable", "Record a new transfer instead of moving an existing one");
+            }
+            Jar from = ownJar(userId, oldJarId);
+            Jar to = ownJar(userId, change.jarId());
+            List<JarEntry> reversal;
+            if (txn.type() == TransactionType.EXPENSE) {
+                if (to.isPool()) {
+                    throw new BusinessRuleViolationException(
+                            "expense-from-pool", "Unallocated money (POOL) must be moved to a jar before it is spent");
+                }
+                // the old jar gets the money back, the new jar pays (and must hold enough: BR-2)
+                JarEntry refund = from.deposit(txn.amount(), EntryType.ADJUST, txn.id());
+                reversal = List.of(refund, to.withdraw(txn.amount(), EntryType.ADJUST, txn.id()));
+            } else {
+                // income already allocated or spent from the old jar cannot be taken back from it
+                JarEntry takeBack = from.withdraw(txn.amount(), EntryType.ADJUST, txn.id());
+                reversal = List.of(takeBack, to.deposit(txn.amount(), EntryType.ADJUST, txn.id()));
+            }
+            txn.moveTo(to);
+            entries.saveAll(reversal);
+            changedJars.add(from);
+            changedJars.add(to);
+        }
+
+        boolean bucketChanged = !Objects.equals(oldCategoryId, txn.categoryId()) || !oldJarId.equals(txn.jarId());
+        if (bucketChanged) {
+            events.publishEvent(new TransactionRecategorized(
+                    txn.id(),
+                    userId,
+                    txn.type(),
+                    txn.amount(),
+                    oldCategoryId,
+                    txn.categoryId(),
+                    oldJarId,
+                    txn.jarId(),
+                    txn.occurredAt()));
+        }
+        transactions.flush(); // version-checked UPDATEs of the transaction and the jars, inside this attempt
+        return new Posting(
+                TransactionView.of(txn), changedJars.stream().map(JarView::of).toList());
+    }
+
+    private static CategoryKind categoryKindOf(LedgerTransaction txn) {
+        return txn.type() == TransactionType.INCOME ? CategoryKind.INCOME : CategoryKind.EXPENSE;
+    }
+
     /**
      * Saves in foreign-key order (transaction before its entries) and publishes the event into the outbox, all in the
      * current transaction. {@code flush()} sends the version-checked UPDATEs of the jars NOW, so a conflict surfaces
@@ -272,13 +364,15 @@ public class PostingService {
     }
 
     private Instant occurredAt(@Nullable Instant requested) {
-        Instant now = clock.instant();
+        // PostgreSQL keeps microseconds: truncate now, so the value returned by POST equals the one read back later
+        // (and a keyset cursor built from it matches the stored row exactly)
+        Instant now = clock.instant().truncatedTo(ChronoUnit.MICROS);
         if (requested == null) {
             return now;
         }
         if (requested.isAfter(now.plus(CLOCK_SKEW))) {
             throw new BusinessRuleViolationException("occurred-at-in-future", "occurredAt is in the future");
         }
-        return requested;
+        return requested.truncatedTo(ChronoUnit.MICROS);
     }
 }

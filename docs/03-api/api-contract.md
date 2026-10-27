@@ -11,7 +11,7 @@
 | Thời gian | ISO-8601 UTC (`2026-11-15T03:21:09Z`); tháng dạng `YYYY-MM` |
 | Auth | `Authorization: Bearer <Cognito access token>` cho mọi endpoint trừ `/api/v1/health`. Metadata RFC 9728 công khai tại `/.well-known/oauth-protected-resource` |
 | Lỗi | **RFC 9457 `application/problem+json`**, luôn có `type`, `title`, `status`, `detail`, `instance`, **`traceId`**. `type` = `https://jars.local/problems/{code}`: `code` là định danh ổn định (UI dịch thông báo theo `code`, còn `detail` là tiếng Anh dành cho developer). Validation có thêm `errors: [{field, message}]` |
-| Phân trang | **Cursor (keyset)**: `?limit=50&cursor=<opaque>` → `{items, nextCursor}` |
+| Phân trang | **Cursor (keyset)**: `?limit=50&cursor=<opaque>` → `{items, nextCursor}`; `nextCursor = null` ở trang cuối; cursor sửa tay → 422 `invalid-cursor` (✅ P1.7). Không có tổng số dòng: đếm `COUNT(*)` mỗi trang là tốn kém và UI cuộn vô hạn không cần |
 | Idempotency | Header `Idempotency-Key` (UUID) **bắt buộc** với các POST làm thay đổi tiền |
 | Versioning | Chỉ đổi `/v1` → `/v2` khi phá vỡ tương thích; thêm field optional thì không đổi |
 | Correlation | Gửi `traceparent` (W3C) thì server tiếp tục trace đó; không gửi thì server tạo mới. Response **luôn** có header `traceparent`. Mọi dòng log phía server đều có `traceId` (✅ P1.3) |
@@ -22,8 +22,9 @@
 |---|---|---|
 | `validation-failed` | 422 | `@Valid` body hoặc ràng buộc trên `@RequestParam`/`@PathVariable` sai; kèm `errors[]` |
 | `{resource}-not-found` | 404 | Ví dụ `jar-not-found`. Không tồn tại **hoặc** không thuộc user |
-| *(mã nghiệp vụ)* | 422 | ✅ P1.5: `insufficient-jar-balance`, `expense-requires-jar`, `expense-from-pool`, `jar-archived`, `category-kind-mismatch`, `same-jar-transfer`, `use-transfer-endpoint`, `occurred-at-in-future` (lệch quá 5 phút) |
+| *(mã nghiệp vụ)* | 422 | ✅ P1.5: `insufficient-jar-balance`, `expense-requires-jar`, `expense-from-pool`, `jar-archived`, `category-kind-mismatch`, `same-jar-transfer`, `use-transfer-endpoint`, `occurred-at-in-future` (lệch quá 5 phút); P1.7: `transfer-has-no-category`, `transfer-jars-immutable` |
 | `email-already-registered` | 409 | Email đã gắn với tài khoản Cognito khác |
+| `invalid-cursor` | 422 | `cursor` không phải do API trả về (✅ P1.7) |
 | `idempotency-key-reused` | 422 | Cùng `Idempotency-Key` đã dùng cho một request khác (✅ P1.6, [§4](#4-idempotency)) |
 | `concurrent-modification` | 409 | Request khác sửa cùng hũ cùng lúc và vẫn xung đột sau 3 lần retry phía server; không có gì được ghi, client gửi lại được (✅ P1.5) |
 | `conflict` | 409 | Ràng buộc DB bị vi phạm mà code chưa kiểm tra trước (không lộ SQL) |
@@ -74,9 +75,10 @@
 | DELETE | `/jars/{id}` | Archive (chỉ khi số dư = 0) | 1 |
 | POST | `/jars/transfers` | ✅ (P1.5) `{fromJarId, toJarId, amount, note?, occurredAt?}` → 201 + `Location`. Chuyển tiền giữa 2 hũ, **gồm cả phân bổ từ `POOL`** (`fromJarId` = id của `POOL`) (**Idempotency-Key bắt buộc**, ✅ P1.6) | 1 |
 | GET | `/categories` | ✅ (P1.5) `{items: [{id, name, kind, defaultJarCode, system}]}`: danh mục hệ thống (BR-3) + của user | 1 |
-| GET | `/transactions?limit&cursor&jarId&categoryId&type&from&to` | Money Inbox | 1 |
+| GET | `/transactions?limit&cursor&jarId&categoryId&type&from&to` | ✅ (P1.7) Money Inbox, mới nhất trước. `limit` 1–100 (mặc định 50); `jarId` khớp cả giao dịch chuyển **vào** hũ; `from` bao gồm, `to` không bao gồm (ISO-8601). Mỗi item có `jar {id, code, name}`, `toJar`, `category {id, name}`, nên UI không phải tra thêm | 1 |
+| GET | `/transactions/{id}` | ✅ (P1.7) Một giao dịch, cùng dạng với item ở trên; của user khác → 404 | 1 |
 | POST | `/transactions` | ✅ (P1.5) `{type: INCOME/EXPENSE, amount, jarId?, categoryId?, counterparty?, note?, occurredAt?}` → 201 + `Location` + `{transaction, jars: [{id, code, balance}]}` (số dư mới của các hũ bị ảnh hưởng). INCOME không có `jarId` thì vào `POOL`; EXPENSE bắt buộc có `jarId` khác `POOL` ([BR-2](../01-product/business-rules.md)). `amount` nhận string hoặc number, phải là số đồng nguyên dương (BR-5, `@VndAmount`) (**Idempotency-Key bắt buộc**, ✅ P1.6) | 1 |
-| PATCH | `/transactions/{id}` | Đổi danh mục / hũ, sinh bút toán điều chỉnh | 1 |
+| PATCH | `/transactions/{id}` | ✅ (P1.7) `{categoryId?, note?, jarId?}` theo kiểu merge-patch: **không gửi** = giữ nguyên, gửi **`null`** = xóa (`categoryId`, `note`). Đổi hũ sinh cặp bút toán `ADJUST`; trả 200 `{transaction, jars}` (các hũ đổi số dư). Tự nhiên idempotent nên **không** cần Idempotency-Key. Giao dịch `JAR_TRANSFER` chỉ sửa được `note` | 1 |
 | GET | `/balances/daily?days=30` | Chuỗi số dư theo ngày (biểu đồ) | 1 |
 
 ### Budgeting

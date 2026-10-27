@@ -109,7 +109,7 @@ class Jar {
     }
 
     private void requireMovement(BigDecimal amount, EntryType type, boolean moneyIn) {
-        if (amount.signum() <= 0 || type.isMoneyIn() != moneyIn) {
+        if (amount.signum() <= 0 || !type.allows(moneyIn)) {
             throw new IllegalArgumentException("invalid movement " + type + " of " + amount); // a bug, not user input
         }
         if (archivedAt != null) {
