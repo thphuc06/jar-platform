@@ -19,6 +19,8 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import org.jspecify.annotations.Nullable;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -27,6 +29,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -43,18 +46,19 @@ class GoalController {
 
     /** Goals that are not archived, nearest deadline first, with the progress of their funding jar. */
     @GetMapping
-    GoalsResponse list() {
+    GoalsResponse listGoals() {
         return new GoalsResponse(
                 goals.list(userId()).stream().map(GoalResponse::from).toList());
     }
 
     @GetMapping("/{id}")
-    GoalResponse get(@PathVariable UUID id) {
+    GoalResponse getGoal(@PathVariable UUID id) {
         return GoalResponse.from(goals.get(userId(), id));
     }
 
     @PostMapping
-    ResponseEntity<GoalResponse> create(@Valid @RequestBody CreateGoalRequest request) {
+    @ResponseStatus(HttpStatus.CREATED)
+    ResponseEntity<GoalResponse> createGoal(@Valid @RequestBody CreateGoalRequest request) {
         GoalView created = goals.create(userId(), request.toCommand());
         return ResponseEntity.created(URI.create("/api/v1/goals/" + created.id()))
                 .body(GoalResponse.from(created));
@@ -62,13 +66,14 @@ class GoalController {
 
     /** Fields left out stay as they are; {@code "fundingJarId": null} detaches the jar. */
     @PatchMapping("/{id}")
-    GoalResponse update(@PathVariable UUID id, @Valid @RequestBody UpdateGoalRequest request) {
+    GoalResponse updateGoal(@PathVariable UUID id, @Valid @RequestBody UpdateGoalRequest request) {
         return GoalResponse.from(goals.update(userId(), id, request.toCommand()));
     }
 
     /** Archives (soft delete). 204 also when the goal was already archived. */
     @DeleteMapping("/{id}")
-    ResponseEntity<Void> archive(@PathVariable UUID id) {
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    ResponseEntity<Void> archiveGoal(@PathVariable UUID id) {
         goals.archive(userId(), id);
         return ResponseEntity.noContent().build();
     }
@@ -81,7 +86,7 @@ class GoalController {
             @NotBlank @Size(max = 100) String name,
             @NotNull @VndAmount BigDecimal targetAmount,
             @NotNull LocalDate targetDate,
-            UUID fundingJarId) {
+            @Nullable UUID fundingJarId) {
 
         GoalService.NewGoal toCommand() {
             return new GoalService.NewGoal(name, targetAmount, targetDate, fundingJarId);
@@ -93,17 +98,17 @@ class GoalController {
 
         @Size(min = 1, max = 100)
         @Pattern(regexp = ".*\\S.*", message = "must not be blank")
-        private String name;
+        private @Nullable String name;
 
         @VndAmount
-        private BigDecimal targetAmount;
+        private @Nullable BigDecimal targetAmount;
 
-        private LocalDate targetDate;
+        private @Nullable LocalDate targetDate;
 
         private boolean fundingJarSent;
-        private UUID fundingJarId;
+        private @Nullable UUID fundingJarId;
 
-        private GoalStatus status;
+        private @Nullable GoalStatus status;
 
         @JsonSetter("name")
         void name(String value) {
@@ -145,8 +150,8 @@ class GoalController {
             String targetAmount,
             LocalDate targetDate,
             GoalStatus status,
-            FundingJar fundingJar,
-            Integer progressPct) {
+            @Nullable FundingJar fundingJar,
+            @Nullable Integer progressPct) {
 
         record FundingJar(UUID id, String code, String name, String balance, boolean archived) {
 

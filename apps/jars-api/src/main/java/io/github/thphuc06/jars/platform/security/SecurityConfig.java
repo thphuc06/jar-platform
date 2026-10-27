@@ -29,6 +29,12 @@ public class SecurityConfig {
                         .permitAll()
                         .requestMatchers("/actuator/health/**", "/actuator/info")
                         .permitAll()
+                        // API description + Swagger UI; springdoc serves them only where it is switched on (profile
+                        // "local"), everywhere else these paths answer 404
+                        .requestMatchers("/v3/api-docs", "/v3/api-docs/**", "/v3/api-docs.yaml", "/swagger-ui/**")
+                        .permitAll()
+                        .requestMatchers(HttpMethod.GET, "/swagger-ui.html")
+                        .permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/**")
                         .hasAuthority(READ)
                         .requestMatchers("/api/**")

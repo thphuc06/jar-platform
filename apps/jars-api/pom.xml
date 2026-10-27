@@ -22,6 +22,8 @@
         <spring-ai.version>2.0.1</spring-ai.version>
         <spring-cloud-aws.version>4.2.0</spring-cloud-aws.version>
         <spring-modulith.version>2.1.2</spring-modulith.version>
+        <!-- 3.1.x is built on Boot 4.1 (3.1.1: Boot 4.1.0); checked again in P1.10 -->
+        <springdoc.version>3.1.1</springdoc.version>
         <spotless.version>3.10.4</spotless.version>
         <palantir-java-format.version>2.102.0</palantir-java-format.version>
     </properties>
@@ -82,6 +84,12 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-data-jpa</artifactId>
+        </dependency>
+        <dependency>
+            <!-- OpenAPI 3.1 from the controllers (/v3/api-docs) + Swagger UI; both switched on only in profile "local" -->
+            <groupId>org.springdoc</groupId>
+            <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+            <version>${springdoc.version}</version>
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>

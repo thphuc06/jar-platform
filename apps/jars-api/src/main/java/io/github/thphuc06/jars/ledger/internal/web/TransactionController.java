@@ -19,7 +19,9 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import org.jspecify.annotations.Nullable;
 import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -29,6 +31,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -52,7 +55,8 @@ class TransactionController {
      * Idempotency-Key header is required: re-sending the same request with the same key never records it twice.
      */
     @PostMapping
-    ResponseEntity<PostingResponse> post(
+    @ResponseStatus(HttpStatus.CREATED)
+    ResponseEntity<PostingResponse> postTransaction(
             @RequestHeader(IDEMPOTENCY_KEY) UUID idempotencyKey, @Valid @RequestBody PostTransactionRequest request) {
         // the owner always comes from the access token, never from the request (IDOR protection)
         UUID userId = identity.currentUser().id();
@@ -61,7 +65,7 @@ class TransactionController {
 
     /** Money Inbox, newest first. Pass {@code nextCursor} of a page as {@code cursor} to get the following one. */
     @GetMapping
-    TransactionPageResponse list(
+    TransactionPageResponse listTransactions(
             @RequestParam(defaultValue = "50") @Min(1) @Max(TransactionQueries.MAX_LIMIT) int limit,
             @RequestParam(required = false) String cursor,
             @RequestParam(required = false) UUID jarId,
@@ -79,7 +83,7 @@ class TransactionController {
     }
 
     @GetMapping("/{id}")
-    TransactionItem get(@PathVariable UUID id) {
+    TransactionItem getTransaction(@PathVariable UUID id) {
         return TransactionItem.from(queries.get(identity.currentUser().id(), id));
     }
 
@@ -88,18 +92,18 @@ class TransactionController {
      * JSON {@code null} clears {@code categoryId} or {@code note}. Responds with the jars whose balance changed.
      */
     @PatchMapping("/{id}")
-    PostingResponse amend(@PathVariable UUID id, @Valid @RequestBody AmendTransactionRequest request) {
+    PostingResponse amendTransaction(@PathVariable UUID id, @Valid @RequestBody AmendTransactionRequest request) {
         return PostingResponse.from(posting.amend(identity.currentUser().id(), id, request.toCommand()));
     }
 
     record PostTransactionRequest(
             @NotNull TransactionType type,
             @NotNull @VndAmount BigDecimal amount,
-            UUID jarId,
-            UUID categoryId,
-            @Size(max = 200) String counterparty,
-            @Size(max = 500) String note,
-            Instant occurredAt) {
+            @Nullable UUID jarId,
+            @Nullable UUID categoryId,
+            @Size(max = 200) @Nullable String counterparty,
+            @Size(max = 500) @Nullable String note,
+            @Nullable Instant occurredAt) {
 
         PostingService.PostTransaction toCommand() {
             return new PostingService.PostTransaction(type, amount, jarId, categoryId, counterparty, note, occurredAt);
@@ -115,14 +119,14 @@ class TransactionController {
     static final class AmendTransactionRequest {
 
         private boolean categorySent;
-        private UUID categoryId;
+        private @Nullable UUID categoryId;
 
         private boolean noteSent;
 
         @Size(max = 500)
-        private String note;
+        private @Nullable String note;
 
-        private UUID jarId;
+        private @Nullable UUID jarId;
 
         @JsonSetter("categoryId")
         void categoryId(UUID value) {
@@ -149,7 +153,8 @@ class TransactionController {
         }
     }
 
-    record TransactionPageResponse(List<TransactionItem> items, String nextCursor) {}
+    record TransactionPageResponse(
+            List<TransactionItem> items, @Nullable String nextCursor) {}
 
     record TransactionItem(
             UUID id,
@@ -157,10 +162,10 @@ class TransactionController {
             String amount,
             String currency,
             JarRef jar,
-            JarRef toJar,
-            CategoryRef category,
-            String counterparty,
-            String note,
+            @Nullable JarRef toJar,
+            @Nullable CategoryRef category,
+            @Nullable String counterparty,
+            @Nullable String note,
             Instant occurredAt) {
 
         record JarRef(UUID id, JarCode code, String name) {

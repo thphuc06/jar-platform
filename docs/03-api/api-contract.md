@@ -1,6 +1,6 @@
 # API Contract
 
-> Nguồn sự thật cuối cùng là file **OpenAPI** do `jars-api` sinh ra (springdoc), được commit ở `contracts/openapi/jars-api.yaml`. Từ file này sinh TypeScript client cho `web` (`openapi-typescript`). Tài liệu này là bản thiết kế và giải thích các quy ước.
+> Nguồn sự thật cuối cùng là file **OpenAPI** do `jars-api` sinh ra (springdoc), được commit ở [`contracts/openapi/jars-api.yaml`](../../contracts/openapi/jars-api.yaml) (✅ P1.10, [ADR-0019](../04-adr/0019-code-first-openapi-contract.md)). `OpenApiContractTest` bảo đảm file đó khớp với API, security trong file đúng với filter chain, và response thật của mọi operation khớp schema. Từ file này sinh TypeScript client cho `web` (`openapi-typescript`). Tài liệu này là bản thiết kế và giải thích các quy ước.
 
 ## 1. Quy ước chung
 
@@ -9,6 +9,7 @@
 | Base path | `/api/v1` (CloudFront chuyển `/api/*` sang ALB) |
 | Định dạng | JSON UTF-8, field `camelCase`; tiền là **string** dạng số thập phân (`"85000.00"`) kèm `currency`, tránh JS làm tròn số |
 | Thời gian | ISO-8601 UTC (`2026-11-15T03:21:09Z`); tháng dạng `YYYY-MM` |
+| `null` và field vắng | Response **luôn có đủ mọi field**, kể cả khi giá trị là `null` (OpenAPI: mọi property đều `required`). Field có thể `null` được khai báo bằng JSpecify `@Nullable` trên DTO, hiện trong OpenAPI là `type: [..., "null"]` hoặc `oneOf: [$ref, null]`, và trong TypeScript là `T \| null` (✅ P1.10). Request: field không bắt buộc thì có thể bỏ qua hoặc gửi `null`; với PATCH, bỏ qua và `null` khác nghĩa nhau (§2) |
 | Auth | `Authorization: Bearer <Cognito access token>` cho mọi endpoint trừ `/api/v1/health`. Metadata RFC 9728 công khai tại `/.well-known/oauth-protected-resource` |
 | Lỗi | **RFC 9457 `application/problem+json`**, luôn có `type`, `title`, `status`, `detail`, `instance`, **`traceId`**. `type` = `https://jars.local/problems/{code}`: `code` là định danh ổn định (UI dịch thông báo theo `code`, còn `detail` là tiếng Anh dành cho developer). Validation có thêm `errors: [{field, message}]` |
 | Phân trang | **Cursor (keyset)**: `?limit=50&cursor=<opaque>` → `{items, nextCursor}`; `nextCursor = null` ở trang cuối; cursor sửa tay → 422 `invalid-cursor` (✅ P1.7). Không có tổng số dòng: đếm `COUNT(*)` mỗi trang là tốn kém và UI cuộn vô hạn không cần |

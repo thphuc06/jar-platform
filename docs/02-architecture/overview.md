@@ -93,7 +93,7 @@ Version được chốt ngày **2026-10-23** theo bản stable mới nhất. C�
 | Flyway | theo BOM của Boot | Migration | – |
 | PostgreSQL | Aurora PostgreSQL **17.x** | Scale-to-zero yêu cầu ≥ 16.3 / 15.7 | ⚠️ Kiểm tra minor version khả dụng ở ap-southeast-1 khi deploy |
 | Resilience4j | 2.x | Circuit breaker cho `quant-fn`. Spring Framework 7 đã có sẵn `@Retryable` / `@ConcurrencyLimit` | ⚠️ Kiểm tra starter cho Boot 4 ở Phase 4 |
-| springdoc-openapi | 3.x | Sinh OpenAPI → TypeScript client | ⚠️ Kiểm tra ở Phase 1 |
+| springdoc-openapi | **3.1.x** (3.1.1) | Sinh OpenAPI 3.1 → `contracts/openapi/jars-api.yaml` → TypeScript client | ✅ P1.10 với Boot 4.1.2 + Jackson 3 (3.1.1 build trên Boot 4.1.0). 3.2.0 (24/10/2026, build trên 4.1.2) để Dependabot nâng sau |
 | Testcontainers | 2.x | PostgreSQL, LocalStack (cần auth token, xem local-development) | – |
 | AWS CDK | v2 (Java) | `aws-cdk-lib` | ✅ Account đã từng dùng CDK (stack `CDKToolkit` ở us-east-1) |
 | Node.js | 22/24 LTS | Build web, chạy CDK CLI qua `npx` | ✅ máy dev có Node 24 |

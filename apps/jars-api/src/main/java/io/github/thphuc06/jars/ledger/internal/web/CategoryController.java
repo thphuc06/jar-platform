@@ -22,7 +22,7 @@ class CategoryController {
 
     /** System defaults (BR-3) plus the own categories of the caller, wrapped so fields can be added later. */
     @GetMapping
-    CategoriesResponse categories() {
+    CategoriesResponse listCategories() {
         return new CategoriesResponse(
                 queries.categoriesOf(identity.currentUser().id()));
     }

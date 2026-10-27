@@ -33,14 +33,14 @@ class RiskProfileController {
 
     /** The current profile; 404 {@code risk-profile-not-found} until the questionnaire has been answered once. */
     @GetMapping
-    RiskProfileResponse current() {
+    RiskProfileResponse getRiskProfile() {
         return RiskProfileResponse.from(
                 riskProfiles.current(identity.currentUser().id()));
     }
 
     /** Answers the questionnaire (onboarding, or again later): all five answers are required. */
     @PutMapping
-    RiskProfileResponse assess(@Valid @RequestBody RiskAnswersRequest request) {
+    RiskProfileResponse assessRiskProfile(@Valid @RequestBody RiskAnswersRequest request) {
         return RiskProfileResponse.from(
                 riskProfiles.assess(identity.currentUser().id(), request.toAnswers()));
     }

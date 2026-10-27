@@ -17,7 +17,8 @@
 | Dependency | Version thư viện ngoài Boot quản lý bằng BOM trong `dependencyManagement`. **Thứ tự BOM có ý nghĩa: BOM import trước thắng** (xem ADR-0004, phát hiện #5). Sau khi thêm BOM hoặc dependency thì kiểm tra bằng `./mvnw dependency:tree -Dincludes=<groupId>` |
 | Module | Mỗi package con trực tiếp của `io.github.thphuc06.jars` là một module Modulith; `platform` và `shared` là shared module (`@Modulithic(sharedModules = {"platform", "shared"})`). `ModularityTests` chạy ở mọi build |
 | Package | `io.github.thphuc06.jars.<module>`; public API nằm ở root package của module, còn lại ở `internal` ([modules.md](../02-architecture/modules.md)) |
-| DTO | `record`; tên `XxxRequest` / `XxxResponse`; không trả entity ra controller |
+| DTO | `record`; tên `XxxRequest` / `XxxResponse`; không trả entity ra controller. Component có thể `null` phải có JSpecify `@Nullable` (nó quyết định type trong OpenAPI và TypeScript); request và response không dùng chung một record |
+| API contract | Tên handler method là `operationId`, phải duy nhất trong toàn API (`listTransactions`, không đặt `list`). Đổi API thì chạy `./mvnw test -Dtest=OpenApiContractTest -Dopenapi.update=true` và commit `contracts/openapi/jars-api.yaml` cùng code; operation mới phải có một lời gọi thật trong `everyOperation_realResponseFitsItsSchema` ([ADR-0019](../04-adr/0019-code-first-openapi-contract.md)) |
 | Entity | Không dùng Lombok `@Data` cho entity (vì `equals`/`hashCode` có lazy proxy); constructor `protected` cho JPA; method nghiệp vụ nằm trên entity |
 | Null | Trả `Optional` cho method tìm kiếm; JSpecify `@Nullable` khi cần (Boot 4 / Framework 7 đã dùng JSpecify) |
 | Tiền | Chỉ dùng `Money` / `BigDecimal`; cấm `double` cho tiền (ArchUnit rule) |
@@ -45,7 +46,7 @@
 ## 4. Definition of Done (cho mỗi bước roadmap)
 
 - [ ] Code + test xanh ở local và trên CI.
-- [ ] Đã cập nhật tài liệu liên quan (API contract, data model, event catalog, flows).
+- [ ] Đã cập nhật tài liệu liên quan (API contract, data model, event catalog, flows). Đổi API thì file `contracts/openapi/jars-api.yaml` được sinh lại và commit cùng code (contract test fail nếu quên).
 - [ ] Đã viết ADR nếu có quyết định kiến trúc mới.
 - [ ] Không có secret; gitleaks xanh.
 - [ ] Tick roadmap **và** thêm một dòng vào bảng "Nhật ký tiến độ" của roadmap (ngày, bước, vướng mắc, link ghi chú).

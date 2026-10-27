@@ -13,6 +13,7 @@ import java.time.LocalDate;
 import java.time.YearMonth;
 import java.util.List;
 import java.util.UUID;
+import org.jspecify.annotations.Nullable;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -34,7 +35,7 @@ class DashboardController {
 
     /** Everything the dashboard screen needs in ONE request; {@code month} defaults to the current Vietnamese month. */
     @GetMapping("/dashboard")
-    DashboardResponse dashboard(
+    DashboardResponse getDashboard(
             @RequestParam(required = false) @Pattern(regexp = "\\d{4}-(0[1-9]|1[0-2])", message = "must be YYYY-MM")
                     String month) {
         YearMonth requested = month == null ? YearMonth.from(BusinessTime.today(clock)) : YearMonth.parse(month);
@@ -44,7 +45,7 @@ class DashboardController {
 
     /** Total balance at the end of each of the last {@code days} days (Vietnam time), oldest first, today last. */
     @GetMapping("/balances/daily")
-    DailyBalancesResponse dailyBalances(@RequestParam(defaultValue = "30") @Min(1) @Max(366) int days) {
+    DailyBalancesResponse getDailyBalances(@RequestParam(defaultValue = "30") @Min(1) @Max(366) int days) {
         List<DailyBalanceItem> items =
                 dashboards.dailyBalances(identity.currentUser().id(), BusinessTime.today(clock), days).stream()
                         .map(b -> new DailyBalanceItem(b.date(), MoneyFormat.format(b.balance())))
@@ -65,7 +66,8 @@ class DashboardController {
 
         record Balances(String total, String unallocated, String allocated) {}
 
-        record CategoryItem(UUID categoryId, String name, String amount) {}
+        record CategoryItem(
+                @Nullable UUID categoryId, @Nullable String name, String amount) {}
 
         record JarItem(UUID jarId, JarCode code, String name, String balance, String spent) {}
 

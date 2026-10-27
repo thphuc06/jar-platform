@@ -1,0 +1,1405 @@
+openapi: 3.1.0
+info:
+  description: Personal finance with the 6-jar method. Money is a decimal string in
+    VND ("85000.00"); errors are RFC 9457 problems (application/problem+json).
+  title: Jars Platform API
+  version: v1
+servers:
+- url: /
+paths:
+  /api/v1/balances/daily:
+    get:
+      operationId: getDailyBalances
+      parameters:
+      - in: query
+        name: days
+        required: false
+        schema:
+          type: integer
+          format: int32
+          default: 30
+          maximum: 366
+          minimum: 1
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DailyBalancesResponse"
+          description: OK
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        default:
+          $ref: "#/components/responses/Problem"
+      security:
+      - bearerAuth:
+        - jars-api/read
+      tags:
+      - dashboard-controller
+  /api/v1/categories:
+    get:
+      operationId: listCategories
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CategoriesResponse"
+          description: OK
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        default:
+          $ref: "#/components/responses/Problem"
+      security:
+      - bearerAuth:
+        - jars-api/read
+      tags:
+      - category-controller
+  /api/v1/dashboard:
+    get:
+      operationId: getDashboard
+      parameters:
+      - in: query
+        name: month
+        required: false
+        schema:
+          type: string
+          pattern: "\\d{4}-(0[1-9]|1[0-2])"
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardResponse"
+          description: OK
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        default:
+          $ref: "#/components/responses/Problem"
+      security:
+      - bearerAuth:
+        - jars-api/read
+      tags:
+      - dashboard-controller
+  /api/v1/goals:
+    get:
+      operationId: listGoals
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GoalsResponse"
+          description: OK
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        default:
+          $ref: "#/components/responses/Problem"
+      security:
+      - bearerAuth:
+        - jars-api/read
+      tags:
+      - goal-controller
+    post:
+      operationId: createGoal
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateGoalRequest"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GoalResponse"
+          description: Created
+          headers:
+            Location:
+              description: URL of the created resource
+              required: true
+              schema:
+                type: string
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        default:
+          $ref: "#/components/responses/Problem"
+      security:
+      - bearerAuth:
+        - jars-api/write
+      tags:
+      - goal-controller
+  /api/v1/goals/{id}:
+    delete:
+      operationId: archiveGoal
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "204":
+          description: No Content
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        default:
+          $ref: "#/components/responses/Problem"
+      security:
+      - bearerAuth:
+        - jars-api/write
+      tags:
+      - goal-controller
+    get:
+      operationId: getGoal
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GoalResponse"
+          description: OK
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        default:
+          $ref: "#/components/responses/Problem"
+      security:
+      - bearerAuth:
+        - jars-api/read
+      tags:
+      - goal-controller
+    patch:
+      operationId: updateGoal
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateGoalRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GoalResponse"
+          description: OK
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        default:
+          $ref: "#/components/responses/Problem"
+      security:
+      - bearerAuth:
+        - jars-api/write
+      tags:
+      - goal-controller
+  /api/v1/health:
+    get:
+      operationId: getHealth
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+          description: OK
+        default:
+          $ref: "#/components/responses/Problem"
+      tags:
+      - health-controller
+  /api/v1/jars:
+    get:
+      operationId: listJars
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JarsResponse"
+          description: OK
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        default:
+          $ref: "#/components/responses/Problem"
+      security:
+      - bearerAuth:
+        - jars-api/read
+      tags:
+      - jar-controller
+  /api/v1/jars/transfers:
+    post:
+      operationId: transferBetweenJars
+      parameters:
+      - description: "New UUID per user action, kept when the same action is sent\
+          \ again: a repeated request returns the stored result instead of moving\
+          \ the money twice"
+        in: header
+        name: Idempotency-Key
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TransferRequest"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PostingResponse"
+          description: Created
+          headers:
+            Idempotent-Replayed:
+              description: '"true" when this is the stored result of an earlier request
+                with the same key; absent otherwise'
+              schema:
+                type: string
+                enum:
+                - "true"
+            Location:
+              description: URL of the created resource
+              required: true
+              schema:
+                type: string
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        default:
+          $ref: "#/components/responses/Problem"
+      security:
+      - bearerAuth:
+        - jars-api/write
+      tags:
+      - jar-controller
+  /api/v1/me:
+    get:
+      operationId: getMe
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MeResponse"
+          description: OK
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        default:
+          $ref: "#/components/responses/Problem"
+      security:
+      - bearerAuth:
+        - jars-api/read
+      tags:
+      - me-controller
+  /api/v1/me/risk-profile:
+    get:
+      operationId: getRiskProfile
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RiskProfileResponse"
+          description: OK
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        default:
+          $ref: "#/components/responses/Problem"
+      security:
+      - bearerAuth:
+        - jars-api/read
+      tags:
+      - risk-profile-controller
+    put:
+      operationId: assessRiskProfile
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RiskAnswersRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RiskProfileResponse"
+          description: OK
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        default:
+          $ref: "#/components/responses/Problem"
+      security:
+      - bearerAuth:
+        - jars-api/write
+      tags:
+      - risk-profile-controller
+  /api/v1/transactions:
+    get:
+      operationId: listTransactions
+      parameters:
+      - in: query
+        name: limit
+        required: false
+        schema:
+          type: integer
+          format: int32
+          default: 50
+          maximum: 100
+          minimum: 1
+      - in: query
+        name: cursor
+        required: false
+        schema:
+          type: string
+      - in: query
+        name: jarId
+        required: false
+        schema:
+          type: string
+          format: uuid
+      - in: query
+        name: categoryId
+        required: false
+        schema:
+          type: string
+          format: uuid
+      - in: query
+        name: type
+        required: false
+        schema:
+          type: string
+          enum:
+          - INCOME
+          - EXPENSE
+          - JAR_TRANSFER
+      - in: query
+        name: from
+        required: false
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: to
+        required: false
+        schema:
+          type: string
+          format: date-time
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TransactionPageResponse"
+          description: OK
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        default:
+          $ref: "#/components/responses/Problem"
+      security:
+      - bearerAuth:
+        - jars-api/read
+      tags:
+      - transaction-controller
+    post:
+      operationId: postTransaction
+      parameters:
+      - description: "New UUID per user action, kept when the same action is sent\
+          \ again: a repeated request returns the stored result instead of moving\
+          \ the money twice"
+        in: header
+        name: Idempotency-Key
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PostTransactionRequest"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PostingResponse"
+          description: Created
+          headers:
+            Idempotent-Replayed:
+              description: '"true" when this is the stored result of an earlier request
+                with the same key; absent otherwise'
+              schema:
+                type: string
+                enum:
+                - "true"
+            Location:
+              description: URL of the created resource
+              required: true
+              schema:
+                type: string
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        default:
+          $ref: "#/components/responses/Problem"
+      security:
+      - bearerAuth:
+        - jars-api/write
+      tags:
+      - transaction-controller
+  /api/v1/transactions/{id}:
+    get:
+      operationId: getTransaction
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TransactionItem"
+          description: OK
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        default:
+          $ref: "#/components/responses/Problem"
+      security:
+      - bearerAuth:
+        - jars-api/read
+      tags:
+      - transaction-controller
+    patch:
+      operationId: amendTransaction
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AmendTransactionRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PostingResponse"
+          description: OK
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        default:
+          $ref: "#/components/responses/Problem"
+      security:
+      - bearerAuth:
+        - jars-api/write
+      tags:
+      - transaction-controller
+components:
+  responses:
+    Forbidden:
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+      description: The access token lacks the required scope
+    Problem:
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+      description: "Any other error. `type` names it: e.g. .../validation-failed (422,\
+        \ with `errors`), .../insufficient-jar-balance (422), .../idempotency-key-reused\
+        \ (422), .../concurrent-modification (409), .../transaction-not-found (404)"
+    Unauthorized:
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+      description: "Missing, expired or invalid access token"
+  schemas:
+    AmendTransactionRequest:
+      type: object
+      properties:
+        categoryId:
+          type:
+          - string
+          - "null"
+          format: uuid
+          writeOnly: true
+        jarId:
+          type:
+          - string
+          - "null"
+          format: uuid
+          writeOnly: true
+        note:
+          type:
+          - string
+          - "null"
+          writeOnly: true
+    Answers:
+      type: object
+      properties:
+        experience:
+          type: string
+          enum:
+          - BEGINNER
+          - EXPERIENCED
+          - VERY_EXPERIENCED
+        horizon:
+          type: string
+          enum:
+          - UNDER_2_YEARS
+          - YEARS_2_TO_5
+          - YEARS_5_TO_10
+          - OVER_10_YEARS
+        liquidity:
+          type: string
+          enum:
+          - IMMEDIATE
+          - WITHIN_A_MONTH
+          - FLEXIBLE
+        mainGoal:
+          type: string
+          enum:
+          - EMERGENCY_FUND
+          - LONG_TERM_GROWTH
+          - SPECIFIC_GOAL
+          - PASSIVE_INCOME
+        riskTolerance:
+          type: string
+          enum:
+          - CONSERVATIVE
+          - MODERATE
+          - AGGRESSIVE
+      required:
+      - experience
+      - horizon
+      - liquidity
+      - mainGoal
+      - riskTolerance
+    Balances:
+      type: object
+      properties:
+        allocated:
+          type: string
+        total:
+          type: string
+        unallocated:
+          type: string
+      required:
+      - allocated
+      - total
+      - unallocated
+    CategoriesResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/CategoryView"
+      required:
+      - items
+    CategoryItem:
+      type: object
+      properties:
+        amount:
+          type: string
+        categoryId:
+          type:
+          - string
+          - "null"
+          format: uuid
+        name:
+          type:
+          - string
+          - "null"
+      required:
+      - amount
+      - categoryId
+      - name
+    CategoryRef:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+      required:
+      - id
+      - name
+    CategoryView:
+      type: object
+      properties:
+        defaultJarCode:
+          type:
+          - string
+          - "null"
+          enum:
+          - NEC
+          - FFA
+          - LTSS
+          - EDU
+          - PLAY
+          - GIVE
+          - POOL
+          - CUSTOM
+          - null
+        id:
+          type: string
+          format: uuid
+        kind:
+          type: string
+          enum:
+          - EXPENSE
+          - INCOME
+        name:
+          type: string
+        system:
+          type: boolean
+      required:
+      - defaultJarCode
+      - id
+      - kind
+      - name
+      - system
+    CreateGoalRequest:
+      type: object
+      properties:
+        fundingJarId:
+          type:
+          - string
+          - "null"
+          format: uuid
+        name:
+          type: string
+          maxLength: 100
+          minLength: 0
+        targetAmount:
+          type: string
+          description: Positive whole number of VND as a decimal string; "85000.00"
+            is accepted too
+          example: "85000"
+          pattern: "^[0-9]{1,17}(\\.0+)?$"
+        targetDate:
+          type: string
+          format: date
+      required:
+      - name
+      - targetAmount
+      - targetDate
+    DailyBalanceItem:
+      type: object
+      properties:
+        balance:
+          type: string
+        date:
+          type: string
+          format: date
+      required:
+      - balance
+      - date
+    DailyBalancesResponse:
+      type: object
+      properties:
+        currency:
+          type: string
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/DailyBalanceItem"
+      required:
+      - currency
+      - items
+    DashboardResponse:
+      type: object
+      properties:
+        balances:
+          $ref: "#/components/schemas/Balances"
+        byCategory:
+          type: array
+          items:
+            $ref: "#/components/schemas/CategoryItem"
+        byJar:
+          type: array
+          items:
+            $ref: "#/components/schemas/JarItem"
+        currency:
+          type: string
+        expense:
+          type: string
+        income:
+          type: string
+        month:
+          type: string
+        net:
+          type: string
+        trend:
+          type: array
+          items:
+            $ref: "#/components/schemas/TrendItem"
+      required:
+      - balances
+      - byCategory
+      - byJar
+      - currency
+      - expense
+      - income
+      - month
+      - net
+      - trend
+    FundingJar:
+      type: object
+      properties:
+        archived:
+          type: boolean
+        balance:
+          type: string
+        code:
+          type: string
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+      required:
+      - archived
+      - balance
+      - code
+      - id
+      - name
+    GoalResponse:
+      type: object
+      properties:
+        fundingJar:
+          oneOf:
+          - $ref: "#/components/schemas/FundingJar"
+          - type: "null"
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        progressPct:
+          type:
+          - integer
+          - "null"
+          format: int32
+        status:
+          type: string
+          enum:
+          - ACTIVE
+          - ACHIEVED
+          - ARCHIVED
+        targetAmount:
+          type: string
+        targetDate:
+          type: string
+          format: date
+      required:
+      - fundingJar
+      - id
+      - name
+      - progressPct
+      - status
+      - targetAmount
+      - targetDate
+    GoalsResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/GoalResponse"
+      required:
+      - items
+    HealthResponse:
+      type: object
+      properties:
+        service:
+          type: string
+        status:
+          type: string
+        version:
+          type: string
+      required:
+      - service
+      - status
+      - version
+    JarBalance:
+      type: object
+      properties:
+        balance:
+          type: string
+        code:
+          type: string
+          enum:
+          - NEC
+          - FFA
+          - LTSS
+          - EDU
+          - PLAY
+          - GIVE
+          - POOL
+          - CUSTOM
+        id:
+          type: string
+          format: uuid
+      required:
+      - balance
+      - code
+      - id
+    JarItem:
+      type: object
+      properties:
+        balance:
+          type: string
+        code:
+          type: string
+          enum:
+          - NEC
+          - FFA
+          - LTSS
+          - EDU
+          - PLAY
+          - GIVE
+          - POOL
+          - CUSTOM
+        jarId:
+          type: string
+          format: uuid
+        name:
+          type: string
+        spent:
+          type: string
+      required:
+      - balance
+      - code
+      - jarId
+      - name
+      - spent
+    JarRef:
+      type: object
+      properties:
+        code:
+          type: string
+          enum:
+          - NEC
+          - FFA
+          - LTSS
+          - EDU
+          - PLAY
+          - GIVE
+          - POOL
+          - CUSTOM
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+      required:
+      - code
+      - id
+      - name
+    JarResponse:
+      type: object
+      properties:
+        balance:
+          type: string
+        code:
+          type: string
+          enum:
+          - NEC
+          - FFA
+          - LTSS
+          - EDU
+          - PLAY
+          - GIVE
+          - POOL
+          - CUSTOM
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        targetPct:
+          type: number
+      required:
+      - balance
+      - code
+      - id
+      - name
+      - targetPct
+    JarsResponse:
+      type: object
+      properties:
+        currency:
+          type: string
+        jars:
+          type: array
+          items:
+            $ref: "#/components/schemas/JarResponse"
+        total:
+          type: string
+        unallocated:
+          type: string
+      required:
+      - currency
+      - jars
+      - total
+      - unallocated
+    MeResponse:
+      type: object
+      properties:
+        createdAt:
+          type: string
+          format: date-time
+        displayName:
+          type:
+          - string
+          - "null"
+        email:
+          type: string
+        id:
+          type: string
+          format: uuid
+        locale:
+          type: string
+      required:
+      - createdAt
+      - displayName
+      - email
+      - id
+      - locale
+    PostTransactionRequest:
+      type: object
+      properties:
+        amount:
+          type: string
+          description: Positive whole number of VND as a decimal string; "85000.00"
+            is accepted too
+          example: "85000"
+          pattern: "^[0-9]{1,17}(\\.0+)?$"
+        categoryId:
+          type:
+          - string
+          - "null"
+          format: uuid
+        counterparty:
+          type:
+          - string
+          - "null"
+          maxLength: 200
+          minLength: 0
+        jarId:
+          type:
+          - string
+          - "null"
+          format: uuid
+        note:
+          type:
+          - string
+          - "null"
+          maxLength: 500
+          minLength: 0
+        occurredAt:
+          type:
+          - string
+          - "null"
+          format: date-time
+        type:
+          type: string
+          enum:
+          - INCOME
+          - EXPENSE
+          - JAR_TRANSFER
+      required:
+      - amount
+      - type
+    PostingResponse:
+      type: object
+      properties:
+        jars:
+          type: array
+          items:
+            $ref: "#/components/schemas/JarBalance"
+        transaction:
+          $ref: "#/components/schemas/TransactionResponse"
+      required:
+      - jars
+      - transaction
+    Problem:
+      type: object
+      description: "RFC 9457 problem details, plus traceId (quote it when reporting\
+        \ an error)"
+      properties:
+        detail:
+          type: string
+        errors:
+          type: array
+          description: "Only for validation-failed: one entry per invalid field"
+          items:
+            type: object
+            properties:
+              field:
+                type: string
+              message:
+                type: string
+            required:
+            - field
+            - message
+        instance:
+          type: string
+        status:
+          type: integer
+          format: int32
+        title:
+          type: string
+        traceId:
+          type: string
+        type:
+          type: string
+          format: uri
+      required:
+      - status
+      - title
+      - type
+    RiskAnswersRequest:
+      type: object
+      properties:
+        experience:
+          type: string
+          enum:
+          - BEGINNER
+          - EXPERIENCED
+          - VERY_EXPERIENCED
+        horizon:
+          type: string
+          enum:
+          - UNDER_2_YEARS
+          - YEARS_2_TO_5
+          - YEARS_5_TO_10
+          - OVER_10_YEARS
+        liquidity:
+          type: string
+          enum:
+          - IMMEDIATE
+          - WITHIN_A_MONTH
+          - FLEXIBLE
+        mainGoal:
+          type: string
+          enum:
+          - EMERGENCY_FUND
+          - LONG_TERM_GROWTH
+          - SPECIFIC_GOAL
+          - PASSIVE_INCOME
+        riskTolerance:
+          type: string
+          enum:
+          - CONSERVATIVE
+          - MODERATE
+          - AGGRESSIVE
+      required:
+      - experience
+      - horizon
+      - liquidity
+      - mainGoal
+      - riskTolerance
+    RiskProfileResponse:
+      type: object
+      properties:
+        answers:
+          $ref: "#/components/schemas/Answers"
+        assessedAt:
+          type: string
+          format: date-time
+        capped:
+          type: boolean
+        maxScore:
+          type: integer
+          format: int32
+        questionnaireVersion:
+          type: integer
+          format: int32
+        riskLevel:
+          type: string
+          enum:
+          - CONSERVATIVE
+          - BALANCED
+          - GROWTH
+        score:
+          type: integer
+          format: int32
+      required:
+      - answers
+      - assessedAt
+      - capped
+      - maxScore
+      - questionnaireVersion
+      - riskLevel
+      - score
+    TransactionItem:
+      type: object
+      properties:
+        amount:
+          type: string
+        category:
+          oneOf:
+          - $ref: "#/components/schemas/CategoryRef"
+          - type: "null"
+        counterparty:
+          type:
+          - string
+          - "null"
+        currency:
+          type: string
+        id:
+          type: string
+          format: uuid
+        jar:
+          $ref: "#/components/schemas/JarRef"
+        note:
+          type:
+          - string
+          - "null"
+        occurredAt:
+          type: string
+          format: date-time
+        toJar:
+          oneOf:
+          - $ref: "#/components/schemas/JarRef"
+          - type: "null"
+        type:
+          type: string
+          enum:
+          - INCOME
+          - EXPENSE
+          - JAR_TRANSFER
+      required:
+      - amount
+      - category
+      - counterparty
+      - currency
+      - id
+      - jar
+      - note
+      - occurredAt
+      - toJar
+      - type
+    TransactionPageResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/TransactionItem"
+        nextCursor:
+          type:
+          - string
+          - "null"
+      required:
+      - items
+      - nextCursor
+    TransactionResponse:
+      type: object
+      properties:
+        amount:
+          type: string
+        categoryId:
+          type:
+          - string
+          - "null"
+          format: uuid
+        counterparty:
+          type:
+          - string
+          - "null"
+        currency:
+          type: string
+        id:
+          type: string
+          format: uuid
+        jarId:
+          type: string
+          format: uuid
+        note:
+          type:
+          - string
+          - "null"
+        occurredAt:
+          type: string
+          format: date-time
+        toJarId:
+          type:
+          - string
+          - "null"
+          format: uuid
+        type:
+          type: string
+          enum:
+          - INCOME
+          - EXPENSE
+          - JAR_TRANSFER
+      required:
+      - amount
+      - categoryId
+      - counterparty
+      - currency
+      - id
+      - jarId
+      - note
+      - occurredAt
+      - toJarId
+      - type
+    TransferRequest:
+      type: object
+      properties:
+        amount:
+          type: string
+          description: Positive whole number of VND as a decimal string; "85000.00"
+            is accepted too
+          example: "85000"
+          pattern: "^[0-9]{1,17}(\\.0+)?$"
+        fromJarId:
+          type: string
+          format: uuid
+        note:
+          type:
+          - string
+          - "null"
+          maxLength: 500
+          minLength: 0
+        occurredAt:
+          type:
+          - string
+          - "null"
+          format: date-time
+        toJarId:
+          type: string
+          format: uuid
+      required:
+      - amount
+      - fromJarId
+      - toJarId
+    TrendItem:
+      type: object
+      properties:
+        expense:
+          type: string
+        income:
+          type: string
+        month:
+          type: string
+      required:
+      - expense
+      - income
+      - month
+    UpdateGoalRequest:
+      type: object
+      properties:
+        fundingJarId:
+          type:
+          - string
+          - "null"
+          format: uuid
+          writeOnly: true
+        name:
+          type:
+          - string
+          - "null"
+          writeOnly: true
+        status:
+          type:
+          - string
+          - "null"
+          enum:
+          - ACTIVE
+          - ACHIEVED
+          - ARCHIVED
+          - null
+          writeOnly: true
+        targetAmount:
+          type:
+          - string
+          - "null"
+          description: Positive whole number of VND as a decimal string; "85000.00"
+            is accepted too
+          example: "85000"
+          pattern: "^[0-9]{1,17}(\\.0+)?$"
+          writeOnly: true
+        targetDate:
+          type:
+          - string
+          - "null"
+          format: date
+          writeOnly: true
+  securitySchemes:
+    bearerAuth:
+      bearerFormat: JWT
+      description: "Cognito ACCESS token (an ID token is rejected). GET needs scope\
+        \ jars-api/read, every other method jars-api/write."
+      scheme: bearer
+      type: http

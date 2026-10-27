@@ -27,3 +27,4 @@ ADR ghi lại **vì sao** một quyết định kiến trúc được đưa ra, 
 | [0016](0016-cicd-github-actions-oidc.md) | CI/CD bằng GitHub Actions + OIDC | Accepted | 2026-10-23 |
 | [0017](0017-python-quant-lambda.md) | Python chỉ ở `quant-fn` (Lambda); bỏ Dexter | Accepted | 2026-10-23 |
 | [0018](0018-human-access-iam-user-aws-login.md) | Truy cập của người: IAM user + MFA + `aws login` (không dùng Identity Center) | Accepted | 2026-10-23 |
+| [0019](0019-code-first-openapi-contract.md) | OpenAPI sinh từ code (springdoc), commit vào `contracts/` và được contract test giữ đúng | Accepted | 2026-10-27 |

@@ -35,6 +35,18 @@ spring:
 server:
   port: 8080
 
+# OpenAPI description (/v3/api-docs) and Swagger UI are OFF by default, so a deployed API does not publish its map;
+# profile "local" switches them on. The committed contract is contracts/openapi/jars-api.yaml (OpenApiContractTest).
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false
+  # the controllers do not declare produces=..., without this every response would be documented as */*
+  default-produces-media-type: application/json
+  # stable output: keys sorted, so the committed file only changes when the API changes
+  writer-with-order-by-keys: true
+
 logging:
   pattern:
     # every log line carries the request's trace id (TraceIdFilter), e.g. "INFO [4bf92f35...]"

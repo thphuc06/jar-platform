@@ -11,6 +11,7 @@ import java.net.URI;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
+import org.jspecify.annotations.Nullable;
 import org.springframework.http.ResponseEntity;
 
 /** Body of 201 responses that move money: the transaction plus the new balance of every jar it touched. */
@@ -24,10 +25,10 @@ record PostingResponse(TransactionResponse transaction, List<JarBalance> jars) {
             String amount,
             String currency,
             UUID jarId,
-            UUID toJarId,
-            UUID categoryId,
-            String counterparty,
-            String note,
+            @Nullable UUID toJarId,
+            @Nullable UUID categoryId,
+            @Nullable String counterparty,
+            @Nullable String note,
             Instant occurredAt) {
 
         static TransactionResponse from(TransactionView t) {

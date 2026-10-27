@@ -33,5 +33,6 @@ Ghi chú học tập viết **trong lúc làm** từng bước của [roadmap](.
 | [P1.7](P1.7-keyset-pagination-n-plus-1.md) | Money Inbox + sửa giao dịch | Keyset vs offset, N+1, entity graph, merge-patch, bút toán đảo |
 | [P1.8](P1.8-risk-profile-and-goals.md) | Bảng hỏi rủi ro + module goals | API giữa module, FK xuyên module, múi giờ, JSONB vs cột, N+1 xuyên service |
 | [P1.9](P1.9-dashboard-aggregate-sql.md) | Dashboard bằng aggregate SQL | Hàm trên cột và index, window function, `generate_series`, REPEATABLE READ, read model vs materialized view |
+| [P1.10](P1.10-openapi-contract.md) | OpenAPI contract + TypeScript client | Code-first vs design-first, contract test, nullable vs optional, `operationId`, JSpecify, tiền dạng string |
 
 P0.1 (repo cũ) và P0.3 (cài JDK, Docker) không có ghi chú riêng.

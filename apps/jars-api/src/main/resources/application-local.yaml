@@ -15,3 +15,10 @@ jars:
     allowed-client-ids:
       - 66hvvfoe0r647dfp2jv1lpeq7c # jars-dev-web-local
     user-info-uri: https://jars-dev-thphuc06.auth.ap-southeast-1.amazoncognito.com/oauth2/userInfo
+
+# http://localhost:8080/swagger-ui.html (calls need a token: "Authorize" with a Cognito access token)
+springdoc:
+  api-docs:
+    enabled: true
+  swagger-ui:
+    enabled: true

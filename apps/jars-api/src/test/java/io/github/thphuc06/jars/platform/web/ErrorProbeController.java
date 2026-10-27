@@ -3,6 +3,7 @@ package io.github.thphuc06.jars.platform.web;
 import io.github.thphuc06.jars.shared.BusinessRuleViolationException;
 import io.github.thphuc06.jars.shared.ConflictException;
 import io.github.thphuc06.jars.shared.NotFoundException;
+import io.swagger.v3.oas.annotations.Hidden;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.NotBlank;
@@ -20,6 +21,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /** Test-only endpoints that raise each kind of error, so the error contract can be asserted in one place. */
+@Hidden // test fixture, not part of the API: keep it out of the OpenAPI contract
 @RestController
 @RequestMapping("/api/v1/_probe")
 class ErrorProbeController {
