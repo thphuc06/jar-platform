@@ -39,5 +39,6 @@ Ghi chú học tập viết **trong lúc làm** từng bước của [roadmap](.
 | [P1.11c](P1.11c-money-writes-idempotency.md) | Ghi tiền từ UI an toàn | Idempotency-Key phía client, retry an toàn, at-least-once, BigInt cho tiền, nhập số theo locale, API gap từ phía consumer |
 | [P1.12](P1.12-idor-and-demo-data.md) | Test IDOR + dữ liệu demo | IDOR/BOLA (OWASP API1), 404 vs 403, defense in depth, test sinh từ spec, dữ liệu tất định |
 | [P3.1](P3.1-container-image.md) | Container image cho Fargate | Multi-stage, layer, non-root, read-only rootfs, PID 1 + SIGTERM, JVM trong container, AOT cache/CDS, ghim digest |
+| [P3.2](P3.2-foundation-network.md) | CDK: Foundation + Network | GitHub OIDC trust, least privilege, VPC không NAT, security group theo tầng, Budget theo tag, test hạ tầng + cdk-nag |
 
 P0.1 (repo cũ) và P0.3 (cài JDK, Docker) không có ghi chú riêng.

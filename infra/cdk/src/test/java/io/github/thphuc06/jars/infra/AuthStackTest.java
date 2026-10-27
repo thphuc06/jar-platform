@@ -18,8 +18,7 @@ import software.amazon.awscdk.services.s3.Bucket;
 
 class AuthStackTest {
 
-    static final EnvConfig CONFIG =
-            new EnvConfig("test", "111111111111", "ap-southeast-1", "jars-test-prefix", "http://localhost:5173");
+    static final EnvConfig CONFIG = TestConfig.CONFIG;
 
     private static AuthStack newStack(App app) {
         return new AuthStack(

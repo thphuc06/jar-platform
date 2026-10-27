@@ -52,9 +52,11 @@ Docs: [Restrict access with VPC origins](https://docs.aws.amazon.com/AmazonCloud
 | Subnet group (×2 AZ) | CDK `SubnetType` | CIDR | Chứa | Route ra internet |
 |---|---|---|---|---|
 | `public` | `PUBLIC` | 10.20.0.0/24, 10.20.1.0/24 | ECS tasks (`assignPublicIp=ENABLED`) | IGW |
-| `lb` ("private") | `PRIVATE_ISOLATED` | 10.20.10.0/24, 10.20.11.0/24 | internal ALB, ENI của CloudFront VPC origin | Không |
-| `data` ("isolated") | `PRIVATE_ISOLATED` | 10.20.20.0/24, 10.20.21.0/24 | Aurora, Valkey | Không |
+| `lb` ("private") | `PRIVATE_ISOLATED` | 10.20.2.0/24, 10.20.3.0/24 | internal ALB, ENI của CloudFront VPC origin | Không |
+| `data` ("isolated") | `PRIVATE_ISOLATED` | 10.20.4.0/24, 10.20.5.0/24 | Aurora, Valkey | Không |
 
+> **Đã cài đặt (P3.2, [NetworkStack](../../infra/cdk/src/main/java/io/github/thphuc06/jars/infra/NetworkStack.java)):** CIDR do CDK chia lần lượt theo thứ tự nhóm subnet (thiết kế ban đầu ghi 10.20.10.x/10.20.20.x; đã sửa theo code và có test). AZ ghi tường minh `ap-southeast-1a/b` (không tra AZ lúc synth, nên synth không cần credential và không có `cdk.context.json` chứa account id trong repo public). `mapPublicIpOnLaunch=false` (chỉ task ECS xin IP public mới có). Security group mặc định bị làm rỗng (`restrictDefaultSecurityGroup`, ghi rõ trong code vì unit test không đọc feature flag của `cdk.json`). Chưa bật Flow Logs (acknowledge cdk-nag VPC7, xem lại ở P3.9).
+>
 > Trong CDK, `PRIVATE_WITH_EGRESS` bắt buộc phải có NAT, nên cả hai nhóm không có NAT đều khai báo là `PRIVATE_ISOLATED`. Tách làm hai nhóm `lb` và `data` để quy tắc security group và NACL rõ ràng hơn.
 
 **Không có NAT Gateway** ([ADR-0013](../04-adr/0013-networking-no-nat.md)). Task cần gọi ra ngoài (Bedrock, SQS, ECR, Cognito JWKS...) thì đi qua IP public của chính nó. An toàn được đảm bảo bằng security group:

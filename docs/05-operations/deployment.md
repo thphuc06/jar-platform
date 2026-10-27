@@ -31,13 +31,22 @@ Tham chiếu đầy đủ: [well-architected-review.md](../02-architecture/well-
 | Lần | Lệnh | Khi nào |
 |---|---|---|
 | Phase 1 ✅ (23/10) | `npx cdk deploy JarsAuth` → stack `jars-dev-auth` | Cần Cognito để có JWT thật khi chạy local |
-| Phase 3, lần đầu | `cdk deploy JarsFoundation JarsNetwork JarsData JarsMessaging` | Hạ tầng nền (ECR, VPC, Aurora, SQS) |
+| Phase 3, P3.2 | `cdk deploy JarsFoundation JarsNetwork` | ECR, OIDC deploy role, SNS alarm, Budget; VPC + security group. Không tính phí theo giờ |
+| Phase 3, P3.3 | `cdk deploy JarsData` | Aurora (tính phí theo ACU) |
 | Phase 3 | Push image đầu tiên lên ECR (bằng CI hoặc tay), rồi `cdk deploy JarsApp -c imageTag=<sha>` | Lên app |
 | Phase 4 | `cdk deploy JarsQuant JarsApp` | Thêm quant-fn, Valkey, quyền Bedrock |
 | Phase 5 | `cdk deploy JarsMessaging JarsApp` (+ service worker) | SNS/SQS FIFO + insights-worker |
 | Phase 6 | `cdk deploy JarsObservability` | Dashboard, alarm |
 
-Tất cả lệnh chạy trong `infra/cdk` với `--profile jars-dev`. Trước mỗi lần deploy nên chạy `cdk diff` để xem thay đổi.
+Tất cả lệnh chạy trong `infra/cdk` với profile đã `aws login` (máy hiện tại: `default`). Trước mỗi lần deploy nên chạy `cdk diff` để xem thay đổi.
+
+**Trước lần deploy `JarsFoundation` đầu tiên (làm một lần, chỉ đọc):**
+
+1. Account đã có GitHub OIDC provider chưa: `aws iam list-open-id-connect-providers`. Mỗi account chỉ có **một** provider cho `token.actions.githubusercontent.com`; nếu project khác đã tạo thì deploy với `-c jars:githubOidcProviderArn=<arn>` để import thay vì tạo (tạo trùng sẽ fail `EntityAlreadyExists`).
+2. Tag `Project` đã bật làm cost allocation tag chưa: `aws ce list-cost-allocation-tags --tag-keys Project`. Chưa bật thì Budget lọc theo tag luôn thấy $0 (bật ở Billing → Cost allocation tags; có hiệu lực sau tối đa 24 giờ).
+3. Account đã có mấy Budget: `aws budgets describe-budgets --account-id <id>` (2 budget đầu miễn phí, từ budget thứ 3 tính khoảng $0.02/ngày).
+
+**Sau khi deploy:** đăng ký email nhận cảnh báo **bằng tay** (không nằm trong CDK để địa chỉ email không vào repo public): `aws sns subscribe --topic-arn <AlarmTopicArn> --protocol email --notification-endpoint <email>`, rồi bấm xác nhận trong email. Subscription tạo ngoài stack nên deploy lại không xóa nó.
 
 ## 3. Cấu hình theo môi trường (`infra/cdk/cdk.json` → `context`)
 

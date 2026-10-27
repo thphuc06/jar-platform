@@ -14,6 +14,24 @@ public final class JarsInfraApp {
         App app = new App();
         EnvConfig config = EnvConfig.from(app.getNode(), System.getenv("CDK_DEFAULT_ACCOUNT"));
 
+        new FoundationStack(
+                app,
+                "JarsFoundation",
+                StackProps.builder()
+                        .env(config.awsEnvironment())
+                        .stackName(config.name("foundation"))
+                        .description("Jars Platform - ECR, GitHub OIDC deploy role, alarm topic, cost budget")
+                        .build(),
+                config);
+        new NetworkStack(
+                app,
+                "JarsNetwork",
+                StackProps.builder()
+                        .env(config.awsEnvironment())
+                        .stackName(config.name("network"))
+                        .description("Jars Platform - VPC without NAT, security groups")
+                        .build(),
+                config);
         new AuthStack(
                 app,
                 "JarsAuth",
