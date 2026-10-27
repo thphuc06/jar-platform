@@ -9,7 +9,7 @@ React 18 + Vite 8 + TypeScript (strict) + Tailwind 3 + shadcn/ui, dạng PWA. G�
 | Bước | Nội dung |
 |---|---|
 | ✅ P1.11a | Đăng nhập (Cognito managed login, PKCE, [ADR-0020](../../docs/04-adr/0020-spa-auth-oidc-client-ts.md)), client có kiểu, Onboarding (`PUT /me/risk-profile`), Profile (`GET /me`, risk profile, logout) |
-| P1.11b | Dashboard, Money Inbox |
+| ✅ P1.11b | Dashboard (`GET /dashboard`, `/balances/daily`), Money Inbox (cursor, lọc trong URL, sửa giao dịch bằng merge patch) |
 | P1.11c | Transfer, Budget Jars, Goals |
 | Phase 2–3 | Alerts, AI Chat (chưa chép: chúng gọi endpoint App Runner cũ và bảng Supabase) |
 

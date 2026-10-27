@@ -4,6 +4,12 @@ import react from "@vitejs/plugin-react-swc";
 import { defineConfig } from "vite";
 import { VitePWA } from "vite-plugin-pwa";
 
+// Tests run in UTC, NOT in the developer's zone: on a machine set to Vietnam time, code that forgot
+// timeZone: "Asia/Ho_Chi_Minh" would still pass (found by a mutant). Test workers inherit this variable.
+if (process.env.VITEST) {
+  process.env.TZ = "UTC";
+}
+
 export default defineConfig({
   server: {
     // must match the callback URL registered for the Cognito app client (infra/cdk, jars:localWebOrigin)

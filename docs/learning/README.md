@@ -35,5 +35,6 @@ Ghi chú học tập viết **trong lúc làm** từng bước của [roadmap](.
 | [P1.9](P1.9-dashboard-aggregate-sql.md) | Dashboard bằng aggregate SQL | Hàm trên cột và index, window function, `generate_series`, REPEATABLE READ, read model vs materialized view |
 | [P1.10](P1.10-openapi-contract.md) | OpenAPI contract + TypeScript client | Code-first vs design-first, contract test, nullable vs optional, `operationId`, JSpecify, tiền dạng string |
 | [P1.11a](P1.11a-web-auth-pkce.md) | Web: đăng nhập PKCE + client có kiểu | OAuth 2.0 cho SPA, PKCE, nơi lưu token, open redirect, supply chain npm, test bất đồng bộ |
+| [P1.11b](P1.11b-dashboard-inbox.md) | Dashboard + Money Inbox trên TanStack Query | Server state vs client state, infinite query + cursor, invalidation, merge patch từ UI, múi giờ khi hiển thị, code splitting |
 
 P0.1 (repo cũ) và P0.3 (cài JDK, Docker) không có ghi chú riêng.
