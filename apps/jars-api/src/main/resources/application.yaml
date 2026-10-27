@@ -1,6 +1,8 @@
 spring:
   application:
     name: jars-api
+  lifecycle:
+    timeout-per-shutdown-phase: 20s
   profiles:
     # running locally without SPRING_PROFILES_ACTIVE means "local"; ECS sets SPRING_PROFILES_ACTIVE=aws
     default: local
@@ -34,6 +36,9 @@ spring:
 
 server:
   port: 8080
+  # SIGTERM (ECS stops a task): stop accepting requests, finish the running ones, then exit. The container's
+  # stopTimeout (30 s) must be longer than the shutdown phase below, otherwise ECS sends SIGKILL in the middle.
+  shutdown: graceful
 
 # OpenAPI description (/v3/api-docs) and Swagger UI are OFF by default, so a deployed API does not publish its map;
 # profile "local" switches them on. The committed contract is contracts/openapi/jars-api.yaml (OpenApiContractTest).

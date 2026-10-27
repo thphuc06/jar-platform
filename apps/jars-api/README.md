@@ -24,13 +24,26 @@ curl localhost:8080/actuator/health/readiness  # {"status":"UP"} (probe cho ALB/
 | `GET /actuator/health/liveness` | ECS container health | |
 | `GET /actuator/info` | Debug | Chỉ expose `health`, `info` |
 
+## Docker (P3.1)
+
+```bash
+docker build -t jars-api .                                  # image thường, không cần gì thêm
+# image có AOT cache của JDK 25 (khởi động nhanh hơn ~2 lần), training run dùng Postgres local (compose):
+PW=jars-local docker build --target aot -t jars-api:aot --secret id=training_db_password,env=PW \
+  --build-arg TRAINING_DB_URL=jdbc:postgresql://host.docker.internal:5432/jars .
+# chạy giống Fargate: 0.5 vCPU / 1 GB, root filesystem chỉ đọc
+docker run --rm -p 8080:8080 --network jars_default --cpus 0.5 -m 1g --read-only --tmpfs /tmp \
+  -e SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/jars -e SPRING_DATASOURCE_USERNAME=jars \
+  -e SPRING_DATASOURCE_PASSWORD=jars-local jars-api:aot
+```
+
 ## Cấu trúc dự kiến
 
 ```
 apps/jars-api/
 ├── mvnw, .mvn/                     # Maven Wrapper
 ├── pom.xml                         # BOM: spring-boot 4.1.x, spring-ai 2.0.x, spring-cloud-aws 4.2.x, spring-modulith 2.1.x
-├── Dockerfile                      # multi-stage, eclipse-temurin:25-jre, arm64, non-root (P3.1)
+├── Dockerfile                      # ✅ P3.1: multi-stage, eclipse-temurin 25 JRE (digest), non-root, target aot
 └── src/
     ├── main/java/io/github/thphuc06/jars/
     │   ├── JarsApplication.java

@@ -52,6 +52,27 @@ jobs:
           path: apps/jars-api/target/spring-modulith-docs/
           retention-days: 7
 
+  jars-api-image:
+    name: jars-api image (arm64, like Fargate Graviton)
+    # native arm64 runner (free for public repositories): no QEMU emulation, and the image is the one Fargate runs
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: apps/jars-api
+    steps:
+      - uses: actions/checkout@v7
+
+      # the plain target needs no database; the AOT-cache target is built by the deploy pipeline (P3.6)
+      - name: Build
+        run: docker build --target plain -t jars-api:ci .
+
+      - name: Check the image
+        run: |
+          test "$(docker image inspect jars-api:ci --format '{{.Architecture}}')" = "arm64"
+          test "$(docker image inspect jars-api:ci --format '{{.Config.User}}')" = "10001:10001"
+          docker run --rm --entrypoint java jars-api:ci -version
+
   web:
     name: web (API types, lint, typecheck, tests, build)
     runs-on: ubuntu-latest

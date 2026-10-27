@@ -73,9 +73,9 @@ Docs: [Restrict access with VPC origins](https://docs.aws.amazon.com/AmazonCloud
 | Hạng mục | `jars-api` | `insights-worker` (Phase 5) |
 |---|---|---|
 | Launch type | Fargate, **ARM64 (Graviton)** | Fargate ARM64 |
-| CPU / RAM | 0.5 vCPU / 1 GB (JVM `-XX:MaxRAMPercentage=75`) | 0.25 vCPU / 0.5 GB |
+| CPU / RAM | 0.5 vCPU / 1 GB (JVM `-XX:MaxRAMPercentage=75 -XX:+UseSerialGC -XX:+ExitOnOutOfMemoryError`) | 0.25 vCPU / 0.5 GB |
 | Desired count | 1 (dev). Đặt về 0 khi "ngủ" | 1 / 0 |
-| Image | ECR `jars/jars-api:<git-sha>`, base `eclipse-temurin:25-jre` (multi-arch) | `jars/insights-worker:<sha>` |
+| Image | ECR `jars/jars-api:<git-sha>`, [Dockerfile](../../apps/jars-api/Dockerfile) multi-stage, base `eclipse-temurin:25.0.4.1_1-jre-noble` **ghim theo digest**, target `aot` (JDK 25 AOT cache), build trên runner arm64 | `jars/insights-worker:<sha>` |
 | Port | 8080 (ALB target group, health check `/actuator/health/readiness`) | không mở port |
 | Deployment | Rolling + **deployment circuit breaker (auto rollback)**; Phase 6 thử **ECS native blue/green** | Rolling |
 | Logs | `awslogs` driver → CloudWatch Logs, log JSON, retention 14 ngày | như bên trái |
@@ -96,6 +96,8 @@ Docs: [Restrict access with VPC origins](https://docs.aws.amazon.com/AmazonCloud
 | Deregistration delay (target group) | **30 s** (mặc định là 300 s) | Rút ngắn thời gian deploy. Response thường < 1 s. Kết nối SSE dài sẽ bị ALB cắt khi hết draining → client **tự reconnect với `Last-Event-ID`** (đã thiết kế ở [api-contract §3](../03-api/api-contract.md#3-hợp-đồng-sse)) |
 | `readonlyRootFilesystem` | `true` + volume tạm mount vào `/tmp` | Giảm bề mặt tấn công; Tomcat cần `/tmp` để ghi |
 | User trong container | non-root (UID cố định) | Best practice bảo mật container |
+
+> **Đã đo (P3.1, container giới hạn 0.5 vCPU / 1 GB, root filesystem chỉ đọc, `/tmp` tmpfs, UID 10001):** khởi động 21,6 s (image thường) và **10,3 s với AOT cache**, nên grace period 90 s vẫn dư; RAM sau khởi động khoảng 270–300 MiB; `docker stop` (SIGTERM) dừng gọn trong 0,77 s, exit code 143, theo đúng thứ tự Tomcat → outbox Modulith → JPA → Hikari. Image nén: 159 MB (thường), 193 MB (có AOT cache). Layer thay đổi khi sửa code chỉ có `app.jar` khoảng 0,25 MB.
 
 Docs: [ECS connection draining](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/load-balancer-connection-draining.html), [ECS graceful shutdown (re:Post)](https://repost.aws/knowledge-center/ecs-graceful-shutdown-connection-draining-deployments).
 

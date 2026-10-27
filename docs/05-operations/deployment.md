@@ -61,6 +61,7 @@ Tất cả lệnh chạy trong `infra/cdk` với `--profile jars-dev`. Trước 
 | Job | Làm gì | Ghi chú |
 |---|---|---|
 | `jars-api` | `setup-java` Temurin 25 (có cache Maven) → `./mvnw --batch-mode --no-transfer-progress verify` | `verify` gồm unit test + Testcontainers (Docker của runner) + Modulith `verify()` + Spotless check. Fail thì upload `surefire-reports`; pass thì upload `modulith-docs` |
+| `jars-api-image` (✅ P3.1) | Runner **`ubuntu-24.04-arm`** (arm64 thật, không giả lập) → `docker build --target plain` → kiểm tra kiến trúc arm64, user `10001:10001`, `java -version` | Dockerfile không bị hỏng dần giữa các lần deploy. Target `aot` cần Postgres nên để cho pipeline deploy (P3.6) |
 | `gitleaks` | Quét **toàn bộ lịch sử** git (`fetch-depth: 0`) | Action pin theo commit SHA (v3.0.0); tắt comment vào PR nên chỉ cần quyền `contents: read`; repo cá nhân nên không cần license |
 
 Toàn workflow: `permissions: contents: read`; dùng `concurrency` để push mới hủy lần chạy cũ; mỗi job có `timeout-minutes`. Cấu hình [`.github/dependabot.yml`](../../.github/dependabot.yml) mở PR cập nhật Maven và Actions hằng tuần (gom nhóm Spring và Spring Cloud AWS để các version khớp nhau luôn đi cùng).
@@ -80,7 +81,10 @@ Kiểm tra workflow ở local trước khi push: `docker run --rm -v "$PWD:/repo
 ```
 permissions: id-token: write, contents: read
 1. aws-actions/configure-aws-credentials (role-to-assume: jars-github-deploy, region ap-southeast-1)
-2. docker buildx build --platform linux/arm64 -t <ecr>/jars/jars-api:${GITHUB_SHA} --push
+2. (runner ubuntu-24.04-arm, service container postgres:17 cho training run của AOT cache)
+   docker build --target aot --secret id=training_db_password,env=PGPASSWORD \
+     --build-arg TRAINING_DB_URL=jdbc:postgresql://host.docker.internal:5432/jars --add-host host.docker.internal=host-gateway \
+     -t <ecr>/jars/jars-api:${GITHUB_SHA} . && docker push ...
 3. cd infra/cdk && npx aws-cdk@2 deploy JarsApp JarsQuant -c imageTag=${GITHUB_SHA} --require-approval never
 4. (BucketDeployment trong JarsApp upload apps/web/dist và invalidate CloudFront)
 5. Smoke test: curl https://<cf-domain>/api/v1/health → 200
