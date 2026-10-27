@@ -46,6 +46,35 @@
 | **SLEEP** | `desiredCount=0`; giữ ALB, CloudFront, Valkey; Aurora pause | ≈ $19 | ≈ $25 | ≈ $25 |
 | **TEARDOWN** | `cdk destroy JarsApp`; chỉ còn Data/Auth/Network/Messaging/Foundation | **≈ $1** | ≈ $1 | ≈ $1 |
 
+### Cách dùng thực tế: TEARDOWN + phiên test (chọn ngày 2026-10-27)
+
+Giữ lâu dài những stack **gần như miễn phí và chứa thứ không được mất**; `JarsApp` (thứ tính tiền theo giờ) chỉ deploy khi test rồi `cdk destroy` ngay sau đó.
+
+| Stack | Giữ hay xóa | Vì sao | USD/tháng |
+|---|---|---|---|
+| `JarsAuth` | **Giữ** | User Cognito (xóa là mất tài khoản đăng nhập) | 0 (free tier Essentials) |
+| `JarsFoundation` | **Giữ** | Image ECR (để rollback), OIDC role cho CI, SNS, Budget (không có action nên miễn phí) | ≤ 0.2 (ECR khoảng 0.19 GB × tối đa 10 image) |
+| `JarsNetwork` | **Giữ** | VPC, subnet, IGW, security group không tính phí; không có IPv4 public nào khi không có task | 0 |
+| `JarsData` (P3.3) | **Giữ, Aurora tự pause** | Dữ liệu; tạo lại cluster mất khoảng 10 phút | ≈ 0.5 (storage 1 GB 0.11 + secret 0.40) |
+| `JarsApp` (P3.4) | **Deploy khi test, destroy ngay sau đó** | ECS, ALB, CloudFront: tính theo giờ | xem bảng dưới |
+
+**Một phiên test** (`JarsApp` đang chạy, Aurora đang thức):
+
+| Thành phần | USD/giờ |
+|---|---|
+| Fargate 0.5 vCPU + 1 GB (ARM) | 0.0246 |
+| IPv4 public của task | 0.005 |
+| ALB + khoảng 0.1 LCU | 0.026 |
+| Aurora 0.5 ACU (chỉ khi có kết nối; pause khi rảnh) | 0.10 |
+| **Tổng** | **≈ 0.16** |
+
+Ví dụ: 8 phiên × 3 giờ mỗi tháng ≈ **$3.8** + phần giữ lại ≈ $0.7 → **≈ $4.5/tháng** (RUNNING 24/7: ≈ $51). Mỗi phiên tốn thêm khoảng 20–30 phút deploy/destroy, phần lớn do CloudFront.
+
+**Rủi ro của cách này và cách chặn:**
+1. **Quên destroy:** `JarsApp` chạy liền ≈ $40/tháng, cộng Aurora không pause (pool giữ kết nối) ≈ $73/tháng. Chặn bằng: Budget cảnh báo ở 50 % của $30; alarm Aurora ACU > 0 trong 6 giờ (P3.3); cân nhắc lịch tự `desiredCount=0` mỗi đêm bằng EventBridge Scheduler.
+2. **Link demo đổi sau mỗi lần deploy lại** (domain `dxxxx.cloudfront.net` mới). Muốn link ổn định cho CV thì cần domain riêng (Route 53 hosted zone $0.50/tháng + phí domain) hoặc giữ CloudFront sống giữa các phiên: quyết định khi thiết kế `JarsApp` (P3.4).
+3. **Aurora thức dậy chậm** ở request đầu tiên sau khi pause (vài giây đến khoảng 30 giây, lâu hơn nếu đã pause lâu). Khi demo, mở app trước vài phút.
+
 ### Chi tiết RUNNING (Phase 3)
 
 | Thành phần | Tính | USD/tháng |

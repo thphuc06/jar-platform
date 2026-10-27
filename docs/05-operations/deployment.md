@@ -44,7 +44,7 @@ Tất cả lệnh chạy trong `infra/cdk` với profile đã `aws login` (máy 
 
 1. Account đã có GitHub OIDC provider chưa: `aws iam list-open-id-connect-providers`. Mỗi account chỉ có **một** provider cho `token.actions.githubusercontent.com`; nếu project khác đã tạo thì deploy với `-c jars:githubOidcProviderArn=<arn>` để import thay vì tạo (tạo trùng sẽ fail `EntityAlreadyExists`).
 2. Tag `Project` đã bật làm cost allocation tag chưa: `aws ce list-cost-allocation-tags --tag-keys Project`. Chưa bật thì Budget lọc theo tag luôn thấy $0 (bật ở Billing → Cost allocation tags; có hiệu lực sau tối đa 24 giờ).
-3. Account đã có mấy Budget: `aws budgets describe-budgets --account-id <id>` (2 budget đầu miễn phí, từ budget thứ 3 tính khoảng $0.02/ngày).
+3. (Không cần kiểm tra số Budget: Budget **không có action** thì miễn phí; chỉ Budget có action mới giới hạn 2 cái miễn phí, từ cái thứ 3 tính $0.10/ngày. Nguồn: [AWS Budgets pricing](https://aws.amazon.com/aws-cost-management/aws-budgets/pricing/), đọc ngày 2026-10-27. `jars-dev-monthly` không có action.)
 
 **Sau khi deploy:** đăng ký email nhận cảnh báo **bằng tay** (không nằm trong CDK để địa chỉ email không vào repo public): `aws sns subscribe --topic-arn <AlarmTopicArn> --protocol email --notification-endpoint <email>`, rồi bấm xác nhận trong email. Subscription tạo ngoài stack nên deploy lại không xóa nó.
 
