@@ -1,19 +1,52 @@
 # web
 
-React 18 + Vite + TypeScript + Tailwind + shadcn/ui, dạng PWA.
+React 18 + Vite 8 + TypeScript (strict) + Tailwind 3 + shadcn/ui, dạng PWA. Gọi `jars-api` qua `/api` trên cùng origin.
 
-> **Nguồn gốc:** chuyển từ `swinhackathon/ius_financial_ui`. Repo đó phần lớn do Lovable sinh (138/144 commit của bot `gpt-engineer-app`). Phần do tác giả viết trong repo này là **tầng data/auth** được viết lại để nối với `jars-api` (Phase 1, 2, 4).
-> Trạng thái: **chưa copy code**, thực hiện ở bước P1.11.
+> **Nguồn gốc:** phần giao diện (49 component shadcn trong `src/components/ui`, layout, theme, PWA, trang Onboarding/Install/NotFound) chép từ repo hackathon `swinhackathon/ius_financial_ui`, vốn phần lớn do Lovable sinh. Phần viết mới trong repo này là **tầng data và auth** (`src/api`, `src/auth`) cùng logic của từng màn hình nối với `jars-api`.
 
-## Việc cần làm khi chuyển
+## Trạng thái
 
-| Việc | Chi tiết |
+| Bước | Nội dung |
 |---|---|
-| Auth | Bỏ `src/lib/auth.ts` (`USER_PASSWORD_AUTH` + client secret). Dùng Amplify Auth `signInWithRedirect` (managed login + PKCE) |
-| Data | Bỏ `src/lib/supabase.ts`, `src/hooks/useSupabaseData.ts`, `src/lib/api.ts` (code chết). Thay bằng client sinh từ `contracts/openapi/jars-api.yaml` (`openapi-typescript` + `openapi-fetch`) bọc trong TanStack Query. Script `"gen:api": "openapi-typescript ../../contracts/openapi/jars-api.yaml -o src/api/schema.d.ts"`; version đã thử ở P1.10: `openapi-typescript` 7.13.0, `openapi-fetch` 0.17.0, `typescript` 5.9.3 (`openapi-typescript` 7 yêu cầu TypeScript 5) |
-| Mock | Bỏ `mock-data.ts`, `mock-roadmap.ts`, `mock-saved-roadmap.ts` sau khi có API tương ứng |
-| Chat | Viết lại `hooks/useChat.ts` theo SSE named events ([api-contract §3](../../docs/03-api/api-contract.md#3-hợp-đồng-sse)) |
-| Dev proxy | `vite.config.ts` proxy `/api` → `http://localhost:8080` |
-| Env | Chỉ còn: `VITE_COGNITO_USER_POOL_ID`, `VITE_COGNITO_CLIENT_ID`, `VITE_COGNITO_DOMAIN` (không có secret nào) |
+| ✅ P1.11a | Đăng nhập (Cognito managed login, PKCE, [ADR-0020](../../docs/04-adr/0020-spa-auth-oidc-client-ts.md)), client có kiểu, Onboarding (`PUT /me/risk-profile`), Profile (`GET /me`, risk profile, logout) |
+| P1.11b | Dashboard, Money Inbox |
+| P1.11c | Transfer, Budget Jars, Goals |
+| Phase 2–3 | Alerts, AI Chat (chưa chép: chúng gọi endpoint App Runner cũ và bảng Supabase) |
 
-Mapping màn hình → API: [api-contract.md §5](../../docs/03-api/api-contract.md#5-mapping-màn-hình-ui--api).
+Bỏ lại không chép: `lib/supabase.ts` (anon key và user id **gõ cứng**), `lib/auth.ts` (`USER_PASSWORD_AUTH` + client secret trong bundle), `lib/api.ts` (code chết), các file mock, `lovable-tagger`, ảnh OG trên R2 của Lovable, Google Fonts (đã chuyển sang tự host bằng `@fontsource`).
+
+## Chạy
+
+```bash
+cp .env.example .env.local   # rồi điền 2 giá trị (xem mục Env)
+npm ci --ignore-scripts      # lockfile được commit; không chạy install script nào
+npm run dev                  # http://localhost:5173 (bắt buộc cổng này: callback URL của Cognito); /api → localhost:8080
+```
+
+Cần backend đang chạy ([local-development](../../docs/05-operations/local-development.md)) và một user trong user pool dev (đăng ký trên managed login).
+
+| Script | Việc |
+|---|---|
+| `gen:api` | Sinh `src/api/schema.d.ts` từ [`contracts/openapi/jars-api.yaml`](../../contracts/openapi/jars-api.yaml). Chạy sau mỗi lần API đổi |
+| `api:check` | CI: fail nếu `schema.d.ts` lệch với contract |
+| `typecheck` / `lint` / `test` / `build` | `tsc -b` (strict), ESLint, Vitest (jsdom), build production + service worker |
+
+## Env
+
+Chỉ có giá trị không bí mật (client public không có secret), nhưng repo **không commit file `.env.*` nào** (quy tắc ở `.gitignore` gốc). Tạo `apps/web/.env.local` từ `.env.example`, điền giá trị của user pool dev: giống `apps/jars-api/src/main/resources/application-local.yaml`, hoặc lấy từ output `IssuerUri` / `LocalWebClientId` của stack `jars-dev-auth`. Test không cần file này (giá trị giả nằm trong `test.env` của `vite.config.ts`).
+
+| Biến | Ý nghĩa |
+|---|---|
+| `VITE_COGNITO_AUTHORITY` | Issuer của user pool; endpoint OIDC đọc từ discovery |
+| `VITE_COGNITO_CLIENT_ID` | App client SPA (`LocalWebClientId` của stack `jars-<env>-auth`) |
+
+## Cấu trúc
+
+| Thư mục | Nội dung |
+|---|---|
+| `src/api` | `schema.d.ts` (sinh tự động, không sửa tay), `client.ts` (`openapi-fetch` + middleware access token + `ApiError`), `queries.ts` (hook TanStack Query) |
+| `src/auth` | `oidc.ts` (cấu hình `UserManager` cho Cognito, `safeReturnTo`), `RequireAuth.tsx` (chặn route khi chưa đăng nhập) |
+| `src/pages` | Màn hình; `AuthCallback` xử lý `/auth/callback` và flow F1 |
+| `src/components/ui` | Kit shadcn chép từ UI cũ |
+
+Quy ước khi viết code web: [conventions.md](../../docs/engineering/conventions.md) (dòng "Web").

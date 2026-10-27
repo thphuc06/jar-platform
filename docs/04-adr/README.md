@@ -18,7 +18,7 @@ ADR ghi lại **vì sao** một quyết định kiến trúc được đưa ra, 
 | [0007](0007-edge-cloudfront-vpc-origin.md) | CloudFront là cửa vào duy nhất; S3 OAC + VPC origin tới ALB internal | Accepted | 2026-10-23 |
 | [0008](0008-database-aurora-serverless-v2.md) | Aurora PostgreSQL Serverless v2 scale-to-zero | Accepted | 2026-10-23 |
 | [0009](0009-messaging-sns-sqs-eventbridge.md) | Outbox → SNS FIFO → SQS FIFO; EventBridge cho platform event; không dùng MSK | Accepted | 2026-10-23 |
-| [0010](0010-auth-cognito-pkce.md) | Cognito managed login + PKCE; Spring resource server | Accepted | 2026-10-23 |
+| [0010](0010-auth-cognito-pkce.md) | Cognito managed login + PKCE; Spring resource server | Accepted (phần frontend → 0020) | 2026-10-23 |
 | [0011](0011-ai-spring-ai-bedrock.md) | AI bằng Spring AI + Bedrock trong jars-api; LLM không tự tính số | Accepted | 2026-10-23 |
 | [0012](0012-iac-aws-cdk-java.md) | IaC bằng AWS CDK (Java) | Accepted | 2026-10-23 |
 | [0013](0013-networking-no-nat.md) | Không dùng NAT Gateway ở dev; task ở public subnet, khóa bằng SG | Accepted | 2026-10-23 |
@@ -28,3 +28,4 @@ ADR ghi lại **vì sao** một quyết định kiến trúc được đưa ra, 
 | [0017](0017-python-quant-lambda.md) | Python chỉ ở `quant-fn` (Lambda); bỏ Dexter | Accepted | 2026-10-23 |
 | [0018](0018-human-access-iam-user-aws-login.md) | Truy cập của người: IAM user + MFA + `aws login` (không dùng Identity Center) | Accepted | 2026-10-23 |
 | [0019](0019-code-first-openapi-contract.md) | OpenAPI sinh từ code (springdoc), commit vào `contracts/` và được contract test giữ đúng | Accepted | 2026-10-27 |
+| [0020](0020-spa-auth-oidc-client-ts.md) | SPA đăng nhập bằng `oidc-client-ts` (thay Amplify Auth), token ở sessionStorage, logout thu hồi refresh token | Accepted | 2026-10-27 |

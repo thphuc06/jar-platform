@@ -50,9 +50,12 @@ curl localhost:8080/actuator/health                             # có "db":{"sta
 docker compose -f ../../local/compose.yaml stop
 #    Xóa sạch dữ liệu local:  docker compose -f ../../local/compose.yaml down -v
 
-# 3. Frontend (Vite proxy /api -> localhost:8080, nên cùng origin, không cần CORS)
+# 3. Frontend (Vite proxy /api -> localhost:8080, nên cùng origin, không cần CORS). Cổng 5173 là bắt buộc:
+#    đó là callback URL đã đăng ký ở Cognito. Đăng nhập bằng user của user pool dev (managed login).
 cd apps/web
-npm ci && npm run dev                                           # http://localhost:5173
+cp .env.example .env.local                                     # điền issuer + client id của pool dev (không commit)
+npm ci --ignore-scripts && npm run dev                          # http://localhost:5173
+#    Đổi API ở backend xong: npm run gen:api (sinh lại src/api/schema.d.ts), rồi npm run typecheck
 
 # 4. Test toàn bộ backend (cần Docker đang chạy)
 cd apps/jars-api && ./mvnw verify
@@ -92,7 +95,9 @@ Phase 1 sẽ viết `SeedDataRunner` (chỉ chạy ở profile `local`): tạo 1
 | AWS CLI báo `Invalid name` khi tên bắt đầu bằng `/` (ví dụ `/jars/dev/...`) | Git Bash (MSYS) tự đổi tham số thành đường dẫn `C:/Program Files/Git/...` | Thêm `MSYS_NO_PATHCONV=1` trước lệnh, hoặc chạy trong PowerShell |
 | Test (kể cả test Modulith) đòi credential AWS | `spring.config.import=aws-secretsmanager:` đặt trong `application.yaml` chung | Chỉ đặt trong `application-aws.yaml`, có tiền tố `optional:` |
 | Bedrock `AccessDeniedException ... is not available for this account` | Model có inference profile nhưng account chưa được phép gọi (ví dụ Haiku 5.5) | Dùng model đã kiểm chứng: `global.anthropic.claude-haiku-4-5-20251001-v1:0` |
-| `401` dù đã đăng nhập | Gửi **ID token** thay vì access token | Lấy `accessToken` từ Amplify `fetchAuthSession()` |
+| `401` dù đã đăng nhập | Gửi **ID token** thay vì access token | `apps/web/src/api/client.ts` chỉ gửi `user.access_token` (có test) |
+| Cognito báo `redirect_mismatch` | Vite chạy ở cổng khác 5173 | `strictPort: true` trong `vite.config.ts`; tắt tiến trình đang giữ cổng 5173 |
+| Logout xong lại thấy trang login của Cognito thay vì quay về app | Gửi `post_logout_redirect_uri` (chuẩn OIDC) mà Cognito bỏ qua | Gửi `client_id` + `logout_uri` (`cognitoLogoutParams`) |
 | `Unsupported class file major version 69` | Chạy bằng JDK 21 | Đặt `JAVA_HOME` trỏ tới JDK 25 |
 | LocalStack thoát ngay khi start | Thiếu `LOCALSTACK_AUTH_TOKEN` | Xem mục 2 |
 | `AccessDeniedException` / `ExpiredToken` từ AWS | Phiên `aws login` hết hạn (12 giờ) hoặc model Bedrock chưa được bật | `aws login --profile jars-dev`; kiểm tra model access ở console Bedrock (ap-southeast-1) |

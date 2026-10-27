@@ -1,6 +1,6 @@
 # ADR-0010: Cognito managed login + Authorization Code/PKCE; jars-api là OAuth2 Resource Server
 
-- **Trạng thái:** Accepted
+- **Trạng thái:** Accepted. Phần frontend (Amplify Auth, localStorage) superseded by [ADR-0020](0020-spa-auth-oidc-client-ts.md)
 - **Ngày:** 2026-10-23
 
 ## Bối cảnh

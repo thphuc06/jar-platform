@@ -71,7 +71,7 @@ flowchart TB
 
 | Container | Công nghệ | Trách nhiệm | Có từ phase |
 |---|---|---|---|
-| `web` | React 18, Vite, shadcn/ui, TanStack Query, Amplify Auth | UI/PWA. Gọi `/api/*` qua cùng domain | 1 |
+| `web` | React 18, Vite 8, shadcn/ui, TanStack Query, `oidc-client-ts` ([ADR-0020](../04-adr/0020-spa-auth-oidc-client-ts.md)), `openapi-fetch` | UI/PWA. Gọi `/api/*` qua cùng domain | 1 |
 | `jars-api` | Java 25, Spring Boot 4.1, Modulith | Toàn bộ nghiệp vụ: identity, ledger, budgeting, goals, insights (đến Phase 4), notification, advisor (AI), market gateway, imports | 0 |
 | `insights-worker` | Java 25, Spring Boot 4.1, Spring Cloud AWS SQS | Nhận `TransactionPosted`, chạy CUSUM/MAD, cập nhật read model, phát `AnomalyDetected` | 5 |
 | `quant-fn` | Python 3.13, AWS Lambda (container image, arm64) | Lấy giá và lịch sử giá (vnstock), tối ưu danh mục (PyPortfolioOpt). Stateless | 4 |

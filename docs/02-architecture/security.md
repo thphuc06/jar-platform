@@ -18,7 +18,7 @@ OAuth2TokenValidator<Jwt> tokenUse = jwt -> "access".equals(jwt.getClaimAsString
 OAuth2TokenValidator<Jwt> clientId = jwt -> allowedClientIds.contains(jwt.getClaimAsString("client_id")) ? ... ;
 ```
 
-**Lưu token ở frontend:** dùng thư viện Amplify Auth (cấu hình mặc định lưu ở localStorage). Đây là trade-off được chấp nhận ở MVP: nếu có lỗi XSS thì token có thể bị đọc. Cách giảm thiểu: CSP chặt, React tự escape, không dùng `dangerouslySetInnerHTML`, access token sống ngắn (60 phút). Phương án mạnh hơn là pattern BFF (cookie HttpOnly), ghi lại để làm sau nếu có thời gian.
+**Lưu token ở frontend** (✅ P1.11a, [ADR-0020](../04-adr/0020-spa-auth-oidc-client-ts.md)): `oidc-client-ts` lưu ở **sessionStorage** (mất khi đóng tab, không chung giữa các tab); refresh token làm mới access token và **bị thu hồi khi logout**. Đây là trade-off được chấp nhận ở MVP: nếu có lỗi XSS thì token có thể bị đọc. Cách giảm thiểu: CSP chặt (Phase 3; vì vậy font tự host và không có script bên thứ ba), React tự escape, không dùng `dangerouslySetInnerHTML`, access token sống ngắn (60 phút), `returnTo` sau đăng nhập chỉ nhận đường dẫn cùng origin (chống open redirect). Phương án mạnh hơn là pattern BFF (cookie HttpOnly), ghi lại để làm sau nếu có thời gian.
 
 ## 2. Phân quyền (Authorization)
 

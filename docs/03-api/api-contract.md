@@ -190,14 +190,14 @@ data: {"id":"0193b2...","type":"ANOMALY","severity":"HIGH","title":"Hũ PLAY tă
 
 ## 5. Mapping màn hình UI → API
 
-UI hiện tại (`ius_financial_ui`) gọi thẳng Supabase. Bảng dưới đây là danh sách việc khi chuyển UI sang API mới (Phase 1–4).
+UI cũ (`ius_financial_ui`) gọi thẳng Supabase. Bảng dưới đây là danh sách việc khi chuyển UI sang API mới (Phase 1–4); ✅ = đã chuyển vào `apps/web`.
 
 | Màn hình (file) | Hook / lời gọi hiện tại | API mới |
 |---|---|---|
-| Login (`pages/Login.tsx`) | `InitiateAuth USER_PASSWORD_AUTH` + client secret | Amplify Auth `signInWithRedirect` (managed login + PKCE) |
-| Signup (`pages/Signup.tsx`) | **Giả** (`setTimeout`) | Managed login sign-up, rồi gọi `GET /me` |
-| Onboarding (`pages/Onboarding.tsx`) | Không lưu | `PUT /me/risk-profile` |
-| Profile (`pages/Profile.tsx`) | State local | `GET/PATCH /me`, `GET /me/risk-profile` |
+| Login (`pages/Login.tsx`) | `InitiateAuth USER_PASSWORD_AUTH` + client secret | ✅ P1.11a: bỏ trang; `oidc-client-ts` chuyển tới managed login (Authorization Code + PKCE), về `/auth/callback` ([ADR-0020](../04-adr/0020-spa-auth-oidc-client-ts.md)) |
+| Signup (`pages/Signup.tsx`) | **Giả** (`setTimeout`) | ✅ P1.11a: bỏ trang; đăng ký nằm trên managed login. Request đầu tiên tạo user (F1) |
+| Onboarding (`pages/Onboarding.tsx`) | Không lưu | ✅ P1.11a: `PUT /me/risk-profile` (5 câu khớp 1:1 với enum); user chưa có hồ sơ được đưa tới đây ngay sau đăng nhập |
+| Profile (`pages/Profile.tsx`) | State local (tên, điện thoại, ngày sinh gõ cứng) | ✅ P1.11a: viết lại với `GET /me`, `GET /me/risk-profile`, logout. Sửa tên (`PATCH /me`) chưa có API |
 | Dashboard (`pages/Index.tsx`) | `useLatestBalance`, `useMonthlyFlow`, `useSpendingByCategory`, `useTransactions` | `GET /dashboard?month=` + `GET /transactions?limit=5` |
 | Money Inbox (`pages/MoneyInbox.tsx`) | `useTransactions`, `useCategories` | `GET /transactions`, `GET /categories`, `PATCH /transactions/{id}` |
 | Transfer (`pages/Transfer.tsx`) | `useInsertTransaction`, `useJars` | `POST /transactions` với `type=EXPENSE`, `jarId` = hũ đã chọn, `counterparty` = "số tài khoản (ngân hàng)" (màn này là **chi tiền từ hũ**, không phải chuyển giữa các hũ) |
