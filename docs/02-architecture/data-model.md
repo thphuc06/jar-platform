@@ -9,6 +9,8 @@
 |---|---|---|---|
 | V1 | `V1__baseline_users.sql` | Bảng `users`: `id` UUID (app sinh), `cognito_sub` UNIQUE, `email` UNIQUE **không phân biệt hoa/thường** (unique index trên `lower(email)`), `locale` mặc định `vi-VN`, `created_at`/`updated_at` | P0.6 |
 | V2 | `V2__event_publication_registry.sql` | Bảng outbox `event_publication` của Spring Modulith, chép từ DDL **v2** chính thức của `spring-modulith-events-jdbc` 2.1.2 (có `status`, `completion_attempts`, `last_resubmission_date`). Khi nâng Modulith: so sánh lại với file `schemas/v2/schema-postgresql.sql` trong jar | P1.4 |
+| V8 | `V8__goals.sql` | `goals` (BR-6): `status` ACTIVE/ACHIEVED/ARCHIVED (soft delete), `@Version`, `funding_jar_id` **không có FK** sang `jars` (bảng của module ledger; kiểm tra qua `LedgerApi` lúc ghi) | P1.8 |
+| V7 | `V7__identity_risk_assessments.sql` | `risk_assessments` (BR-4): mỗi câu trả lời một cột có `CHECK`, `score` 0–13, `risk_level`, `capped`, `questionnaire_version`; chỉ thêm, bản mới nhất là hồ sơ hiện tại | P1.8 |
 | V6 | `V6__transactions_version.sql` | `transactions.version` (optimistic lock): giao dịch giờ sửa được bằng PATCH, nên 2 lần sửa đồng thời không được ghi đè lên nhau | P1.7 |
 | V5 | `V5__idempotency_keys.sql` | `idempotency_keys`: PK `(user_id, idempotency_key)`, `request_hash` (SHA-256 của endpoint + request đã chuẩn hóa), `response_body JSONB`, `expires_at` (24 h) | P1.6 |
 | V4 | `V4__ledger_transactions_and_entries.sql` | `transactions` (amount > 0; `to_jar_id` chỉ có ở `JAR_TRANSFER` và khác `jar_id`; **FK kép `(jar_id, user_id)` → `jars(id, user_id)`**: DB từ chối giao dịch trỏ vào hũ của user khác) và `jar_entries` (dấu của `amount` theo `entry_type`, `balance_after >= 0`, **trigger append-only** chặn UPDATE/DELETE); unique `jars(id, user_id)` | P1.5 |
@@ -26,7 +28,7 @@
 | Enum | `TEXT` + `CHECK` constraint; trong Java dùng `enum` + `@Enumerated(STRING)` | Dễ migrate hơn kiểu enum của PostgreSQL |
 | Concurrency | Bảng có cập nhật đồng thời có cột `version BIGINT` (`@Version`) | Optimistic locking |
 | Audit cột | `created_at`, `updated_at` (`@CreatedDate` / `@LastModifiedDate`) | |
-| Xóa | Xóa mềm (`archived_at`) với `jars` và `goals`; **giao dịch không bao giờ xóa**, muốn sửa thì ghi bút toán điều chỉnh | Giữ toàn vẹn lịch sử tài chính |
+| Xóa | Xóa mềm: `archived_at` với `jars`, `status = ARCHIVED` với `goals`; **giao dịch không bao giờ xóa**, muốn sửa thì ghi bút toán điều chỉnh | Giữ toàn vẹn lịch sử tài chính |
 | Phân quyền dữ liệu | Mọi bảng nghiệp vụ có `user_id`; mọi query đều lọc theo `user_id` | Chống IDOR |
 
 ## 2. ERD
@@ -63,9 +65,15 @@ erDiagram
     risk_assessments {
         uuid id PK
         uuid user_id FK
-        jsonb answers
-        int score
+        int questionnaire_version
+        text risk_tolerance "Q1"
+        text horizon "Q2"
+        text liquidity "Q3"
+        text experience "Q4"
+        text main_goal "Q5, not scored"
+        int score "0..13"
         text risk_level "CONSERVATIVE|BALANCED|GROWTH"
+        boolean capped
         timestamptz assessed_at
     }
     jars {
@@ -126,8 +134,9 @@ erDiagram
         text name
         numeric target_amount
         date target_date
-        uuid funding_jar_id FK
+        uuid funding_jar_id "jar id, no FK (other module)"
         text status "ACTIVE|ACHIEVED|ARCHIVED"
+        bigint version
     }
     anomaly_detector_state {
         uuid jar_id PK

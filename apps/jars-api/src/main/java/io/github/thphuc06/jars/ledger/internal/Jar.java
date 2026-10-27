@@ -121,6 +121,10 @@ class Jar {
         return code == JarCode.POOL;
     }
 
+    boolean isArchived() {
+        return archivedAt != null;
+    }
+
     UUID id() {
         return id;
     }

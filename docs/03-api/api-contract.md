@@ -22,7 +22,7 @@
 |---|---|---|
 | `validation-failed` | 422 | `@Valid` body hoặc ràng buộc trên `@RequestParam`/`@PathVariable` sai; kèm `errors[]` |
 | `{resource}-not-found` | 404 | Ví dụ `jar-not-found`. Không tồn tại **hoặc** không thuộc user |
-| *(mã nghiệp vụ)* | 422 | ✅ P1.5: `insufficient-jar-balance`, `expense-requires-jar`, `expense-from-pool`, `jar-archived`, `category-kind-mismatch`, `same-jar-transfer`, `use-transfer-endpoint`, `occurred-at-in-future` (lệch quá 5 phút); P1.7: `transfer-has-no-category`, `transfer-jars-immutable` |
+| *(mã nghiệp vụ)* | 422 | ✅ P1.5: `insufficient-jar-balance`, `expense-requires-jar`, `expense-from-pool`, `jar-archived`, `category-kind-mismatch`, `same-jar-transfer`, `use-transfer-endpoint`, `occurred-at-in-future` (lệch quá 5 phút); P1.7: `transfer-has-no-category`, `transfer-jars-immutable`; P1.8: `target-date-not-in-future`, `funding-jar-is-pool`, `funding-jar-archived`, `use-delete-to-archive` |
 | `email-already-registered` | 409 | Email đã gắn với tài khoản Cognito khác |
 | `invalid-cursor` | 422 | `cursor` không phải do API trả về (✅ P1.7) |
 | `idempotency-key-reused` | 422 | Cùng `Idempotency-Key` đã dùng cho một request khác (✅ P1.6, [§4](#4-idempotency)) |
@@ -63,8 +63,8 @@
 |---|---|---|---|
 | GET | `/me` | ✅ (P1.2) Thông tin user `{id, email, displayName, locale, createdAt}`; tự tạo lazy ở lần gọi đầu. Cần scope `jars-api/read` | 1 |
 | PATCH | `/me` | Đổi `displayName`, `locale` | 1 |
-| PUT | `/me/risk-profile` | Nộp câu trả lời onboarding → `{score, riskLevel}` | 1 |
-| GET | `/me/risk-profile` | Risk profile hiện tại | 1 |
+| PUT | `/me/risk-profile` | ✅ (P1.8) `{riskTolerance, horizon, liquidity, experience, mainGoal}` (mã ở [BR-4](../01-product/business-rules.md#br-4-bảng-hỏi-khẩu-vị-rủi-ro-onboarding), đủ 5 câu) → 200 `{answers, score, maxScore, riskLevel, capped, questionnaireVersion, assessedAt}`. Mỗi lần gửi lưu một bản ghi mới | 1 |
+| GET | `/me/risk-profile` | ✅ (P1.8) Hồ sơ hiện tại (bản mới nhất); chưa làm bảng hỏi → 404 `risk-profile-not-found` | 1 |
 
 ### Ledger: hũ và giao dịch
 | Method | Path | Mô tả | Phase |
@@ -91,8 +91,8 @@
 ### Goals
 | Method | Path | Mô tả | Phase |
 |---|---|---|---|
-| GET / POST | `/goals` | Danh sách / tạo mục tiêu | 1 |
-| PATCH / DELETE | `/goals/{id}` | Sửa / archive | 1 |
+| GET / POST | `/goals` | ✅ (P1.8) Danh sách `{items}` (chưa archive, ngày đích gần nhất trước) / tạo `{name, targetAmount, targetDate, fundingJarId?}` → 201 + `Location`. Mỗi mục tiêu có `fundingJar {id, code, name, balance, archived}` và `progressPct` ([BR-6](../01-product/business-rules.md#br-6-mục-tiêu-tiết-kiệm-goals)) | 1 |
+| GET / PATCH / DELETE | `/goals/{id}` | ✅ (P1.8) Xem / sửa (merge-patch: không gửi = giữ, `"fundingJarId": null` = bỏ hũ; `status` ACTIVE ⇄ ACHIEVED) / archive (204, idempotent) | 1 |
 | GET | `/goals/{id}/feasibility` | Khả thi? Cần tiết kiệm bao nhiêu mỗi tháng? | 2 |
 | POST | `/goals/{id}/scenarios` | What-if `{monthlySavingDelta, incomeDelta, ...}` | 2 |
 | GET | `/goals/{id}/roadmap` | Lộ trình theo giai đoạn (khớp type `RoadmapResponse` của UI) | 2 |

@@ -5,6 +5,7 @@ import io.github.thphuc06.jars.ledger.internal.JarCode;
 import io.github.thphuc06.jars.ledger.internal.JarView;
 import io.github.thphuc06.jars.ledger.internal.LedgerQueries;
 import io.github.thphuc06.jars.ledger.internal.PostingService;
+import io.github.thphuc06.jars.shared.MoneyFormat;
 import io.github.thphuc06.jars.shared.VndAmount;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
@@ -67,8 +68,8 @@ class JarController {
         static JarsResponse from(LedgerQueries.JarsOverview overview) {
             return new JarsResponse(
                     overview.jars().stream().map(JarResponse::from).toList(),
-                    MoneyJson.format(overview.unallocated()),
-                    MoneyJson.format(overview.total()),
+                    MoneyFormat.format(overview.unallocated()),
+                    MoneyFormat.format(overview.total()),
                     overview.currency());
         }
     }
@@ -76,7 +77,8 @@ class JarController {
     record JarResponse(UUID id, JarCode code, String name, BigDecimal targetPct, String balance) {
 
         static JarResponse from(JarView jar) {
-            return new JarResponse(jar.id(), jar.code(), jar.name(), jar.targetPct(), MoneyJson.format(jar.balance()));
+            return new JarResponse(
+                    jar.id(), jar.code(), jar.name(), jar.targetPct(), MoneyFormat.format(jar.balance()));
         }
     }
 }

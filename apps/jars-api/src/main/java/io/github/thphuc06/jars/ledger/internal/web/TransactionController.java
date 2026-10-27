@@ -7,6 +7,7 @@ import io.github.thphuc06.jars.ledger.internal.JarCode;
 import io.github.thphuc06.jars.ledger.internal.PostingService;
 import io.github.thphuc06.jars.ledger.internal.TransactionDetails;
 import io.github.thphuc06.jars.ledger.internal.TransactionQueries;
+import io.github.thphuc06.jars.shared.MoneyFormat;
 import io.github.thphuc06.jars.shared.VndAmount;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
@@ -180,7 +181,7 @@ class TransactionController {
             return new TransactionItem(
                     t.id(),
                     t.type(),
-                    MoneyJson.format(t.amount()),
+                    MoneyFormat.format(t.amount()),
                     t.currency(),
                     JarRef.from(t.jar()),
                     JarRef.from(t.toJar()),

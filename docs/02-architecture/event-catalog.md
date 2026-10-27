@@ -32,14 +32,14 @@ Mọi domain event ra khỏi process đều có cấu trúc chung (JSON, đặt 
 | Event | Phát bởi | Nghe bởi | Payload chính | Externalize (Phase 5) |
 |---|---|---|---|---|
 | `UserRegistered` | identity | ledger (✅ P1.4: tạo 6 hũ + hũ ẩn `POOL`; danh mục mặc định là của hệ thống, seed sẵn trong V3, không tạo theo user) | `userId`, `locale`. **Không có `email`**: event được lưu vào outbox, nên PII trong event bị chép sang bảng thứ hai. Listener cần email thì hỏi `IdentityApi` | Không |
-| `RiskProfileAssessed` | identity | advisor (ngữ cảnh chat) | `riskLevel`, `score` | Không |
+| `RiskProfileAssessed` | identity (✅ P1.8, mỗi lần làm bảng hỏi) | advisor (ngữ cảnh chat, Phase 4) | `userId`, `riskLevel`, `score`, `questionnaireVersion` (không gửi câu trả lời) | Không |
 | `TransactionPosted` | ledger (✅ P1.5, phát cho cả 3 loại giao dịch; chưa có listener) | insights (CUSUM/MAD, read model), budgeting (đã chi của kỳ). Consumer lọc theo `type`: `JAR_TRANSFER` là chuyển tiền, không phải chi tiêu | `transactionId`, `userId`, `type`, `amount`, `currency`, `jarId`, `toJarId`, `categoryId`, `occurredAt` | **Có** → `jars-ledger-events.fifo`, group = `userId` |
 | `TransactionRecategorized` | ledger (✅ P1.7, khi PATCH đổi danh mục hoặc hũ; sửa riêng `note` thì không phát) | insights | `transactionId`, `userId`, `type`, `amount`, `oldCategoryId`, `newCategoryId`, `oldJarId`, `newJarId`, `occurredAt` | **Có** |
 | `JarCreated` | ledger | insights (khởi tạo detector state) | `jarId`, `code` | **Có** |
 | `MonthClosed` | budgeting | notification, insights | `month`, `summary` (theo từng hũ) | Không |
 | `AnomalyDetected` | insights | notification | `anomalyId`, `jarId`, `detector`, `direction`, `score`, `threshold`, `transactionId` | **Có** → `jars-insights-events.fifo` |
 | `StatementImportCompleted` | imports | notification | `importId`, `rowsOk`, `rowsFailed` | Không |
-| `GoalCreated` | goals | (dự phòng) | `goalId`, `targetAmount`, `targetDate` | Không |
+| `GoalCreated` | goals | (dự phòng) | `goalId`, `targetAmount`, `targetDate` | Không. **Chưa phát** ở P1.8 vì chưa có consumer; thêm khi có |
 
 ## 4. Platform event
 

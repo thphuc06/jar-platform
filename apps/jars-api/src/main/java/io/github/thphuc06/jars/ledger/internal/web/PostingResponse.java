@@ -6,6 +6,7 @@ import io.github.thphuc06.jars.ledger.internal.JarCode;
 import io.github.thphuc06.jars.ledger.internal.JarView;
 import io.github.thphuc06.jars.ledger.internal.PostingService.Posting;
 import io.github.thphuc06.jars.ledger.internal.TransactionView;
+import io.github.thphuc06.jars.shared.MoneyFormat;
 import java.net.URI;
 import java.time.Instant;
 import java.util.List;
@@ -33,7 +34,7 @@ record PostingResponse(TransactionResponse transaction, List<JarBalance> jars) {
             return new TransactionResponse(
                     t.id(),
                     t.type(),
-                    MoneyJson.format(t.amount()),
+                    MoneyFormat.format(t.amount()),
                     t.currency(),
                     t.jarId(),
                     t.toJarId(),
@@ -47,7 +48,7 @@ record PostingResponse(TransactionResponse transaction, List<JarBalance> jars) {
     record JarBalance(UUID id, JarCode code, String balance) {
 
         static JarBalance from(JarView jar) {
-            return new JarBalance(jar.id(), jar.code(), MoneyJson.format(jar.balance()));
+            return new JarBalance(jar.id(), jar.code(), MoneyFormat.format(jar.balance()));
         }
     }
 
