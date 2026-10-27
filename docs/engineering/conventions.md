@@ -48,8 +48,8 @@
 - [ ] Đã cập nhật tài liệu liên quan (API contract, data model, event catalog, flows).
 - [ ] Đã viết ADR nếu có quyết định kiến trúc mới.
 - [ ] Không có secret; gitleaks xanh.
-- [ ] Tick roadmap và ghi nhật ký.
-- [ ] Đã viết phần giải thích "thầy giáo" (đã làm gì / vì sao / kiến thức / phương án khác / lỗi hay gặp / câu hỏi phỏng vấn / bài tập) vào mô tả PR.
+- [ ] Tick roadmap **và** thêm một dòng vào bảng "Nhật ký tiến độ" của roadmap (ngày, bước, vướng mắc, link ghi chú).
+- [ ] Đã viết ghi chú học tập `docs/learning/P<n>.<m>-<chủ-đề>.md` đủ 7 mục (đã làm gì / vì sao / kiến thức / phương án khác / lỗi hay gặp / câu hỏi phỏng vấn / bài tập) và thêm vào mục lục [learning/README.md](../learning/README.md). Ghi chú nằm trong repo chứ không chỉ trong mô tả PR, vì các bước được commit thẳng lên `main`.
 
 ## 5. PR checklist (template nằm ở `.github/pull_request_template.md`)
 
