@@ -67,11 +67,12 @@ class JarController {
         }
     }
 
-    record JarsResponse(List<JarResponse> jars, String unallocated, String total, String currency) {
+    record JarsResponse(List<JarResponse> jars, UUID poolJarId, String unallocated, String total, String currency) {
 
         static JarsResponse from(LedgerQueries.JarsOverview overview) {
             return new JarsResponse(
                     overview.jars().stream().map(JarResponse::from).toList(),
+                    overview.poolJarId(),
                     MoneyFormat.format(overview.unallocated()),
                     MoneyFormat.format(overview.total()),
                     overview.currency());

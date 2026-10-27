@@ -23,6 +23,7 @@ export const jars: Schemas["JarsResponse"] = {
     { ...NEC, targetPct: 55, balance: "2130000.00" },
     { ...PLAY, targetPct: 10, balance: "1670000.00" },
   ],
+  poolJarId: POOL.id,
   unallocated: "13000000.00",
   total: "16800000.00",
   currency: "VND",

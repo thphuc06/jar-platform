@@ -131,10 +131,8 @@ class OpenApiContractTest {
         check(HttpMethod.GET, "/api/v1/jars", call(HttpMethod.GET, "/api/v1/jars", null, null), 401);
         JsonNode jars = check(HttpMethod.GET, "/api/v1/jars", call(HttpMethod.GET, "/api/v1/jars", null, READ), 200);
         String nec = jars.path("jars").get(0).path("id").asString();
-        UUID pool = jdbc.sql("SELECT id FROM jars WHERE user_id = ? AND code = 'POOL'")
-                .param(userId)
-                .query(UUID.class)
-                .single();
+        // the id a client allocates income from, read from the API like the web client does (not from the database)
+        String pool = jars.path("poolJarId").asString();
         check(HttpMethod.GET, "/api/v1/categories", call(HttpMethod.GET, "/api/v1/categories", null, READ), 200);
 
         // money in, allocated, spent without a category: the responses carry every kind of null

@@ -60,3 +60,12 @@ export async function unwrap<T>(
 function isProblem(value: unknown): value is Problem {
   return typeof value === "object" && value !== null && "status" in value && "title" in value;
 }
+
+/** Like unwrap, plus whether the server answered with the stored result of an earlier request with the same key. */
+export async function unwrapPosting<T>(
+  call: Promise<{ data?: T; error?: unknown; response: Response }>,
+): Promise<{ result: T; replayed: boolean }> {
+  const answer = await call;
+  const result = await unwrap(Promise.resolve(answer));
+  return { result, replayed: answer.response.headers.get("Idempotent-Replayed") === "true" };
+}

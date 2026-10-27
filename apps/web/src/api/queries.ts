@@ -1,8 +1,13 @@
 import { keepPreviousData, useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { api, ApiError, unwrap, type components } from "@/api";
+import { api, ApiError, unwrap, unwrapPosting, type components } from "@/api";
+import { retryDelay, retryIdempotent } from "./idempotency";
 
 export type RiskAnswers = components["schemas"]["RiskAnswersRequest"];
 export type Amendment = components["schemas"]["AmendTransactionRequest"];
+export type NewTransaction = components["schemas"]["PostTransactionRequest"];
+export type JarTransfer = components["schemas"]["TransferRequest"];
+export type NewGoal = components["schemas"]["CreateGoalRequest"];
+export type GoalChanges = components["schemas"]["UpdateGoalRequest"];
 
 export interface TransactionFilter {
   jarId?: string;
@@ -23,9 +28,11 @@ export const queryKeys = {
   categories: ["categories"] as const,
   transactions: (filter: TransactionFilter) => ["transactions", "list", filter] as const,
   recentTransactions: (limit: number) => ["transactions", "recent", limit] as const,
+  goals: ["goals"] as const,
 };
 
-const MONEY_VIEWS = [["transactions"], ["dashboard"], ["balances"], ["jars"]] as const;
+// goals show the balance of their funding jar, so they change with money too
+const MONEY_VIEWS = [["transactions"], ["dashboard"], ["balances"], ["jars"], ["goals"]] as const;
 
 /** The signed-in user; the first call also creates the internal user (flow F1). */
 export function useMe() {
@@ -120,11 +127,74 @@ export function useTransactionPages(filter: TransactionFilter) {
  * Amount and type never change (BR-2). Moving jars changes balances, so every money view is refreshed afterwards.
  */
 export function useAmendTransaction() {
-  const queryClient = useQueryClient();
+  const refresh = useRefreshMoneyViews();
   return useMutation({
     mutationFn: ({ id, changes }: { id: string; changes: Amendment }) =>
       unwrap(api.PATCH("/api/v1/transactions/{id}", { params: { path: { id } }, body: changes })),
-    onSuccess: () =>
-      Promise.all(MONEY_VIEWS.map((queryKey) => queryClient.invalidateQueries({ queryKey: [...queryKey] }))),
+    onSuccess: refresh,
+  });
+}
+
+function useRefreshMoneyViews() {
+  const queryClient = useQueryClient();
+  return () => Promise.all(MONEY_VIEWS.map((queryKey) => queryClient.invalidateQueries({ queryKey: [...queryKey] })));
+}
+
+/** POST /transactions (INCOME into POOL, or EXPENSE from a jar). The caller passes the action's Idempotency-Key. */
+export function usePostTransaction() {
+  const refresh = useRefreshMoneyViews();
+  return useMutation({
+    mutationFn: ({ key, body }: { key: string; body: NewTransaction }) =>
+      unwrapPosting(api.POST("/api/v1/transactions", { params: { header: { "Idempotency-Key": key } }, body })),
+    retry: retryIdempotent,
+    retryDelay,
+    onSuccess: refresh,
+  });
+}
+
+/** POST /jars/transfers: allocate from POOL (fromJarId = poolJarId) or move between two jars. */
+export function useTransfer() {
+  const refresh = useRefreshMoneyViews();
+  return useMutation({
+    mutationFn: ({ key, body }: { key: string; body: JarTransfer }) =>
+      unwrapPosting(api.POST("/api/v1/jars/transfers", { params: { header: { "Idempotency-Key": key } }, body })),
+    retry: retryIdempotent,
+    retryDelay,
+    onSuccess: refresh,
+  });
+}
+
+export function useGoals() {
+  return useQuery({ queryKey: queryKeys.goals, queryFn: () => unwrap(api.GET("/api/v1/goals")) });
+}
+
+/**
+ * POST /goals has no Idempotency-Key (it moves no money), so it is NOT retried automatically: a retry after a lost
+ * response could create the goal twice. The user sees the error and decides.
+ */
+export function useCreateGoal() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: NewGoal) => unwrap(api.POST("/api/v1/goals", { body })),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.goals }),
+  });
+}
+
+/** Merge patch like transactions: only changed fields; "fundingJarId": null detaches the jar. */
+export function useUpdateGoal() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, changes }: { id: string; changes: GoalChanges }) =>
+      unwrap(api.PATCH("/api/v1/goals/{id}", { params: { path: { id } }, body: changes })),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.goals }),
+  });
+}
+
+/** DELETE archives (soft delete) and is idempotent on the server: 204 also when already archived. */
+export function useArchiveGoal() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => unwrap(api.DELETE("/api/v1/goals/{id}", { params: { path: { id } } })),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.goals }),
   });
 }

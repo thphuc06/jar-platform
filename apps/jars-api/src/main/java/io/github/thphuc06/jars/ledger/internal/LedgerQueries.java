@@ -25,8 +25,13 @@ public class LedgerQueries {
         this.defaultJars = defaultJars;
     }
 
-    /** BR-2: {@code unallocated} is the hidden POOL jar, {@code total} the sum of every jar including POOL. */
-    public record JarsOverview(List<JarView> jars, BigDecimal unallocated, BigDecimal total, String currency) {}
+    /**
+     * BR-2: {@code unallocated} is the balance of the hidden POOL jar, {@code total} the sum of every jar including
+     * POOL. {@code poolJarId} is what a client sends as {@code fromJarId} to allocate income to a jar (found when the
+     * web client was built: without it nothing outside the database knew the id).
+     */
+    public record JarsOverview(
+            List<JarView> jars, UUID poolJarId, BigDecimal unallocated, BigDecimal total, String currency) {}
 
     /**
      * Not read-only: the default jars are created asynchronously after the user's first request (flow F1), so a very
@@ -40,15 +45,14 @@ public class LedgerQueries {
             defaultJars.ensureFor(userId);
             active = jars.findByUserIdAndArchivedAtIsNull(userId);
         }
-        BigDecimal unallocated =
-                active.stream().filter(Jar::isPool).map(Jar::balance).reduce(BigDecimal.ZERO, BigDecimal::add);
+        Jar pool = active.stream().filter(Jar::isPool).findFirst().orElseThrow(); // exactly one per user (V3)
         BigDecimal total = active.stream().map(Jar::balance).reduce(BigDecimal.ZERO, BigDecimal::add);
         List<JarView> visible = active.stream()
                 .filter(jar -> !jar.isPool())
                 .sorted(DISPLAY_ORDER)
                 .map(JarView::of)
                 .toList();
-        return new JarsOverview(visible, unallocated, total, Jar.VND);
+        return new JarsOverview(visible, pool.id(), pool.balance(), total, Jar.VND);
     }
 
     @Transactional(readOnly = true)

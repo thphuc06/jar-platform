@@ -70,7 +70,7 @@
 ### Ledger: hũ và giao dịch
 | Method | Path | Mô tả | Phase |
 |---|---|---|---|
-| GET | `/jars` | ✅ (P1.5) `{jars: [{id, code, name, targetPct, balance}], unallocated, total, currency}`: `POOL` bị ẩn khỏi `jars`, số dư của nó là `unallocated`; `total` gồm cả `POOL` ([BR-1, BR-2](../01-product/business-rules.md)). Lần gọi đầu tự tạo hũ mặc định nếu listener chưa chạy xong | 1 |
+| GET | `/jars` | ✅ (P1.5) `{jars: [{id, code, name, targetPct, balance}], poolJarId, unallocated, total, currency}`: `POOL` bị ẩn khỏi `jars`, số dư của nó là `unallocated`, id của nó là `poolJarId` (✅ P1.11c: client cần id này làm `fromJarId` để phân bổ thu nhập; trước đó chỉ đọc được trong DB); `total` gồm cả `POOL` ([BR-1, BR-2](../01-product/business-rules.md)). Lần gọi đầu tự tạo hũ mặc định nếu listener chưa chạy xong | 1 |
 | POST | `/jars` | Tạo hũ tùy chỉnh | 1 |
 | PATCH | `/jars/{id}` | Đổi tên, `targetPct` (tổng các hũ phải = 100) | 1 |
 | DELETE | `/jars/{id}` | Archive (chỉ khi số dư = 0) | 1 |
@@ -188,6 +188,17 @@ data: {"id":"0193b2...","type":"ANOMALY","severity":"HIGH","title":"Hũ PLAY tă
 
 5. Dọn key hết hạn: chưa có job (key hết hạn vẫn được chiếm lại đúng; bảng chỉ lớn dần). Job dọn dẹp ghi ở P2.1.
 
+
+### Phía client (✅ P1.11c, `apps/web/src/api/idempotency.ts`)
+
+| Tình huống | Key |
+|---|---|
+| Gửi lại **đúng nội dung đó** sau khi thất bại (mất response, 5xx, người dùng bấm Lưu lần nữa) | **Giữ nguyên**: server trả kết quả đã lưu (`Idempotent-Replayed: true`), UI báo "đã ghi từ lần trước" |
+| Người dùng sửa form rồi gửi | **Key mới** (giữ key cũ sẽ bị 422 `idempotency-key-reused`) |
+| Sau khi thành công | **Key mới** cho lần lưu sau, kể cả khi nội dung giống hệt (hai khoản chi bằng nhau là hai hành động) |
+
+Tự retry (tối đa 2 lần, backoff) chỉ cho lỗi mạng và 5xx, **và chỉ an toàn vì retry mang cùng key**; 4xx không retry. `POST /goals` không có key nên **không** tự retry.
+
 ## 5. Mapping màn hình UI → API
 
 UI cũ (`ius_financial_ui`) gọi thẳng Supabase. Bảng dưới đây là danh sách việc khi chuyển UI sang API mới (Phase 1–4); ✅ = đã chuyển vào `apps/web`.
@@ -200,9 +211,9 @@ UI cũ (`ius_financial_ui`) gọi thẳng Supabase. Bảng dưới đây là dan
 | Profile (`pages/Profile.tsx`) | State local (tên, điện thoại, ngày sinh gõ cứng) | ✅ P1.11a: viết lại với `GET /me`, `GET /me/risk-profile`, logout. Sửa tên (`PATCH /me`) chưa có API |
 | Dashboard (`pages/Index.tsx`) | `useLatestBalance`, `useMonthlyFlow`, `useSpendingByCategory`, `useTransactions` | ✅ P1.11b (`pages/Dashboard.tsx`): `GET /dashboard` (không gửi `month` thì server chọn tháng hiện tại theo giờ VN; `?month=` nằm trong URL của UI), `GET /balances/daily?days=30`, `GET /transactions?limit=5`. Bỏ thẻ "Services" gõ cứng (lãi suất 6,5 %, "3 goals") |
 | Money Inbox (`pages/MoneyInbox.tsx`) | `useTransactions`, `useCategories` | ✅ P1.11b: `GET /transactions` theo trang (cursor, nút "Load older"), lọc phía server theo `type`/`categoryId`/`jarId` (lưu trong URL), `GET /categories`, `PATCH /transactions/{id}` chỉ gửi field đã đổi. **Bỏ ô tìm kiếm chữ**: API chưa có `q`, còn lọc trên các trang đã tải sẽ bỏ sót kết quả cũ hơn (xem lại khi cần, ví dụ `pg_trgm`) |
-| Transfer (`pages/Transfer.tsx`) | `useInsertTransaction`, `useJars` | `POST /transactions` với `type=EXPENSE`, `jarId` = hũ đã chọn, `counterparty` = "số tài khoản (ngân hàng)" (màn này là **chi tiền từ hũ**, không phải chuyển giữa các hũ) |
-| Budget Jars (`pages/BudgetJars.tsx`) | `useJars`, `useAddJar`, `useUpdateJarAllocation`, `useDeleteJar`, `useJarSpending`, `useJarMonthlyTrend`, `useLatestBalance` | `GET/POST/PATCH/DELETE /jars`, `GET /budget/periods/{month}`, `GET /dashboard` |
-| Goal Planner (`pages/GoalPlanner.tsx`) + `components/roadmap/*` (đang dùng mock) | `useGoals`, `useAddGoal`, `useDeleteGoal`, `useBalanceHistory`, `mock-roadmap.ts` | `/goals/*`, `/goals/{id}/roadmap`, `/balances/daily` |
+| Transfer (`pages/Transfer.tsx`) | `useInsertTransaction`, `useJars` | ✅ P1.11c (`pages/NewTransaction.tsx`, route `/transfer`): `POST /transactions` với `type=EXPENSE`, `jarId` = hũ đã chọn, `counterparty` = "số tài khoản (ngân hàng)" (màn này là **chi tiền từ hũ**, không phải chuyển giữa các hũ). **Thêm** chế độ ghi thu nhập (`INCOME`, không `jarId` → `POOL`): UI cũ không có chỗ nào nhập thu nhập |
+| Budget Jars (`pages/BudgetJars.tsx`) | `useJars`, `useAddJar`, `useUpdateJarAllocation`, `useDeleteJar`, `useJarSpending`, `useJarMonthlyTrend`, `useLatestBalance` | ✅ P1.11c: `GET /jars` + `POST /jars/transfers` (phân bổ từ `poolJarId`, chuyển giữa hai hũ, gợi ý số tiền theo `targetPct`). **Bỏ** tạo/xóa hũ và "sửa phân bổ": 6 hũ cố định (BR-1), số dư chỉ đổi qua giao dịch. Ngân sách theo tháng (`/budget/periods`) để Phase 2 |
+| Goal Planner (`pages/GoalPlanner.tsx`) + `components/roadmap/*` (đang dùng mock) | `useGoals`, `useAddGoal`, `useDeleteGoal`, `useBalanceHistory`, `mock-roadmap.ts` | ✅ P1.11c (`pages/Goals.tsx`): `GET/POST /goals`, `PATCH /goals/{id}` (merge patch, `status`), `DELETE` (archive). Phần roadmap AI (`/goals/{id}/roadmap`) để Phase 4 |
 | Alerts (`pages/Alerts.tsx`) | `useNotifications`, `useDismissNotification` | `/notifications`, `/notifications/stream`, `/anomalies/{id}/feedback` |
 | AI Chat (`pages/AIChat.tsx`, `FloatingChat.tsx`) | `POST {CHAT_STREAM_URL}` + `POST {STOCK_AGENT_URL}/ask` | `/chat/sessions/*` (một endpoint; câu hỏi cổ phiếu do tool `market` xử lý) |
 | `lib/api.ts` | **Không file nào dùng** | Xóa; thay bằng client sinh từ OpenAPI |

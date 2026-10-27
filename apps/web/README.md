@@ -10,7 +10,7 @@ React 18 + Vite 8 + TypeScript (strict) + Tailwind 3 + shadcn/ui, dạng PWA. G�
 |---|---|
 | ✅ P1.11a | Đăng nhập (Cognito managed login, PKCE, [ADR-0020](../../docs/04-adr/0020-spa-auth-oidc-client-ts.md)), client có kiểu, Onboarding (`PUT /me/risk-profile`), Profile (`GET /me`, risk profile, logout) |
 | ✅ P1.11b | Dashboard (`GET /dashboard`, `/balances/daily`), Money Inbox (cursor, lọc trong URL, sửa giao dịch bằng merge patch) |
-| P1.11c | Transfer, Budget Jars, Goals |
+| ✅ P1.11c | Spend/Income (`POST /transactions`), Budget Jars (`POST /jars/transfers`), Goals (CRUD); Idempotency-Key theo hành động. Không còn mock |
 | Phase 2–3 | Alerts, AI Chat (chưa chép: chúng gọi endpoint App Runner cũ và bảng Supabase) |
 
 Bỏ lại không chép: `lib/supabase.ts` (anon key và user id **gõ cứng**), `lib/auth.ts` (`USER_PASSWORD_AUTH` + client secret trong bundle), `lib/api.ts` (code chết), các file mock, `lovable-tagger`, ảnh OG trên R2 của Lovable, Google Fonts (đã chuyển sang tự host bằng `@fontsource`).

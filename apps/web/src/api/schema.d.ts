@@ -344,6 +344,8 @@ export interface components {
         JarsResponse: {
             currency: string;
             jars: components["schemas"]["JarResponse"][];
+            /** Format: uuid */
+            poolJarId: string;
             total: string;
             unallocated: string;
         };

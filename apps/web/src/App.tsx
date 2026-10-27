@@ -9,13 +9,15 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import AuthCallback from "./pages/AuthCallback";
-import ComingSoon from "./pages/ComingSoon";
 import Install from "./pages/Install";
 import NotFound from "./pages/NotFound";
 
 // one chunk per screen: the charts library (recharts) is only downloaded when the Dashboard is opened
+const BudgetJars = lazy(() => import("./pages/BudgetJars"));
 const Dashboard = lazy(() => import("./pages/Dashboard"));
+const Goals = lazy(() => import("./pages/Goals"));
 const MoneyInbox = lazy(() => import("./pages/MoneyInbox"));
+const NewTransaction = lazy(() => import("./pages/NewTransaction"));
 const Onboarding = lazy(() => import("./pages/Onboarding"));
 const Profile = lazy(() => import("./pages/Profile"));
 
@@ -49,9 +51,9 @@ const App = () => (
             <Route element={<AppLayout />}>
               <Route path="/" element={<Dashboard />} />
               <Route path="/inbox" element={<MoneyInbox />} />
-              <Route path="/jars" element={<ComingSoon title="Budget Jars" step="P1.11c" />} />
-              <Route path="/goals" element={<ComingSoon title="Goals" step="P1.11c" />} />
-              <Route path="/transfer" element={<ComingSoon title="Transfer" step="P1.11c" />} />
+              <Route path="/jars" element={<BudgetJars />} />
+              <Route path="/goals" element={<Goals />} />
+              <Route path="/transfer" element={<NewTransaction />} />
               <Route path="/profile" element={<Profile />} />
             </Route>
           </Route>
