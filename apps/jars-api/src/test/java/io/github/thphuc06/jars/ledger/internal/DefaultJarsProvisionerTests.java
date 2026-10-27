@@ -3,11 +3,18 @@ package io.github.thphuc06.jars.ledger.internal;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.github.thphuc06.jars.TestcontainersConfiguration;
+import io.github.thphuc06.jars.identity.IdentityApi;
 import io.github.thphuc06.jars.identity.UserRegistered;
 import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.stream.IntStream;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Import;
@@ -16,6 +23,7 @@ import org.springframework.modulith.events.FailedEventPublications;
 import org.springframework.modulith.events.ResubmissionOptions;
 import org.springframework.modulith.test.ApplicationModuleTest;
 import org.springframework.modulith.test.Scenario;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 /**
  * Module test: boots ONLY the ledger module (plus the shared modules) on PostgreSQL 17. The identity module is not
@@ -36,6 +44,13 @@ class DefaultJarsProvisionerTests {
 
     @Autowired
     FailedEventPublications failedPublications;
+
+    @Autowired
+    DefaultJarsProvisioner defaultJars;
+
+    /** The ledger controllers need the identity module, which this test does not start: mock its public API. */
+    @MockitoBean
+    IdentityApi identity;
 
     @Test
     void userRegistered_createsTheSixJarsPlusPool_perBr1(Scenario scenario) {
@@ -96,6 +111,35 @@ class DefaultJarsProvisionerTests {
         scenario.stimulate(() -> failedPublications.resubmit(ResubmissionOptions.defaults()))
                 .andWaitForStateChange(() -> outboxRows(userId), rows -> rows == 0)
                 .andVerify(rows -> assertThat(jars.findByUserId(userId)).hasSize(7));
+    }
+
+    /**
+     * The listener and a first GET /jars may create the jars at the same instant. Both read "no jars" before either
+     * commits; with a check-then-insert the loser would hit uk_jars_user_code and fail. INSERT ... ON CONFLICT DO
+     * NOTHING makes the loser wait for the winner's commit and then insert nothing.
+     */
+    @Test
+    void concurrentCreation_neitherFailsNorDuplicates() throws Exception {
+        UUID userId = insertUser();
+        CountDownLatch start = new CountDownLatch(1);
+
+        List<Integer> created;
+        try (ExecutorService pool = Executors.newFixedThreadPool(2)) {
+            List<Future<Integer>> futures = IntStream.range(0, 2)
+                    .mapToObj(i -> pool.submit(() -> {
+                        start.await();
+                        return defaultJars.ensureFor(userId);
+                    }))
+                    .toList();
+            start.countDown();
+            created = new ArrayList<>();
+            for (Future<Integer> future : futures) {
+                created.add(future.get());
+            }
+        }
+
+        assertThat(created.stream().mapToInt(Integer::intValue).sum()).isEqualTo(7); // split between the two
+        assertThat(jars.findByUserId(userId)).hasSize(7);
     }
 
     private static BigDecimal sumOfTargets(List<Jar> found) {

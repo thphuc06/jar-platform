@@ -1,5 +1,6 @@
 package io.github.thphuc06.jars.ledger.internal;
 
+import io.github.thphuc06.jars.shared.BusinessRuleViolationException;
 import io.github.thphuc06.jars.shared.Ids;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -17,8 +18,9 @@ import org.hibernate.type.SqlTypes;
 import org.jspecify.annotations.Nullable;
 
 /**
- * Row of table {@code jars} (Flyway V3). {@code balance} is a cache of the jar's ledger entries, protected by
- * optimistic locking ({@code version}); entries and the code that moves money arrive in P1.5 (ADR-0014).
+ * Row of table {@code jars} (Flyway V3). {@code balance} is a cache of {@code SUM(jar_entries.amount)} and only changes
+ * through {@link #deposit} / {@link #withdraw}, which also produce the matching ledger entry (ADR-0014). Concurrent
+ * changes are detected by optimistic locking ({@code version}).
  */
 @Entity
 @Table(name = "jars")
@@ -81,9 +83,42 @@ class Jar {
         this.currency = VND;
     }
 
-    /** A new, empty jar. Money only enters it through ledger entries (P1.5). */
+    /** A new, empty jar (default jars are inserted with SQL, see {@link JarRepository#insertIfAbsent}). */
     static Jar open(UUID userId, JarCode code, String name, @Nullable BigDecimal targetPct) {
         return new Jar(userId, code, name, targetPct);
+    }
+
+    /** Money in. Returns the ledger entry recording it; the caller saves it in the same transaction. */
+    JarEntry deposit(BigDecimal amount, EntryType type, UUID transactionId) {
+        requireMovement(amount, type, true);
+        balance = balance.add(amount);
+        return JarEntry.record(this, transactionId, type, amount);
+    }
+
+    /** Money out. BR-2: the balance never goes below zero. */
+    JarEntry withdraw(BigDecimal amount, EntryType type, UUID transactionId) {
+        requireMovement(amount, type, false);
+        if (balance.compareTo(amount) < 0) {
+            throw new BusinessRuleViolationException(
+                    "insufficient-jar-balance",
+                    "Jar %s holds %s VND, %s VND requested"
+                            .formatted(code, balance.toPlainString(), amount.toPlainString()));
+        }
+        balance = balance.subtract(amount);
+        return JarEntry.record(this, transactionId, type, amount.negate());
+    }
+
+    private void requireMovement(BigDecimal amount, EntryType type, boolean moneyIn) {
+        if (amount.signum() <= 0 || type.isMoneyIn() != moneyIn) {
+            throw new IllegalArgumentException("invalid movement " + type + " of " + amount); // a bug, not user input
+        }
+        if (archivedAt != null) {
+            throw new BusinessRuleViolationException("jar-archived", "Jar " + id + " is archived");
+        }
+    }
+
+    boolean isPool() {
+        return code == JarCode.POOL;
     }
 
     UUID id() {

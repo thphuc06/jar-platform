@@ -2,7 +2,6 @@ package io.github.thphuc06.jars.ledger.internal;
 
 import java.math.BigDecimal;
 import java.util.List;
-import java.util.UUID;
 import org.jspecify.annotations.Nullable;
 
 /** BR-1: the six jars of the "6 Jars" method plus the hidden POOL jar, created for every new user. */
@@ -21,10 +20,4 @@ final class DefaultJars {
             new Spec(JarCode.POOL, "Chưa phân bổ", null));
 
     private DefaultJars() {}
-
-    static List<Jar> openFor(UUID userId) {
-        return SPECS.stream()
-                .map(spec -> Jar.open(userId, spec.code(), spec.name(), spec.targetPct()))
-                .toList();
-    }
 }

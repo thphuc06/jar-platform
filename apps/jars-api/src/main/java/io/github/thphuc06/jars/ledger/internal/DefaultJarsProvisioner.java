@@ -1,10 +1,13 @@
 package io.github.thphuc06.jars.ledger.internal;
 
 import io.github.thphuc06.jars.identity.UserRegistered;
+import io.github.thphuc06.jars.shared.Ids;
+import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.modulith.events.ApplicationModuleListener;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Creates the default jars of a new user (BR-1). First cross-module interaction of the system: identity does not
@@ -28,12 +31,23 @@ class DefaultJarsProvisioner {
      */
     @ApplicationModuleListener(id = "ledger.default-jars")
     void on(UserRegistered event) {
-        // delivery is at-least-once: a resubmitted publication may arrive after an earlier attempt already succeeded
-        if (jars.existsByUserId(event.userId())) {
-            log.info("Default jars already exist for user {}, nothing to do", event.userId());
-            return;
+        int created = ensureFor(event.userId());
+        log.info("Default jars for user {}: {} created", event.userId(), created);
+    }
+
+    /**
+     * Idempotent and race-safe: delivery is at-least-once (a resubmitted event may arrive after an earlier attempt
+     * already succeeded) and {@code GET /jars} may run it at the same moment as the listener. Each jar is an
+     * {@code INSERT ... ON CONFLICT DO NOTHING}, so concurrent callers all succeed and no jar is duplicated.
+     *
+     * @return how many jars this call created (0 when they all existed)
+     */
+    @Transactional
+    int ensureFor(UUID userId) {
+        int created = 0;
+        for (DefaultJars.Spec spec : DefaultJars.SPECS) {
+            created += jars.insertIfAbsent(Ids.newId(), userId, spec.code().name(), spec.name(), spec.targetPct());
         }
-        jars.saveAll(DefaultJars.openFor(event.userId()));
-        log.info("Created {} default jars for user {}", DefaultJars.SPECS.size(), event.userId());
+        return created;
     }
 }

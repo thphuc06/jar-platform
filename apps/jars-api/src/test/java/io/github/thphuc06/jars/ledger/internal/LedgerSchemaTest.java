@@ -130,6 +130,105 @@ class LedgerSchemaTest {
         insertCategory(userId, "Ăn uống", "EXPENSE", "NEC"); // different owner, so no conflict
     }
 
+    // --- Flyway V4: transactions and jar_entries ---
+
+    @Test
+    void transactions_jarOfAnotherUser_isRejectedByTheCompositeForeignKey() {
+        UUID mallory = UUID.randomUUID();
+        jdbc.sql("INSERT INTO users (id, cognito_sub, email) VALUES (?, ?, ?)")
+                .params(mallory, "sub-" + mallory, mallory + "@example.com")
+                .update();
+        UUID victimJar = insertJar("PLAY", new BigDecimal("10"));
+
+        // mallory's transaction pointing at the victim's jar: a bug in the code must not be able to store this
+        assertThatThrownBy(() -> insertTransaction(mallory, "EXPENSE", victimJar, null))
+                .isInstanceOf(DataIntegrityViolationException.class)
+                .hasMessageContaining("fk_transactions_jar");
+    }
+
+    // one failing statement per test: after an error PostgreSQL aborts the rest of the (rolled back) test transaction
+
+    @Test
+    void transactions_transferWithoutDestination_isRejected() {
+        UUID pool = insertJar("POOL", null);
+
+        assertThatThrownBy(() -> insertTransaction(userId, "JAR_TRANSFER", pool, null))
+                .hasMessageContaining("ck_transactions_transfer_target");
+    }
+
+    @Test
+    void transactions_expenseWithDestination_isRejected() {
+        UUID pool = insertJar("POOL", null);
+        UUID play = insertJar("PLAY", new BigDecimal("10"));
+
+        assertThatThrownBy(() -> insertTransaction(userId, "EXPENSE", play, pool))
+                .hasMessageContaining("ck_transactions_transfer_target");
+    }
+
+    @Test
+    void transactions_transferToTheSameJar_isRejected() {
+        UUID play = insertJar("PLAY", new BigDecimal("10"));
+
+        assertThatThrownBy(() -> insertTransaction(userId, "JAR_TRANSFER", play, play))
+                .hasMessageContaining("ck_transactions_transfer_distinct_jars");
+    }
+
+    @Test
+    void jarEntries_spendWithPositiveAmount_isRejected() {
+        UUID play = insertJar("PLAY", new BigDecimal("10"));
+
+        assertThatThrownBy(() -> insertEntry(play, "SPEND", new BigDecimal("1000")))
+                .isInstanceOf(DataIntegrityViolationException.class)
+                .hasMessageContaining("ck_jar_entries_sign");
+    }
+
+    @Test
+    void jarEntries_incomeWithNegativeAmount_isRejected() {
+        UUID play = insertJar("PLAY", new BigDecimal("10"));
+
+        assertThatThrownBy(() -> insertEntry(play, "INCOME", new BigDecimal("-1000")))
+                .hasMessageContaining("ck_jar_entries_sign");
+    }
+
+    @Test
+    void jarEntries_cannotBeUpdated() {
+        UUID entry = insertEntry(insertJar("PLAY", new BigDecimal("10")), "INCOME", new BigDecimal("1000"));
+
+        assertThatThrownBy(() -> jdbc.sql("UPDATE jar_entries SET amount = 999999 WHERE id = ?")
+                        .param(entry)
+                        .update())
+                .isInstanceOf(DataIntegrityViolationException.class)
+                .hasMessageContaining("append-only");
+    }
+
+    @Test
+    void jarEntries_cannotBeDeleted() {
+        UUID entry = insertEntry(insertJar("PLAY", new BigDecimal("10")), "INCOME", new BigDecimal("1000"));
+
+        assertThatThrownBy(() -> jdbc.sql("DELETE FROM jar_entries WHERE id = ?")
+                        .param(entry)
+                        .update())
+                .isInstanceOf(DataIntegrityViolationException.class)
+                .hasMessageContaining("append-only");
+    }
+
+    private UUID insertTransaction(UUID owner, String type, UUID jarId, UUID toJarId) {
+        UUID id = UUID.randomUUID();
+        jdbc.sql("""
+                        INSERT INTO transactions (id, user_id, type, amount, jar_id, to_jar_id, occurred_at)
+                        VALUES (?, ?, ?, 1000, ?, ?, now())
+                        """).params(id, owner, type, jarId, toJarId).update();
+        return id;
+    }
+
+    private UUID insertEntry(UUID jarId, String type, BigDecimal amount) {
+        UUID id = UUID.randomUUID();
+        jdbc.sql("INSERT INTO jar_entries (id, jar_id, entry_type, amount, balance_after) VALUES (?, ?, ?, ?, 0)")
+                .params(id, jarId, type, amount)
+                .update();
+        return id;
+    }
+
     private UUID insertJar(String code, BigDecimal targetPct) {
         UUID id = UUID.randomUUID();
         jdbc.sql("INSERT INTO jars (id, user_id, code, name, target_pct) VALUES (?, ?, ?, ?, ?)")

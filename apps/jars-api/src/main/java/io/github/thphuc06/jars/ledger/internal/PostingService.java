@@ -1,0 +1,256 @@
+package io.github.thphuc06.jars.ledger.internal;
+
+import io.github.thphuc06.jars.ledger.TransactionType;
+import io.github.thphuc06.jars.shared.BusinessRuleViolationException;
+import io.github.thphuc06.jars.shared.NotFoundException;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.time.Clock;
+import java.time.Duration;
+import java.time.Instant;
+import java.util.List;
+import java.util.UUID;
+import java.util.function.Supplier;
+import org.jspecify.annotations.Nullable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.core.retry.RetryException;
+import org.springframework.core.retry.RetryListener;
+import org.springframework.core.retry.RetryPolicy;
+import org.springframework.core.retry.RetryState;
+import org.springframework.core.retry.RetryTemplate;
+import org.springframework.core.retry.Retryable;
+import org.springframework.dao.ConcurrencyFailureException;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
+
+/**
+ * Write side of the ledger: records INCOME, EXPENSE and JAR_TRANSFER (business-rules BR-2, flow F2).
+ *
+ * <p>Concurrency: each jar row carries a {@code version}. Two requests that read the same jar and both change it
+ * cannot both win: the second {@code UPDATE ... WHERE version = ?} matches no row and Hibernate throws an optimistic
+ * locking failure (no lost update). That attempt is rolled back and retried in a <b>new</b> transaction, which reads
+ * the fresh balance and checks the rules again; so a retried expense may now fail with insufficient balance, which is
+ * correct. The nesting is explicit on purpose: retry → transaction → work.
+ */
+@Service
+public class PostingService {
+
+    private static final Logger log = LoggerFactory.getLogger(PostingService.class);
+
+    /** 1 attempt + 3 retries. Conflicts are rare (one user rarely writes from two places at once). */
+    static final int MAX_RETRIES = 3;
+
+    /** Tolerated clock difference between the client and the server for {@code occurredAt}. */
+    static final Duration CLOCK_SKEW = Duration.ofMinutes(5);
+
+    private final JarRepository jars;
+    private final JarEntryRepository entries;
+    private final LedgerTransactionRepository transactions;
+    private final CategoryRepository categories;
+    private final DefaultJarsProvisioner defaultJars;
+    private final ApplicationEventPublisher events;
+    private final Clock clock;
+    private final TransactionTemplate transaction;
+    private final RetryTemplate retry;
+
+    PostingService(
+            JarRepository jars,
+            JarEntryRepository entries,
+            LedgerTransactionRepository transactions,
+            CategoryRepository categories,
+            DefaultJarsProvisioner defaultJars,
+            ApplicationEventPublisher events,
+            Clock clock,
+            PlatformTransactionManager transactionManager) {
+        this.jars = jars;
+        this.entries = entries;
+        this.transactions = transactions;
+        this.categories = categories;
+        this.defaultJars = defaultJars;
+        this.events = events;
+        this.clock = clock;
+        this.transaction = new TransactionTemplate(transactionManager);
+        // ConcurrencyFailureException covers optimistic locking failures and deadlocks; business errors are NOT
+        // retried. Jitter spreads the retries of competing requests so they do not collide again.
+        this.retry = new RetryTemplate(RetryPolicy.builder()
+                .includes(ConcurrencyFailureException.class)
+                .maxRetries(MAX_RETRIES)
+                .delay(Duration.ofMillis(20))
+                .jitter(Duration.ofMillis(10))
+                .multiplier(2)
+                .build());
+        // visible in the logs (with the request's traceId): how often requests collide, and when they give up
+        this.retry.setRetryListener(new RetryListener() {
+            @Override
+            public void beforeRetry(RetryPolicy policy, Retryable<?> retryable, RetryState state) {
+                log.info(
+                        "posting conflict, retry {} of {}: {}",
+                        state.getRetryCount(), // already counts the retry about to start
+                        MAX_RETRIES,
+                        state.getLastException().getClass().getSimpleName());
+            }
+
+            @Override
+            public void onRetryPolicyExhaustion(RetryPolicy policy, Retryable<?> retryable, RetryException e) {
+                log.warn("posting still conflicting after {} retries, giving up", MAX_RETRIES);
+            }
+        });
+    }
+
+    public record PostTransaction(
+            TransactionType type,
+            BigDecimal amount,
+            @Nullable UUID jarId,
+            @Nullable UUID categoryId,
+            @Nullable String counterparty,
+            @Nullable String note,
+            @Nullable Instant occurredAt) {}
+
+    public record Transfer(
+            UUID fromJarId,
+            UUID toJarId,
+            BigDecimal amount,
+            @Nullable String note,
+            @Nullable Instant occurredAt) {}
+
+    /** The recorded transaction and the jars it changed, with their new balances. */
+    public record Posting(TransactionView transaction, List<JarView> jars) {}
+
+    /** POST /transactions: INCOME or EXPENSE. A transfer has its own endpoint and command. */
+    public Posting post(UUID userId, PostTransaction command) {
+        return switch (command.type()) {
+            case INCOME -> inRetriedTransaction(() -> income(userId, command));
+            case EXPENSE -> inRetriedTransaction(() -> expense(userId, command));
+            case JAR_TRANSFER ->
+                throw new BusinessRuleViolationException(
+                        "use-transfer-endpoint", "Move money between jars with POST /api/v1/jars/transfers");
+        };
+    }
+
+    /** POST /jars/transfers, including allocating income out of POOL. */
+    public Posting transfer(UUID userId, Transfer command) {
+        if (command.fromJarId().equals(command.toJarId())) {
+            throw new BusinessRuleViolationException("same-jar-transfer", "Source and destination jar are the same");
+        }
+        return inRetriedTransaction(() -> jarTransfer(userId, command));
+    }
+
+    /** Every attempt is a NEW database transaction, so it re-reads balances and versions and re-checks the rules. */
+    private Posting inRetriedTransaction(Supplier<Posting> work) {
+        return retry.invoke(() -> transaction.execute(status -> work.get()));
+    }
+
+    private Posting income(UUID userId, PostTransaction command) {
+        Jar jar = command.jarId() == null ? pool(userId) : ownJar(userId, command.jarId());
+        UUID categoryId = checkedCategory(userId, command.categoryId(), CategoryKind.INCOME);
+        BigDecimal amount = normalized(command.amount());
+
+        LedgerTransaction income = LedgerTransaction.income(
+                userId,
+                amount,
+                jar,
+                categoryId,
+                command.counterparty(),
+                command.note(),
+                occurredAt(command.occurredAt()));
+        JarEntry entry = jar.deposit(amount, EntryType.INCOME, income.id());
+        return record(income, List.of(entry), List.of(jar));
+    }
+
+    private Posting expense(UUID userId, PostTransaction command) {
+        if (command.jarId() == null) {
+            throw new BusinessRuleViolationException(
+                    "expense-requires-jar", "An EXPENSE needs the jarId it is paid from");
+        }
+        Jar jar = ownJar(userId, command.jarId());
+        if (jar.isPool()) {
+            throw new BusinessRuleViolationException(
+                    "expense-from-pool", "Unallocated money (POOL) must be moved to a jar before it is spent");
+        }
+        UUID categoryId = checkedCategory(userId, command.categoryId(), CategoryKind.EXPENSE);
+        BigDecimal amount = normalized(command.amount());
+
+        LedgerTransaction expense = LedgerTransaction.expense(
+                userId,
+                amount,
+                jar,
+                categoryId,
+                command.counterparty(),
+                command.note(),
+                occurredAt(command.occurredAt()));
+        JarEntry entry = jar.withdraw(amount, EntryType.SPEND, expense.id());
+        return record(expense, List.of(entry), List.of(jar));
+    }
+
+    private Posting jarTransfer(UUID userId, Transfer command) {
+        Jar from = ownJar(userId, command.fromJarId());
+        Jar to = ownJar(userId, command.toJarId());
+        BigDecimal amount = normalized(command.amount());
+
+        LedgerTransaction transfer =
+                LedgerTransaction.transfer(userId, amount, from, to, command.note(), occurredAt(command.occurredAt()));
+        JarEntry out = from.withdraw(amount, EntryType.TRANSFER_OUT, transfer.id());
+        JarEntry in = to.deposit(amount, EntryType.TRANSFER_IN, transfer.id());
+        return record(transfer, List.of(out, in), List.of(from, to));
+    }
+
+    /**
+     * Saves in foreign-key order (transaction before its entries) and publishes the event into the outbox, all in the
+     * current transaction. {@code flush()} sends the version-checked UPDATEs of the jars NOW, so a conflict surfaces
+     * inside the attempt instead of at commit.
+     */
+    private Posting record(LedgerTransaction txn, List<JarEntry> newEntries, List<Jar> changedJars) {
+        transactions.save(txn);
+        entries.saveAll(newEntries);
+        events.publishEvent(txn.toEvent());
+        jars.flush();
+        return new Posting(
+                TransactionView.of(txn), changedJars.stream().map(JarView::of).toList());
+    }
+
+    private Jar ownJar(UUID userId, UUID jarId) {
+        return jars.findByIdAndUserId(jarId, userId).orElseThrow(() -> new NotFoundException("jar", jarId));
+    }
+
+    /** POOL exists once the default jars do; they are created on demand if the async listener has not run yet. */
+    private Jar pool(UUID userId) {
+        return jars.findByUserIdAndCode(userId, JarCode.POOL).orElseGet(() -> {
+            defaultJars.ensureFor(userId);
+            return jars.findByUserIdAndCode(userId, JarCode.POOL).orElseThrow();
+        });
+    }
+
+    private @Nullable UUID checkedCategory(UUID userId, @Nullable UUID categoryId, CategoryKind expected) {
+        if (categoryId == null) {
+            return null;
+        }
+        Category category = categories
+                .findVisible(categoryId, userId)
+                .orElseThrow(() -> new NotFoundException("category", categoryId));
+        if (category.kind() != expected) {
+            throw new BusinessRuleViolationException(
+                    "category-kind-mismatch",
+                    "Category " + categoryId + " is " + category.kind() + ", not " + expected);
+        }
+        return categoryId;
+    }
+
+    /** BR-5: the web layer already rejected decimals ({@code @VndAmount}); this fails loudly if that ever changes. */
+    private static BigDecimal normalized(BigDecimal amount) {
+        return amount.setScale(2, RoundingMode.UNNECESSARY);
+    }
+
+    private Instant occurredAt(@Nullable Instant requested) {
+        Instant now = clock.instant();
+        if (requested == null) {
+            return now;
+        }
+        if (requested.isAfter(now.plus(CLOCK_SKEW))) {
+            throw new BusinessRuleViolationException("occurred-at-in-future", "occurredAt is in the future");
+        }
+        return requested;
+    }
+}

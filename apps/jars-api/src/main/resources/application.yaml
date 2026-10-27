@@ -21,6 +21,10 @@ spring:
     hibernate:
       # Flyway owns the schema; Hibernate only checks that entities match it and fails fast if not
       ddl-auto: validate
+    properties:
+      # UPDATEs are sent ordered by primary key: two opposite transfers (A→B and B→A) then lock the two jar rows in
+      # the same order and cannot deadlock each other
+      hibernate.order_updates: true
   modulith:
     events:
       # the outbox is a work queue, not history: a publication row is deleted once its listener succeeded

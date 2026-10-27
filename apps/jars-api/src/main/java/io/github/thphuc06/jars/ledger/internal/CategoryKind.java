@@ -1,6 +1,6 @@
 package io.github.thphuc06.jars.ledger.internal;
 
-enum CategoryKind {
+public enum CategoryKind {
     EXPENSE,
     INCOME
 }

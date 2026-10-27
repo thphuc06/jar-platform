@@ -10,6 +10,7 @@ import jakarta.validation.constraints.Positive;
 import java.math.BigDecimal;
 import java.util.UUID;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -53,6 +54,11 @@ class ErrorProbeController {
     @GetMapping("/db")
     String db() {
         throw new DataIntegrityViolationException("duplicate key value violates unique constraint \"secret_index\"");
+    }
+
+    @GetMapping("/stale")
+    String stale() {
+        throw new ObjectOptimisticLockingFailureException("io.github.thphuc06.jars.ledger.internal.Jar", "jar-id");
     }
 
     @GetMapping("/boom")

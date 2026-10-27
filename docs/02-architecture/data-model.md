@@ -9,13 +9,14 @@
 |---|---|---|---|
 | V1 | `V1__baseline_users.sql` | Bảng `users`: `id` UUID (app sinh), `cognito_sub` UNIQUE, `email` UNIQUE **không phân biệt hoa/thường** (unique index trên `lower(email)`), `locale` mặc định `vi-VN`, `created_at`/`updated_at` | P0.6 |
 | V2 | `V2__event_publication_registry.sql` | Bảng outbox `event_publication` của Spring Modulith, chép từ DDL **v2** chính thức của `spring-modulith-events-jdbc` 2.1.2 (có `status`, `completion_attempts`, `last_resubmission_date`). Khi nâng Modulith: so sánh lại với file `schemas/v2/schema-postgresql.sql` trong jar | P1.4 |
+| V4 | `V4__ledger_transactions_and_entries.sql` | `transactions` (amount > 0; `to_jar_id` chỉ có ở `JAR_TRANSFER` và khác `jar_id`; **FK kép `(jar_id, user_id)` → `jars(id, user_id)`**: DB từ chối giao dịch trỏ vào hũ của user khác) và `jar_entries` (dấu của `amount` theo `entry_type`, `balance_after >= 0`, **trigger append-only** chặn UPDATE/DELETE); unique `jars(id, user_id)` | P1.5 |
 | V3 | `V3__ledger_jars_and_categories.sql` | `jars` (CHECK: code hợp lệ, `POOL` ⇔ không có `target_pct`, `POOL` không archive, `balance >= 0`; unique `(user_id, code)` trừ `CUSTOM`) và `categories` (`user_id` NULL = hệ thống; EXPENSE không gợi ý `POOL`; tên unique theo `(user_id, kind, lower(name))` **`NULLS NOT DISTINCT`**) + seed 15 danh mục BR-3 với id cố định | P1.4 |
 
 ## 1. Quy ước
 
 | Chủ đề | Quy ước | Lý do |
 |---|---|---|
-| Khóa chính | `UUID` sinh ở app theo **UUIDv7** (có thứ tự theo thời gian) bằng `shared.Ids.newId()`, gán trong factory method của entity. Entity có `@Version Long version` (kiểu **wrapper**): Spring Data coi `version == null` là entity mới và gọi `persist` thay vì `merge` | Không lộ số lượng bản ghi, index B-tree không bị phân mảnh như UUIDv4. Có id ngay trước khi lưu (dùng được trong event). Không dùng `@UuidGenerator` để cả app chỉ có một bộ sinh id |
+| Khóa chính | `UUID` sinh ở app theo **UUIDv7** (có thứ tự theo thời gian) bằng `shared.Ids.newId()`, gán trong factory method của entity. Entity có `@Version Long version` (kiểu **wrapper**): Spring Data coi `version == null` là entity mới và gọi `persist` thay vì `merge`. Entity không có version (`LedgerTransaction`, `JarEntry`) implement `Persistable` (`isNew()` = chưa qua `@PostPersist`/`@PostLoad`) | Không lộ số lượng bản ghi, index B-tree không bị phân mảnh như UUIDv4. Có id ngay trước khi lưu (dùng được trong event). Không dùng `@UuidGenerator` để cả app chỉ có một bộ sinh id |
 | Tiền | `NUMERIC(19,2)` + cột `currency CHAR(3)`; trong Java dùng `BigDecimal` bọc trong record `Money` | Không bao giờ dùng `double` hay `float`. VND không có đơn vị lẻ nhưng vẫn để scale 2 để sau này mở rộng đa tiền tệ ([ADR-0014](../04-adr/0014-money-and-ledger-model.md)) |
 | Dấu của số tiền | `transactions.amount` luôn **> 0**, hướng dòng tiền thể hiện qua cột `type`. `jar_entries.amount` **có dấu** (+ vào hũ, − ra khỏi hũ) | Dữ liệu người dùng nhập thì dễ hiểu, còn sổ cái thì dễ cộng dồn |
 | Thời gian | `TIMESTAMPTZ`, lưu UTC; trong Java dùng `Instant` | Quy đổi sang giờ `Asia/Ho_Chi_Minh` chỉ khi tính "tháng" hoặc khi hiển thị |
@@ -80,7 +81,7 @@ erDiagram
         uuid id PK
         uuid jar_id FK
         uuid transaction_id FK "nullable"
-        text entry_type "ALLOCATE|SPEND|TRANSFER_IN|TRANSFER_OUT|ADJUST"
+        text entry_type "INCOME|SPEND|TRANSFER_IN|TRANSFER_OUT|ADJUST"
         numeric amount "signed"
         numeric balance_after
         timestamptz created_at
@@ -107,7 +108,8 @@ erDiagram
         text type "INCOME|EXPENSE|JAR_TRANSFER"
         numeric amount ">0"
         char currency
-        uuid jar_id FK "POOL when INCOME is not assigned"
+        uuid jar_id FK "INCOME: POOL or chosen jar; EXPENSE: paying jar; JAR_TRANSFER: source"
+        uuid to_jar_id FK "JAR_TRANSFER only"
         uuid category_id FK
         text counterparty
         text note
@@ -213,7 +215,7 @@ erDiagram
 | Bản cũ | Bản mới | Vì sao |
 |---|---|---|
 | `jars.allocated_amount`, `used_amount` bị cập nhật đè, `remaining_amount` là cột tính | `jar_entries` chỉ ghi thêm + `jars.balance` cache + `version` | Cập nhật đè gây **lost update** khi có 2 request đồng thời và không còn lịch sử để đối soát |
-| `transactions.jar_id`, `category_id` NOT NULL cho mọi loại | `jar_id` có thể null với INCOME; có thêm `type` | Thu nhập chưa vào hũ nào; chuyển hũ là một loại giao dịch riêng |
+| `transactions.jar_id`, `category_id` NOT NULL cho mọi loại | `jar_id` luôn có (INCOME chưa chọn hũ thì là `POOL`), `category_id` tùy chọn; có thêm `type` và `to_jar_id` | Thu nhập chưa vào hũ nào; chuyển hũ là một loại giao dịch riêng |
 | `direction debit/credit` + `affects_jar_balance` | `type` + bút toán `jar_entries` | Bỏ cờ boolean khó hiểu |
 | Bảng `tier1_*` riêng cho CUSUM | `anomaly_detector_state`, `anomalies` thuộc module insights | Đặt tên theo nghiệp vụ, không theo "tier" kỹ thuật |
 | `*_log` nhiều bảng JSONB cho trace của agent | `audit_log` + trace qua OpenTelemetry | Không lưu payload của LLM vào DB nghiệp vụ |

@@ -1,7 +1,7 @@
 package io.github.thphuc06.jars.ledger.internal;
 
 /** Kind of jar (BR-1). Stored as text; the same list is enforced by {@code ck_jars_code} in Flyway V3. */
-enum JarCode {
+public enum JarCode {
     /** Necessities. */
     NEC,
     /** Financial freedom: investments, never spent. */

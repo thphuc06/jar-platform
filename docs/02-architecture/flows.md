@@ -87,13 +87,15 @@ sequenceDiagram
     API->>DB: INSERT idempotency_keys (response)
     API->>DB: COMMIT
     alt UPDATE trả về 0 dòng (đã có request khác sửa trước)
-        API->>API: OptimisticLockException → retry tối đa 3 lần
+        API->>API: ObjectOptimisticLockingFailureException → rollback, retry trong transaction MỚI (tối đa 3 lần)
     end
-    API-->>W: 201 Created {transaction, jarBalance}
+    API-->>W: 201 Created + Location {transaction, jars: [{id, code, balance}]}
     API--)API: AFTER_COMMIT: phát TransactionPosted cho insights và budgeting (async)
 ```
 
 **Điểm cần học:** `@Transactional` (proxy, rollback rules), optimistic locking với `@Version`, isolation `READ COMMITTED` (mặc định của PostgreSQL) và vì sao nó đủ dùng khi đã có `@Version`, idempotency key, outbox.
+
+**Đã cài đặt (P1.5)**, trừ Idempotency-Key (P1.6): `PostingService` lồng **retry → transaction → work** tường minh. Mỗi lần thử đọc lại hũ (số dư và version mới), nên một khoản chi bị retry có thể trả 422 `insufficient-jar-balance`; đây là kết quả đúng. `ConcurrentPostingIntegrationTest`: 2 khoản chi 60k tranh 100k → đúng 1 thành công; 8 luồng cùng chi → không mất cập nhật; 6 luồng chuyển ngược chiều → không deadlock, tổng tiền bảo toàn; sau mọi test `jars.balance = SUM(jar_entries.amount)`.
 
 ---
 

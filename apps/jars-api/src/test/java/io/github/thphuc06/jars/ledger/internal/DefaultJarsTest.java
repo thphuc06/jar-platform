@@ -3,9 +3,7 @@ package io.github.thphuc06.jars.ledger.internal;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.math.BigDecimal;
-import java.util.List;
 import java.util.Objects;
-import java.util.UUID;
 import org.junit.jupiter.api.Test;
 
 /** BR-1 as executable rules: if someone edits the default jar table, these tell whether it is still valid. */
@@ -35,19 +33,5 @@ class DefaultJarsTest {
                 .filteredOn(spec -> spec.targetPct() == null)
                 .extracting(DefaultJars.Spec::code)
                 .containsExactly(JarCode.POOL);
-    }
-
-    @Test
-    void openFor_createsEmptyVndJarsOwnedByTheUser_withDistinctIds() {
-        UUID userId = UUID.randomUUID();
-
-        List<Jar> jars = DefaultJars.openFor(userId);
-
-        assertThat(jars).hasSize(7).allSatisfy(jar -> {
-            assertThat(jar.userId()).isEqualTo(userId);
-            assertThat(jar.balance()).isZero();
-            assertThat(jar.currency()).isEqualTo("VND");
-        });
-        assertThat(jars).extracting(Jar::id).doesNotHaveDuplicates();
     }
 }

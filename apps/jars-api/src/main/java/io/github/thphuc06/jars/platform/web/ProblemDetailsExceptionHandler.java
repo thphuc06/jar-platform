@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.dao.ConcurrencyFailureException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -53,6 +54,19 @@ class ProblemDetailsExceptionHandler extends ResponseEntityExceptionHandler {
         ProblemDetail problem =
                 ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, "The request conflicts with existing data");
         problem.setType(ProblemTypes.of("conflict"));
+        return withTraceId(problem);
+    }
+
+    /**
+     * Optimistic locking failure or deadlock that was still there after the service's retries: someone else changed
+     * the same data at the same moment. Nothing was written; the client may simply send the request again.
+     */
+    @ExceptionHandler(ConcurrencyFailureException.class)
+    ProblemDetail concurrency(ConcurrencyFailureException e) {
+        log.warn("concurrent modification after retries: {}", e.getMessage());
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(
+                HttpStatus.CONFLICT, "The data was changed by another request at the same time; please retry");
+        problem.setType(ProblemTypes.of("concurrent-modification"));
         return withTraceId(problem);
     }
 

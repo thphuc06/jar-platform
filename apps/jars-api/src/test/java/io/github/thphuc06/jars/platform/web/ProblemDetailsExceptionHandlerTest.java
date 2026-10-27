@@ -116,6 +116,14 @@ class ProblemDetailsExceptionHandlerTest {
     }
 
     @Test
+    void concurrentModificationAfterRetries_is409AndHidesTheEntity() {
+        MvcTestResult result = get("/api/v1/_probe/stale");
+
+        assertProblem(result, HttpStatus.CONFLICT, "concurrent-modification");
+        assertThat(result).bodyText().doesNotContain("ledger.internal");
+    }
+
+    @Test
     void unexpectedException_is500AndLeaksNothing() {
         MvcTestResult result = get("/api/v1/_probe/boom");
 

@@ -28,5 +28,11 @@ Bản cũ lưu `jars.allocated_amount` và `used_amount` rồi cập nhật đè
 - ✅ Là chủ đề phỏng vấn tốt: isolation level, lost update, optimistic vs pessimistic locking.
 - ⚠️ Tốn thêm bảng và code. Nhớ đánh index `jar_entries(jar_id, created_at)`.
 
+## Ghi chú triển khai (P1.5, 2026-10-27)
+- **Retry** bằng `RetryTemplate` có sẵn trong **Spring Framework 7** (`org.springframework.core.retry`), không cần thư viện Spring Retry: retry → `TransactionTemplate` (transaction mới mỗi lần) → đọc lại hũ → kiểm tra quy tắc → ghi. Chỉ retry `ConcurrencyFailureException` (optimistic lock + deadlock), tối đa 3 lần, delay 20 ms ×2 có jitter; hết lượt thì 409 `concurrent-modification`. Lỗi nghiệp vụ không retry.
+- **Chống deadlock:** `hibernate.order_updates=true` sắp các UPDATE theo khóa chính, nên 2 giao dịch chuyển tiền ngược chiều khóa 2 hũ theo cùng thứ tự. Đo thực tế (`ConcurrentPostingIntegrationTest`, 6 luồng A↔B): bật = 0 deadlock; tắt = 5–8 deadlock mỗi lần chạy (vẫn xanh nhờ retry, nhưng tốn thêm vòng).
+- **Phòng thủ ở DB:** FK kép `(jar_id, user_id)` chống ghi nhầm hũ của user khác; trigger chặn UPDATE/DELETE trên `jar_entries`; `CHECK` dấu của entry, `balance >= 0`.
+- Loại entry dùng `INCOME` thay cho `ALLOCATE` dự kiến ban đầu: phân bổ chính là `JAR_TRANSFER` từ `POOL` (cặp `TRANSFER_OUT`/`TRANSFER_IN`).
+
 ## Xem lại khi
 Hỗ trợ đa tiền tệ có quy đổi tỷ giá, hoặc chia sẻ hũ giữa nhiều người (xung đột tăng).

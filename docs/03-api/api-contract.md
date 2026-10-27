@@ -22,8 +22,9 @@
 |---|---|---|
 | `validation-failed` | 422 | `@Valid` body hoặc ràng buộc trên `@RequestParam`/`@PathVariable` sai; kèm `errors[]` |
 | `{resource}-not-found` | 404 | Ví dụ `jar-not-found`. Không tồn tại **hoặc** không thuộc user |
-| *(mã nghiệp vụ)* | 422 | Ví dụ `insufficient-jar-balance` (BR-2) |
+| *(mã nghiệp vụ)* | 422 | ✅ P1.5: `insufficient-jar-balance`, `expense-requires-jar`, `expense-from-pool`, `jar-archived`, `category-kind-mismatch`, `same-jar-transfer`, `use-transfer-endpoint`, `occurred-at-in-future` (lệch quá 5 phút) |
 | `email-already-registered` | 409 | Email đã gắn với tài khoản Cognito khác |
+| `concurrent-modification` | 409 | Request khác sửa cùng hũ cùng lúc và vẫn xung đột sau 3 lần retry phía server; không có gì được ghi, client gửi lại được (✅ P1.5) |
 | `conflict` | 409 | Ràng buộc DB bị vi phạm mà code chưa kiểm tra trước (không lộ SQL) |
 | `unauthorized` / `forbidden` | 401 / 403 | Lỗi xác thực / thiếu scope (do Spring Security sinh ra) |
 | `internal-error` | 500 | Lỗi không lường trước; không có stack trace; client nên gửi kèm `traceId` khi báo lỗi |
@@ -66,14 +67,14 @@
 ### Ledger: hũ và giao dịch
 | Method | Path | Mô tả | Phase |
 |---|---|---|---|
-| GET | `/jars` | Danh sách hũ + số dư; response có thêm `unallocated` (= số dư của hũ ẩn `POOL`) và `total` ([BR-1, BR-2](../01-product/business-rules.md)) | 1 |
+| GET | `/jars` | ✅ (P1.5) `{jars: [{id, code, name, targetPct, balance}], unallocated, total, currency}`: `POOL` bị ẩn khỏi `jars`, số dư của nó là `unallocated`; `total` gồm cả `POOL` ([BR-1, BR-2](../01-product/business-rules.md)). Lần gọi đầu tự tạo hũ mặc định nếu listener chưa chạy xong | 1 |
 | POST | `/jars` | Tạo hũ tùy chỉnh | 1 |
 | PATCH | `/jars/{id}` | Đổi tên, `targetPct` (tổng các hũ phải = 100) | 1 |
 | DELETE | `/jars/{id}` | Archive (chỉ khi số dư = 0) | 1 |
-| POST | `/jars/transfers` | Chuyển tiền giữa 2 hũ, **gồm cả phân bổ từ `POOL`** (`fromJar = POOL`) (**Idempotency-Key**) | 1 |
-| GET | `/categories` | Danh mục (mặc định của hệ thống + của user) | 1 |
+| POST | `/jars/transfers` | ✅ (P1.5) `{fromJarId, toJarId, amount, note?, occurredAt?}` → 201 + `Location`. Chuyển tiền giữa 2 hũ, **gồm cả phân bổ từ `POOL`** (`fromJarId` = id của `POOL`) (**Idempotency-Key** từ P1.6) | 1 |
+| GET | `/categories` | ✅ (P1.5) `{items: [{id, name, kind, defaultJarCode, system}]}`: danh mục hệ thống (BR-3) + của user | 1 |
 | GET | `/transactions?limit&cursor&jarId&categoryId&type&from&to` | Money Inbox | 1 |
-| POST | `/transactions` | Ghi thu/chi (**Idempotency-Key**). INCOME không có `jarId` thì vào `POOL`; EXPENSE bắt buộc có `jarId` khác `POOL` ([BR-2](../01-product/business-rules.md)) | 1 |
+| POST | `/transactions` | ✅ (P1.5) `{type: INCOME/EXPENSE, amount, jarId?, categoryId?, counterparty?, note?, occurredAt?}` → 201 + `Location` + `{transaction, jars: [{id, code, balance}]}` (số dư mới của các hũ bị ảnh hưởng). INCOME không có `jarId` thì vào `POOL`; EXPENSE bắt buộc có `jarId` khác `POOL` ([BR-2](../01-product/business-rules.md)). `amount` nhận string hoặc number, phải là số đồng nguyên dương (BR-5, `@VndAmount`) (**Idempotency-Key** từ P1.6) | 1 |
 | PATCH | `/transactions/{id}` | Đổi danh mục / hũ, sinh bút toán điều chỉnh | 1 |
 | GET | `/balances/daily?days=30` | Chuỗi số dư theo ngày (biểu đồ) | 1 |
 
