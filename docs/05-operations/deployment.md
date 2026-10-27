@@ -31,14 +31,14 @@ Tham chiếu đầy đủ: [well-architected-review.md](../02-architecture/well-
 | Lần | Lệnh | Khi nào |
 |---|---|---|
 | Phase 1 ✅ (23/10) | `npx cdk deploy JarsAuth` → stack `jars-dev-auth` | Cần Cognito để có JWT thật khi chạy local |
-| Phase 3, P3.2 | `cdk deploy JarsFoundation JarsNetwork` | ECR, OIDC deploy role, SNS alarm, Budget; VPC + security group. Không tính phí theo giờ |
+| Phase 3, P3.2 ✅ (27/10) | `cdk deploy JarsFoundation JarsNetwork` → `jars-dev-foundation`, `jars-dev-network` | ECR, OIDC deploy role, SNS alarm, Budget; VPC + security group. Không tính phí theo giờ |
 | Phase 3, P3.3 | `cdk deploy JarsData` | Aurora (tính phí theo ACU) |
 | Phase 3 | Push image đầu tiên lên ECR (bằng CI hoặc tay), rồi `cdk deploy JarsApp -c imageTag=<sha>` | Lên app |
 | Phase 4 | `cdk deploy JarsQuant JarsApp` | Thêm quant-fn, Valkey, quyền Bedrock |
 | Phase 5 | `cdk deploy JarsMessaging JarsApp` (+ service worker) | SNS/SQS FIFO + insights-worker |
 | Phase 6 | `cdk deploy JarsObservability` | Dashboard, alarm |
 
-Tất cả lệnh chạy trong `infra/cdk` với profile đã `aws login` (máy hiện tại: `default`). Trước mỗi lần deploy nên chạy `cdk diff` để xem thay đổi.
+Tất cả lệnh chạy trong `infra/cdk` với profile đã `aws login` (máy hiện tại: `default`; phiên hết hạn sau tối đa 12 giờ. Không mở được trình duyệt trên máy chạy CLI thì dùng `aws login --remote`: CLI in một link, đăng nhập ở thiết bị khác rồi dán **mã một lần** vào CLI. Mã gắn với PKCE của đúng phiên CLI đó; không bao giờ gửi access key hay mật khẩu qua chat. Trình duyệt đang có phiên console của account khác có thể gây lỗi 400: dùng cửa sổ ẩn danh). Trước mỗi lần deploy nên chạy `cdk diff` để xem thay đổi.
 
 **Trước lần deploy `JarsFoundation` đầu tiên (làm một lần, chỉ đọc):**
 
