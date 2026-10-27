@@ -5,7 +5,6 @@ import io.github.thphuc06.jars.shared.ConflictException;
 import io.github.thphuc06.jars.shared.Ids;
 import java.util.UUID;
 import org.springframework.context.ApplicationEventPublisher;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -29,24 +28,16 @@ class UserRegistrar {
     @Transactional
     public User register(String cognitoSub, String email) {
         UUID newId = Ids.newId();
-        int inserted;
-        try {
-            inserted = users.insertIfAbsent(newId, cognitoSub, email.trim(), DEFAULT_LOCALE);
-        } catch (DataIntegrityViolationException e) {
-            // ON CONFLICT only covers cognito_sub; the same e-mail under a NEW sub (account deleted and re-created
-            // in Cognito) hits uk_users_email_lower. Say so explicitly instead of a generic conflict.
-            if (String.valueOf(e.getMostSpecificCause().getMessage()).contains("uk_users_email_lower")) {
-                throw new ConflictException(
-                        "email-already-registered", "This e-mail is already linked to another account");
-            }
-            throw e;
-        }
+        int inserted = users.insertIfAbsent(newId, cognitoSub, email.trim(), DEFAULT_LOCALE);
         if (inserted == 1) {
             // written to the outbox in THIS transaction; listeners run only after commit (rolled back = never sent)
             events.publishEvent(new UserRegistered(newId, DEFAULT_LOCALE));
         }
-        // under READ COMMITTED this new statement sees the row committed by a concurrent first request
+        // under READ COMMITTED this new statement sees the row committed by a concurrent first request. Nothing
+        // inserted and still no row for this sub: the e-mail belongs to ANOTHER account (e.g. deleted and
+        // re-created in Cognito with a new sub)
         return users.findByCognitoSub(cognitoSub)
-                .orElseThrow(() -> new IllegalStateException("user row missing after insert for sub " + cognitoSub));
+                .orElseThrow(() -> new ConflictException(
+                        "email-already-registered", "This e-mail is already linked to another account"));
     }
 }

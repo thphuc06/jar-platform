@@ -42,7 +42,7 @@ sequenceDiagram
     alt chưa có user
         API->>C: GET /oauth2/userInfo (Bearer access_token) → email
         Note over API,C: Ngoài transaction DB, chỉ 1 lần mỗi user (access token không có claim email)
-        API->>DB: INSERT ... ON CONFLICT (cognito_sub) DO NOTHING + publish UserRegistered (ghi outbox event_publication)
+        API->>DB: INSERT ... ON CONFLICT DO NOTHING + publish UserRegistered (ghi outbox event_publication)
         API->>DB: SELECT users WHERE cognito_sub = ?
         Note over API,DB: Cùng 1 transaction (READ COMMITTED)
         API--)API: AFTER_COMMIT, thread khác, transaction mới → ledger tạo 6 hũ + POOL, xóa dòng outbox
@@ -53,7 +53,7 @@ sequenceDiagram
 **Điểm cần học:**
 - **PKCE** thay cho client secret, vì SPA không giữ được bí mật.
 - API chỉ nhận **access token**. ID token dùng để hiển thị thông tin user ở frontend, không dùng để gọi API.
-- **Race condition:** 2 request đầu tiên đến cùng lúc thì cả hai cùng thấy "chưa có user". Xử lý bằng `INSERT ... ON CONFLICT (cognito_sub) DO NOTHING` rồi SELECT lại. Transaction thứ hai **chờ** transaction thứ nhất commit (vì đụng unique index), rồi không làm gì, và SELECT sau đó thấy được dòng đã commit. *(Đã cài đặt ở P1.2; `UserProvisioningIntegrationTest` chạy 8 luồng cùng lúc: luôn ra 1 dòng, 1 event.)*
+- **Race condition:** 2 request đầu tiên đến cùng lúc thì cả hai cùng thấy "chưa có user". Xử lý bằng `INSERT ... ON CONFLICT DO NOTHING` rồi SELECT lại theo `cognito_sub`. Transaction thứ hai **chờ** transaction thứ nhất commit (vì đụng unique index), rồi không làm gì, và SELECT sau đó thấy được dòng đã commit; nếu vẫn không thấy dòng của `sub` này thì email thuộc tài khoản khác (409). *(Cài đặt ở P1.2; **sửa ở P1.8**: bản đầu dùng `ON CONFLICT (cognito_sub)`, chỉ bỏ qua xung đột trên chỉ mục đó, nên request song song chặn ở chỉ mục email sẽ ném lỗi unique và user nhận 409 cho chính email của mình; test lặp 25 lần fail 19–20 lần trước khi sửa, 0 lần sau khi sửa.)*
 - **Email lấy từ `/oauth2/userInfo`**, vì access token của Cognito không có claim `email`. Gọi **ngoài** transaction DB (không giữ connection trong lúc chờ mạng); timeout 2 s connect, 3 s read.
 - Spring Security xác thực JWT **offline** bằng JWKS được cache, nên không phải gọi Cognito ở mỗi request.
 - **Hũ mặc định được tạo bất đồng bộ** (P1.4): `identity` không biết `ledger` tồn tại, chỉ phát `UserRegistered`. Event được ghi vào outbox **trong cùng transaction** tạo user, nên user được tạo thì event không thể mất; rollback thì không có event. Cái giá: response `/me` có thể về **trước** khi 7 hũ xuất hiện (vài chục ms). `GET /jars` (P1.5) phải xử lý trường hợp "chưa có hũ" (gọi lại đoạn code tạo hũ, vốn idempotent, hoặc trả danh sách rỗng để UI thử lại). Nếu listener lỗi, publication ở trạng thái `FAILED` và được gửi lại (`DefaultJarsProvisionerTests`).

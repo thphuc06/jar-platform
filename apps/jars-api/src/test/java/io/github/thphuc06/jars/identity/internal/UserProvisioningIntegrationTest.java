@@ -11,6 +11,7 @@ import static org.springframework.security.test.web.servlet.request.SecurityMock
 import io.github.thphuc06.jars.TestcontainersConfiguration;
 import io.github.thphuc06.jars.identity.UserRegistered;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.Callable;
@@ -19,6 +20,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.stream.IntStream;
+import org.junit.jupiter.api.RepeatedTest;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -59,6 +61,37 @@ class UserProvisioningIntegrationTest {
 
     @MockitoBean
     UserInfoClient userInfo;
+
+    /**
+     * Regression test for a race found in P1.8 (flaky failure of the test above): {@code ON CONFLICT (cognito_sub)}
+     * only absorbs conflicts on THAT index. A concurrent first request could block on the e-mail index instead and
+     * then fail with a unique violation, so the user got 409 "e-mail already registered" for their own e-mail.
+     * Repeated with a fresh sub and e-mail each time, because one run rarely hits the window.
+     */
+    @RepeatedTest(25)
+    void concurrentFirstRequests_neverReportTheirOwnEmailAsTaken() throws Exception {
+        String sub = "sub-" + UUID.randomUUID();
+        String email = UUID.randomUUID() + "@example.com";
+        CountDownLatch start = new CountDownLatch(1);
+
+        List<UUID> ids = new ArrayList<>();
+        try (ExecutorService pool = Executors.newFixedThreadPool(8)) {
+            List<Future<UUID>> futures = new ArrayList<>();
+            for (int i = 0; i < 8; i++) {
+                futures.add(pool.submit(() -> {
+                    start.await();
+                    return registrar.register(sub, email).id();
+                }));
+            }
+            start.countDown();
+            for (Future<UUID> future : futures) {
+                ids.add(future.get()); // ExecutionException(ConflictException) = the bug
+            }
+        }
+
+        assertThat(ids).containsOnly(ids.getFirst());
+        assertThat(rowsFor(sub)).isEqualTo(1);
+    }
 
     private long jarsFor(String sub) {
         return jdbc.sql("SELECT count(*) FROM jars j JOIN users u ON u.id = j.user_id WHERE u.cognito_sub = ?")
@@ -130,7 +163,7 @@ class UserProvisioningIntegrationTest {
             List<Callable<UUID>> calls = IntStream.range(0, threads)
                     .<Callable<UUID>>mapToObj(i -> () -> {
                         start.await(); // release all threads at once to maximise the race
-                        return registrar.register(sub, "race@example.com").id();
+                        return registrar.register(sub, sub + "@example.com").id();
                     })
                     .toList();
             List<Future<UUID>> futures = calls.stream().map(pool::submit).toList();
