@@ -24,6 +24,7 @@
 | `{resource}-not-found` | 404 | Ví dụ `jar-not-found`. Không tồn tại **hoặc** không thuộc user |
 | *(mã nghiệp vụ)* | 422 | ✅ P1.5: `insufficient-jar-balance`, `expense-requires-jar`, `expense-from-pool`, `jar-archived`, `category-kind-mismatch`, `same-jar-transfer`, `use-transfer-endpoint`, `occurred-at-in-future` (lệch quá 5 phút) |
 | `email-already-registered` | 409 | Email đã gắn với tài khoản Cognito khác |
+| `idempotency-key-reused` | 422 | Cùng `Idempotency-Key` đã dùng cho một request khác (✅ P1.6, [§4](#4-idempotency)) |
 | `concurrent-modification` | 409 | Request khác sửa cùng hũ cùng lúc và vẫn xung đột sau 3 lần retry phía server; không có gì được ghi, client gửi lại được (✅ P1.5) |
 | `conflict` | 409 | Ràng buộc DB bị vi phạm mà code chưa kiểm tra trước (không lộ SQL) |
 | `unauthorized` / `forbidden` | 401 / 403 | Lỗi xác thực / thiếu scope (do Spring Security sinh ra) |
@@ -71,10 +72,10 @@
 | POST | `/jars` | Tạo hũ tùy chỉnh | 1 |
 | PATCH | `/jars/{id}` | Đổi tên, `targetPct` (tổng các hũ phải = 100) | 1 |
 | DELETE | `/jars/{id}` | Archive (chỉ khi số dư = 0) | 1 |
-| POST | `/jars/transfers` | ✅ (P1.5) `{fromJarId, toJarId, amount, note?, occurredAt?}` → 201 + `Location`. Chuyển tiền giữa 2 hũ, **gồm cả phân bổ từ `POOL`** (`fromJarId` = id của `POOL`) (**Idempotency-Key** từ P1.6) | 1 |
+| POST | `/jars/transfers` | ✅ (P1.5) `{fromJarId, toJarId, amount, note?, occurredAt?}` → 201 + `Location`. Chuyển tiền giữa 2 hũ, **gồm cả phân bổ từ `POOL`** (`fromJarId` = id của `POOL`) (**Idempotency-Key bắt buộc**, ✅ P1.6) | 1 |
 | GET | `/categories` | ✅ (P1.5) `{items: [{id, name, kind, defaultJarCode, system}]}`: danh mục hệ thống (BR-3) + của user | 1 |
 | GET | `/transactions?limit&cursor&jarId&categoryId&type&from&to` | Money Inbox | 1 |
-| POST | `/transactions` | ✅ (P1.5) `{type: INCOME/EXPENSE, amount, jarId?, categoryId?, counterparty?, note?, occurredAt?}` → 201 + `Location` + `{transaction, jars: [{id, code, balance}]}` (số dư mới của các hũ bị ảnh hưởng). INCOME không có `jarId` thì vào `POOL`; EXPENSE bắt buộc có `jarId` khác `POOL` ([BR-2](../01-product/business-rules.md)). `amount` nhận string hoặc number, phải là số đồng nguyên dương (BR-5, `@VndAmount`) (**Idempotency-Key** từ P1.6) | 1 |
+| POST | `/transactions` | ✅ (P1.5) `{type: INCOME/EXPENSE, amount, jarId?, categoryId?, counterparty?, note?, occurredAt?}` → 201 + `Location` + `{transaction, jars: [{id, code, balance}]}` (số dư mới của các hũ bị ảnh hưởng). INCOME không có `jarId` thì vào `POOL`; EXPENSE bắt buộc có `jarId` khác `POOL` ([BR-2](../01-product/business-rules.md)). `amount` nhận string hoặc number, phải là số đồng nguyên dương (BR-5, `@VndAmount`) (**Idempotency-Key bắt buộc**, ✅ P1.6) | 1 |
 | PATCH | `/transactions/{id}` | Đổi danh mục / hũ, sinh bút toán điều chỉnh | 1 |
 | GET | `/balances/daily?days=30` | Chuỗi số dư theo ngày (biểu đồ) | 1 |
 
@@ -166,12 +167,23 @@ data: {"id":"0193b2...","type":"ANOMALY","severity":"HIGH","title":"Hũ PLAY tă
 
 ## 4. Idempotency
 
-1. Client sinh `Idempotency-Key` (UUIDv4) **một lần cho mỗi ý định của người dùng**. Nếu bấm lại do mạng lỗi thì vẫn gửi **cùng key**.
-2. Server: `INSERT idempotency_keys (user_id, key, request_hash, status='IN_PROGRESS')`.
-   - Nếu bị trùng khóa chính và `request_hash` giống: trả response đã lưu, hoặc trả 409 `request-in-progress` nếu request trước vẫn đang chạy.
-   - Nếu `request_hash` khác: trả 422.
-3. Xử lý xong thì lưu `status_code` + `response_body` **trong cùng transaction** với nghiệp vụ.
-4. Key hết hạn sau 24 giờ (có job dọn dẹp).
+✅ Cài đặt ở P1.6 cho `POST /transactions` và `POST /jars/transfers`.
+
+1. Client sinh `Idempotency-Key` (UUID) **một lần cho mỗi ý định của người dùng**. Nếu gửi lại do mạng lỗi hoặc timeout thì vẫn dùng **cùng key và cùng body**. Header **bắt buộc**: thiếu hoặc không phải UUID thì 400.
+2. Key được tính **theo từng user** (khóa chính `(user_id, idempotency_key)`) và sống **24 giờ**.
+3. Server giữ chỗ key **ngay đầu transaction nghiệp vụ** (`INSERT ... ON CONFLICT`) và lưu kết quả **ở cuối cùng transaction đó**. Key và việc trừ tiền vì vậy cùng commit hoặc cùng rollback, không có lúc tiền đã đi mà key chưa được lưu.
+4. Kết quả:
+
+| Tình huống | Response |
+|---|---|
+| Key mới | Thực hiện, 201 |
+| Cùng key, cùng request (kể cả `85000` và `"85000.00"`, vì số tiền được chuẩn hóa trước khi băm) | **201 với đúng body và `Location` của lần đầu**, kèm header `Idempotent-Replayed: true`; không ghi gì thêm |
+| Cùng key, request khác, hoặc cùng key nhưng ở endpoint khác | 422 `idempotency-key-reused` |
+| Hai request cùng key đến **đồng thời** | Request thứ hai **chờ** khóa của dòng key cho tới khi request đầu kết thúc, rồi replay kết quả của nó. Không trả 409 `request-in-progress` như thiết kế ban đầu: client không phải xử lý thêm trường hợp nào |
+| Lần đầu thất bại (ví dụ 422 thiếu số dư) | **Không lưu**: transaction rollback kéo theo dòng key. Gửi lại cùng key sau khi sửa nguyên nhân thì được thực hiện. (Stripe lưu cả response lỗi; ở đây lần lỗi không thay đổi gì nên không cần) |
+| Key đã hết hạn | Request mới chiếm lại key (`ON CONFLICT DO UPDATE ... WHERE expires_at <= now`) |
+
+5. Dọn key hết hạn: chưa có job (key hết hạn vẫn được chiếm lại đúng; bảng chỉ lớn dần). Job dọn dẹp ghi ở P2.1.
 
 ## 5. Mapping màn hình UI → API
 

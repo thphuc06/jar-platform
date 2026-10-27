@@ -97,6 +97,40 @@ class ConcurrentPostingIntegrationTest {
         assertThat(jarsWhoseBalanceDiffersFromTheirEntries()).isEmpty();
     }
 
+    /**
+     * The double-click / network-retry case: the SAME request with the SAME key arrives several times at once. The
+     * first one reserves the key; the others block on its row, then replay its result: one payment, one answer.
+     */
+    @Test
+    void sameIdempotencyKeyInParallel_paysOnce_andEveryoneGetsTheSameTransaction() throws Exception {
+        UUID play = fund(JarCode.PLAY, "100000");
+        UUID key = UUID.randomUUID();
+        var command = new PostingService.PostTransaction(
+                TransactionType.EXPENSE, new BigDecimal("30000"), play, null, null, null, null);
+
+        List<Idempotent<PostingService.Posting>> results = new ArrayList<>();
+        CountDownLatch start = new CountDownLatch(1);
+        try (ExecutorService pool = Executors.newFixedThreadPool(8)) {
+            List<Future<Idempotent<PostingService.Posting>>> futures = new ArrayList<>();
+            for (int i = 0; i < 8; i++) {
+                futures.add(pool.submit(() -> {
+                    start.await();
+                    return posting.post(userId, key, command);
+                }));
+            }
+            start.countDown();
+            for (var future : futures) {
+                results.add(future.get());
+            }
+        }
+
+        UUID first = results.getFirst().value().transaction().id();
+        assertThat(results).extracting(r -> r.value().transaction().id()).containsOnly(first);
+        assertThat(results).filteredOn(Idempotent::replayed).hasSize(7);
+        assertThat(balance(play)).isEqualByComparingTo("70000");
+        assertThat(spendEntries(play)).isEqualTo(1);
+    }
+
     // --- helpers ---
 
     enum Outcome {
@@ -137,13 +171,14 @@ class ConcurrentPostingIntegrationTest {
     private Outcome expense(UUID jarId, String amount) {
         return attempt(() -> posting.post(
                 userId,
+                UUID.randomUUID(),
                 new PostingService.PostTransaction(
                         TransactionType.EXPENSE, new BigDecimal(amount), jarId, null, null, null, null)));
     }
 
     private Outcome transfer(UUID from, UUID to) {
-        return attempt(() ->
-                posting.transfer(userId, new PostingService.Transfer(from, to, new BigDecimal("1000"), null, null)));
+        return attempt(() -> posting.transfer(
+                userId, UUID.randomUUID(), new PostingService.Transfer(from, to, new BigDecimal("1000"), null, null)));
     }
 
     private static Outcome attempt(Runnable call) {
@@ -167,9 +202,13 @@ class ConcurrentPostingIntegrationTest {
                 jars.findByUserIdAndCode(userId, JarCode.POOL).orElseThrow().id();
         posting.post(
                 userId,
+                UUID.randomUUID(),
                 new PostingService.PostTransaction(
                         TransactionType.INCOME, new BigDecimal(amount), null, null, null, null, null));
-        posting.transfer(userId, new PostingService.Transfer(poolId, jarId, new BigDecimal(amount), null, null));
+        posting.transfer(
+                userId,
+                UUID.randomUUID(),
+                new PostingService.Transfer(poolId, jarId, new BigDecimal(amount), null, null));
         return jarId;
     }
 

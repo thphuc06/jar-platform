@@ -214,6 +214,121 @@ class LedgerApiIntegrationTest {
                 .hasStatus(HttpStatus.FORBIDDEN);
     }
 
+    // --- Idempotency-Key (P1.6) ---
+
+    @Test
+    void sameKeyAndBodyTwice_recordsOnce_andReplaysTheIdenticalResponse() throws Exception {
+        UUID key = UUID.randomUUID();
+        String income = "{\"type\": \"INCOME\", \"amount\": \"500000\"}";
+
+        MvcTestResult first = post("/api/v1/transactions", key, income);
+        MvcTestResult again = post("/api/v1/transactions", key, income); // e.g. the client timed out and re-sent
+
+        assertThat(first).hasStatus(HttpStatus.CREATED).doesNotContainHeader("Idempotent-Replayed");
+        assertThat(again).hasStatus(HttpStatus.CREATED).hasHeader("Idempotent-Replayed", "true");
+        assertThat(again.getResponse().getContentAsString())
+                .isEqualTo(first.getResponse().getContentAsString());
+        assertThat(again.getResponse().getHeader("Location"))
+                .isEqualTo(first.getResponse().getHeader("Location"));
+        assertThat(rows("transactions")).isEqualTo(1);
+        assertThat(get("/api/v1/jars"))
+                .bodyJson()
+                .extractingPath("$.unallocated")
+                .isEqualTo("500000.00");
+    }
+
+    @Test
+    void sameKey_amountWrittenDifferently_isStillTheSameRequest() {
+        UUID key = UUID.randomUUID();
+
+        post("/api/v1/transactions", key, "{\"type\": \"INCOME\", \"amount\": 85000}");
+
+        assertThat(post("/api/v1/transactions", key, "{\"type\": \"INCOME\", \"amount\": \"85000.00\"}"))
+                .hasStatus(HttpStatus.CREATED)
+                .hasHeader("Idempotent-Replayed", "true");
+        assertThat(rows("transactions")).isEqualTo(1);
+    }
+
+    @Test
+    void sameKeyWithADifferentBody_is422_andRecordsNothingNew() {
+        UUID key = UUID.randomUUID();
+        post("/api/v1/transactions", key, "{\"type\": \"INCOME\", \"amount\": \"1000\"}");
+
+        assertProblem(
+                post("/api/v1/transactions", key, "{\"type\": \"INCOME\", \"amount\": \"2000\"}"),
+                HttpStatus.UNPROCESSABLE_CONTENT,
+                "idempotency-key-reused");
+        assertThat(rows("transactions")).isEqualTo(1);
+    }
+
+    @Test
+    void sameKeyOnAnotherEndpoint_is422() {
+        UUID key = UUID.randomUUID();
+        post("/api/v1/transactions", key, "{\"type\": \"INCOME\", \"amount\": \"1000\"}");
+
+        assertProblem(
+                post("/api/v1/jars/transfers", key, """
+                        {"fromJarId": "%s", "toJarId": "%s", "amount": "1000"}
+                        """.formatted(jarId("POOL"), jarId("PLAY"))),
+                HttpStatus.UNPROCESSABLE_CONTENT,
+                "idempotency-key-reused");
+    }
+
+    @Test
+    void failedRequest_isNotRemembered_soTheSameKeyWorksOnceTheCauseIsFixed() {
+        get("/api/v1/jars");
+        UUID key = UUID.randomUUID();
+        String spend = expense(jarId("PLAY"), "1000");
+
+        assertProblem(
+                post("/api/v1/transactions", key, spend), HttpStatus.UNPROCESSABLE_CONTENT, "insufficient-jar-balance");
+        fundPlay("5000");
+
+        // the failed attempt changed nothing and its reservation was rolled back with it
+        assertThat(post("/api/v1/transactions", key, spend))
+                .hasStatus(HttpStatus.CREATED)
+                .doesNotContainHeader("Idempotent-Replayed");
+    }
+
+    @Test
+    void keysAreScopedPerUser() {
+        UUID sharedKey = UUID.randomUUID();
+        String income = "{\"type\": \"INCOME\", \"amount\": \"1000\"}";
+        post("/api/v1/transactions", sharedKey, income);
+
+        userId = insertUser(); // another user happens to send the same key
+        assertThat(post("/api/v1/transactions", sharedKey, income))
+                .hasStatus(HttpStatus.CREATED)
+                .doesNotContainHeader("Idempotent-Replayed");
+    }
+
+    @Test
+    void expiredKey_isTakenOverByANewRequest() {
+        UUID key = UUID.randomUUID();
+        post("/api/v1/transactions", key, "{\"type\": \"INCOME\", \"amount\": \"1000\"}");
+        jdbc.sql("UPDATE idempotency_keys SET expires_at = now() - interval '1 second' WHERE idempotency_key = ?")
+                .param(key)
+                .update();
+
+        assertThat(post("/api/v1/transactions", key, "{\"type\": \"INCOME\", \"amount\": \"2000\"}"))
+                .hasStatus(HttpStatus.CREATED)
+                .doesNotContainHeader("Idempotent-Replayed");
+        assertThat(rows("transactions")).isEqualTo(2);
+    }
+
+    @Test
+    void missingIdempotencyKey_is400_andNothingIsRecorded() {
+        assertThat(mvc.post()
+                        .uri("/api/v1/transactions")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"type\": \"INCOME\", \"amount\": \"1000\"}")
+                        .with(jwt().authorities(WRITE))
+                        .exchange())
+                .hasStatus(HttpStatus.BAD_REQUEST)
+                .hasContentType(MediaType.APPLICATION_PROBLEM_JSON);
+        assertThat(rows("transactions")).isZero();
+    }
+
     @Test
     void getCategories_listsTheSystemDefaults() {
         assertThat(get("/api/v1/categories"))
@@ -229,13 +344,26 @@ class LedgerApiIntegrationTest {
         return mvc.get().uri(uri).with(jwt().authorities(READ)).exchange();
     }
 
+    /** Every money-moving POST needs an Idempotency-Key; a fresh one = a new intention of the user. */
     private MvcTestResult post(String uri, String json) {
+        return post(uri, UUID.randomUUID(), json);
+    }
+
+    private MvcTestResult post(String uri, UUID idempotencyKey, String json) {
         return mvc.post()
                 .uri(uri)
+                .header("Idempotency-Key", idempotencyKey.toString())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(json)
                 .with(jwt().authorities(WRITE))
                 .exchange();
+    }
+
+    private void fundPlay(String amount) {
+        post("/api/v1/transactions", "{\"type\": \"INCOME\", \"amount\": \"%s\"}".formatted(amount));
+        post("/api/v1/jars/transfers", """
+                {"fromJarId": "%s", "toJarId": "%s", "amount": "%s"}
+                """.formatted(jarId("POOL"), jarId("PLAY"), amount));
     }
 
     private static String expense(UUID jarId, String amount) {

@@ -71,20 +71,21 @@ sequenceDiagram
     participant DB as Aurora
 
     W->>API: POST /api/v1/transactions<br/>Idempotency-Key: 7f9c...<br/>{type: EXPENSE, amount: 85000, jarId, categoryId}
-    API->>DB: SELECT idempotency_keys WHERE user_id, key
-    alt key đã tồn tại với cùng request hash
-        API-->>W: Trả lại response đã lưu (không ghi lần 2)
-    else key tồn tại nhưng request khác
+    API->>DB: BEGIN
+    API->>DB: INSERT idempotency_keys (user_id, key, request_hash) ON CONFLICT ...
+    Note over API,DB: request cùng key đang chạy → câu INSERT này CHỜ tới khi nó kết thúc
+    alt key đã có, cùng request hash
+        API-->>W: 201 + body đã lưu, Idempotent-Replayed: true (không ghi lần 2)
+    else key đã có, request khác
         API-->>W: 422 idempotency-key-reused
     end
-    API->>DB: BEGIN
     API->>DB: SELECT jars WHERE id AND user_id (version = 7)
     API->>API: Kiểm tra quy tắc: hũ thuộc user, chưa archived, số dư đủ (nếu bật chặn chi vượt)
     API->>DB: INSERT transactions
     API->>DB: INSERT jar_entries (SPEND, -85000, balance_after)
     API->>DB: UPDATE jars SET balance=..., version=8 WHERE id=? AND version=7
     API->>DB: INSERT event_publication (TransactionPosted)
-    API->>DB: INSERT idempotency_keys (response)
+    API->>DB: UPDATE idempotency_keys SET response_body = ... (cùng transaction)
     API->>DB: COMMIT
     alt UPDATE trả về 0 dòng (đã có request khác sửa trước)
         API->>API: ObjectOptimisticLockingFailureException → rollback, retry trong transaction MỚI (tối đa 3 lần)
@@ -95,7 +96,7 @@ sequenceDiagram
 
 **Điểm cần học:** `@Transactional` (proxy, rollback rules), optimistic locking với `@Version`, isolation `READ COMMITTED` (mặc định của PostgreSQL) và vì sao nó đủ dùng khi đã có `@Version`, idempotency key, outbox.
 
-**Đã cài đặt (P1.5)**, trừ Idempotency-Key (P1.6): `PostingService` lồng **retry → transaction → work** tường minh. Mỗi lần thử đọc lại hũ (số dư và version mới), nên một khoản chi bị retry có thể trả 422 `insufficient-jar-balance`; đây là kết quả đúng. `ConcurrentPostingIntegrationTest`: 2 khoản chi 60k tranh 100k → đúng 1 thành công; 8 luồng cùng chi → không mất cập nhật; 6 luồng chuyển ngược chiều → không deadlock, tổng tiền bảo toàn; sau mọi test `jars.balance = SUM(jar_entries.amount)`.
+**Đã cài đặt (P1.5 + P1.6):** Idempotency-Key giữ chỗ và lưu kết quả trong cùng transaction với nghiệp vụ ([api-contract §4](../03-api/api-contract.md#4-idempotency)); 8 request cùng key đến đồng thời → 1 lần trừ tiền, cả 8 nhận cùng `transactionId`. `PostingService` lồng **retry → transaction → work** tường minh. Mỗi lần thử đọc lại hũ (số dư và version mới), nên một khoản chi bị retry có thể trả 422 `insufficient-jar-balance`; đây là kết quả đúng. `ConcurrentPostingIntegrationTest`: 2 khoản chi 60k tranh 100k → đúng 1 thành công; 8 luồng cùng chi → không mất cập nhật; 6 luồng chuyển ngược chiều → không deadlock, tổng tiền bảo toàn; sau mọi test `jars.balance = SUM(jar_entries.amount)`.
 
 ---
 

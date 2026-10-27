@@ -9,6 +9,7 @@
 |---|---|---|---|
 | V1 | `V1__baseline_users.sql` | Bảng `users`: `id` UUID (app sinh), `cognito_sub` UNIQUE, `email` UNIQUE **không phân biệt hoa/thường** (unique index trên `lower(email)`), `locale` mặc định `vi-VN`, `created_at`/`updated_at` | P0.6 |
 | V2 | `V2__event_publication_registry.sql` | Bảng outbox `event_publication` của Spring Modulith, chép từ DDL **v2** chính thức của `spring-modulith-events-jdbc` 2.1.2 (có `status`, `completion_attempts`, `last_resubmission_date`). Khi nâng Modulith: so sánh lại với file `schemas/v2/schema-postgresql.sql` trong jar | P1.4 |
+| V5 | `V5__idempotency_keys.sql` | `idempotency_keys`: PK `(user_id, idempotency_key)`, `request_hash` (SHA-256 của endpoint + request đã chuẩn hóa), `response_body JSONB`, `expires_at` (24 h) | P1.6 |
 | V4 | `V4__ledger_transactions_and_entries.sql` | `transactions` (amount > 0; `to_jar_id` chỉ có ở `JAR_TRANSFER` và khác `jar_id`; **FK kép `(jar_id, user_id)` → `jars(id, user_id)`**: DB từ chối giao dịch trỏ vào hũ của user khác) và `jar_entries` (dấu của `amount` theo `entry_type`, `balance_after >= 0`, **trigger append-only** chặn UPDATE/DELETE); unique `jars(id, user_id)` | P1.5 |
 | V3 | `V3__ledger_jars_and_categories.sql` | `jars` (CHECK: code hợp lệ, `POOL` ⇔ không có `target_pct`, `POOL` không archive, `balance >= 0`; unique `(user_id, code)` trừ `CUSTOM`) và `categories` (`user_id` NULL = hệ thống; EXPENSE không gợi ý `POOL`; tên unique theo `(user_id, kind, lower(name))` **`NULLS NOT DISTINCT`**) + seed 15 danh mục BR-3 với id cố định | P1.4 |
 
@@ -190,7 +191,7 @@ erDiagram
 
 | Bảng | Module | Mục đích |
 |---|---|---|
-| `idempotency_keys` (`user_id`, `key`) PK, `request_hash`, `status_code`, `response_body JSONB`, `expires_at` | ledger (dùng chung qua filter) | Header `Idempotency-Key` cho các POST làm thay đổi tiền ([api-contract.md](../03-api/api-contract.md#4-idempotency)) |
+| `idempotency_keys` (`user_id`, `idempotency_key`) PK, `request_hash`, `response_body JSONB`, `expires_at` | ledger (`IdempotencyStore`, chạy **bên trong** transaction nghiệp vụ, không phải filter: filter nằm ngoài transaction nên không commit cùng việc trừ tiền được) | Header `Idempotency-Key` cho các POST làm thay đổi tiền ([api-contract.md](../03-api/api-contract.md#4-idempotency)) |
 | `processed_messages` (`consumer`, `message_id`) PK, `processed_at` | platform | **Inbox**: bỏ qua message SQS trùng (at-least-once) |
 | `event_publication` | Spring Modulith (bản lưu JDBC), Flyway V2 tạo bảng | **Outbox**: mỗi listener quan tâm có 1 dòng, ghi cùng transaction nghiệp vụ. `completion-mode=delete`: listener thành công thì xóa dòng, lỗi thì giữ (`status=FAILED`) để gửi lại. Không dùng bảng `_archive` |
 | `monthly_jar_spend` (`user_id`, `jar_id`, `month`) PK, `spent`, `txn_count` | insights | **Read model** cho dashboard (CQRS-lite), cập nhật từ event |

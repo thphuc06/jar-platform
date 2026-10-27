@@ -10,7 +10,6 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import java.math.BigDecimal;
-import java.net.URI;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
@@ -18,6 +17,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -41,13 +41,13 @@ class JarController {
         return JarsResponse.from(queries.jarsOf(identity.currentUser().id()));
     }
 
-    /** Moves money between two jars of the caller; {@code fromJarId} = POOL allocates income. */
+    /** Moves money between two jars of the caller; {@code fromJarId} = POOL allocates income. Idempotency-Key required. */
     @PostMapping("/transfers")
-    ResponseEntity<PostingResponse> transfer(@Valid @RequestBody TransferRequest request) {
-        PostingService.Posting result = posting.transfer(identity.currentUser().id(), request.toCommand());
-        return ResponseEntity.created(URI.create(
-                        "/api/v1/transactions/" + result.transaction().id()))
-                .body(PostingResponse.from(result));
+    ResponseEntity<PostingResponse> transfer(
+            @RequestHeader(TransactionController.IDEMPOTENCY_KEY) UUID idempotencyKey,
+            @Valid @RequestBody TransferRequest request) {
+        return PostingResponse.created(
+                posting.transfer(identity.currentUser().id(), idempotencyKey, request.toCommand()));
     }
 
     record TransferRequest(

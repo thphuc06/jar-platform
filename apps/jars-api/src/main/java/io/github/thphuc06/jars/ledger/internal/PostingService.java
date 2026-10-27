@@ -51,6 +51,7 @@ public class PostingService {
     private final LedgerTransactionRepository transactions;
     private final CategoryRepository categories;
     private final DefaultJarsProvisioner defaultJars;
+    private final IdempotencyStore idempotency;
     private final ApplicationEventPublisher events;
     private final Clock clock;
     private final TransactionTemplate transaction;
@@ -62,6 +63,7 @@ public class PostingService {
             LedgerTransactionRepository transactions,
             CategoryRepository categories,
             DefaultJarsProvisioner defaultJars,
+            IdempotencyStore idempotency,
             ApplicationEventPublisher events,
             Clock clock,
             PlatformTransactionManager transactionManager) {
@@ -70,6 +72,7 @@ public class PostingService {
         this.transactions = transactions;
         this.categories = categories;
         this.defaultJars = defaultJars;
+        this.idempotency = idempotency;
         this.events = events;
         this.clock = clock;
         this.transaction = new TransactionTemplate(transactionManager);
@@ -107,40 +110,65 @@ public class PostingService {
             @Nullable UUID categoryId,
             @Nullable String counterparty,
             @Nullable String note,
-            @Nullable Instant occurredAt) {}
+            @Nullable Instant occurredAt) {
+
+        /** "85000" and "85000.00" are the same request: normalize before hashing for the Idempotency-Key. */
+        PostTransaction normalized() {
+            return new PostTransaction(
+                    type, PostingService.normalized(amount), jarId, categoryId, counterparty, note, occurredAt);
+        }
+    }
 
     public record Transfer(
             UUID fromJarId,
             UUID toJarId,
             BigDecimal amount,
             @Nullable String note,
-            @Nullable Instant occurredAt) {}
+            @Nullable Instant occurredAt) {
+
+        Transfer normalized() {
+            return new Transfer(fromJarId, toJarId, PostingService.normalized(amount), note, occurredAt);
+        }
+    }
 
     /** The recorded transaction and the jars it changed, with their new balances. */
     public record Posting(TransactionView transaction, List<JarView> jars) {}
 
     /** POST /transactions: INCOME or EXPENSE. A transfer has its own endpoint and command. */
-    public Posting post(UUID userId, PostTransaction command) {
-        return switch (command.type()) {
-            case INCOME -> inRetriedTransaction(() -> income(userId, command));
-            case EXPENSE -> inRetriedTransaction(() -> expense(userId, command));
+    public Idempotent<Posting> post(UUID userId, UUID idempotencyKey, PostTransaction command) {
+        PostTransaction normalized = command.normalized();
+        Supplier<Posting> work = switch (normalized.type()) {
+            case INCOME -> () -> income(userId, normalized);
+            case EXPENSE -> () -> expense(userId, normalized);
             case JAR_TRANSFER ->
                 throw new BusinessRuleViolationException(
                         "use-transfer-endpoint", "Move money between jars with POST /api/v1/jars/transfers");
         };
+        return inRetriedTransaction(userId, idempotencyKey, "POST /api/v1/transactions", normalized, work);
     }
 
     /** POST /jars/transfers, including allocating income out of POOL. */
-    public Posting transfer(UUID userId, Transfer command) {
+    public Idempotent<Posting> transfer(UUID userId, UUID idempotencyKey, Transfer command) {
         if (command.fromJarId().equals(command.toJarId())) {
             throw new BusinessRuleViolationException("same-jar-transfer", "Source and destination jar are the same");
         }
-        return inRetriedTransaction(() -> jarTransfer(userId, command));
+        Transfer normalized = command.normalized();
+        return inRetriedTransaction(
+                userId,
+                idempotencyKey,
+                "POST /api/v1/jars/transfers",
+                normalized,
+                () -> jarTransfer(userId, normalized));
     }
 
-    /** Every attempt is a NEW database transaction, so it re-reads balances and versions and re-checks the rules. */
-    private Posting inRetriedTransaction(Supplier<Posting> work) {
-        return retry.invoke(() -> transaction.execute(status -> work.get()));
+    /**
+     * Every attempt is a NEW database transaction, so it re-reads balances and versions and re-checks the rules. The
+     * Idempotency-Key is reserved and completed inside that same transaction: a rolled-back attempt releases it.
+     */
+    private Idempotent<Posting> inRetriedTransaction(
+            UUID userId, UUID idempotencyKey, String operation, Object request, Supplier<Posting> work) {
+        return retry.invoke(() -> transaction.execute(
+                status -> idempotency.run(userId, idempotencyKey, operation, request, Posting.class, work)));
     }
 
     private Posting income(UUID userId, PostTransaction command) {
@@ -239,7 +267,7 @@ public class PostingService {
     }
 
     /** BR-5: the web layer already rejected decimals ({@code @VndAmount}); this fails loudly if that ever changes. */
-    private static BigDecimal normalized(BigDecimal amount) {
+    static BigDecimal normalized(BigDecimal amount) {
         return amount.setScale(2, RoundingMode.UNNECESSARY);
     }
 
