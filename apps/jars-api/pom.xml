@@ -19,8 +19,8 @@
     <properties>
         <java.version>25</java.version>
         <!-- verified together with Boot 4.1.2 in the P0.5 smoke test (see docs/04-adr/0004) -->
-        <spring-ai.version>2.0.1</spring-ai.version>
-        <spring-cloud-aws.version>4.2.0</spring-cloud-aws.version>
+        <spring-ai.version>2.0.2</spring-ai.version>
+        <spring-cloud-aws.version>4.2.1</spring-cloud-aws.version>
         <spring-modulith.version>2.1.2</spring-modulith.version>
         <spotless.version>3.10.4</spotless.version>
         <palantir-java-format.version>2.102.0</palantir-java-format.version>
