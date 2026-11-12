@@ -41,6 +41,14 @@ spring:
     schemas: jars
   lifecycle:
     timeout-per-shutdown-phase: 20s
+  cloud:
+    aws:
+      # fixed, so startup never depends on a developer's ~/.aws/config or on AWS_REGION being set (ECS sets it anyway)
+      region:
+        static: ${AWS_REGION:ap-southeast-1}
+      sqs:
+        # only the aws profile talks to SQS (it turns this on); local runs and tests never create an SQS client
+        enabled: false
   modulith:
     events:
       # a finished listener deletes its row from event_publication; unfinished rows stay as the outbox
