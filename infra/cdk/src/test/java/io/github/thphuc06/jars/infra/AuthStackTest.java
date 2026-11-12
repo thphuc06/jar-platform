@@ -1,121 +1,85 @@
 package io.github.thphuc06.jars.infra;
 
+import static io.github.thphuc06.jars.infra.T.like;
+import static io.github.thphuc06.jars.infra.T.map;
+import static io.github.thphuc06.jars.infra.T.properties;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatCode;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import io.github.cdklabs.cdknag.AwsSolutionsChecks;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
-import software.amazon.awscdk.App;
-import software.amazon.awscdk.Stack;
-import software.amazon.awscdk.StackProps;
-import software.amazon.awscdk.Validations;
-import software.amazon.awscdk.assertions.Match;
 import software.amazon.awscdk.assertions.Template;
-import software.amazon.awscdk.services.s3.Bucket;
 
 class AuthStackTest {
 
-    static final EnvConfig CONFIG = TestConfig.CONFIG;
-
-    private static AuthStack newStack(App app) {
-        return new AuthStack(
-                app,
-                "JarsAuth",
-                StackProps.builder().env(CONFIG.awsEnvironment()).build(),
-                CONFIG);
-    }
+    private final Template template = InfraFixture.aurora().auth();
 
     @Test
-    void userPool_isEssentialsWithOptionalTotpAndIsRetained() {
-        Template template = Template.fromStack(newStack(new App()));
-
-        template.hasResource(
+    void userPoolUsesEssentialsPlanEmailSignInAndSelfSignUp() {
+        template.hasResourceProperties(
                 "AWS::Cognito::UserPool",
-                Map.of(
-                        "DeletionPolicy",
-                        "Retain",
-                        "Properties",
-                        Map.of(
-                                "UserPoolName", "jars-test-users",
-                                "UserPoolTier", "ESSENTIALS",
-                                "MfaConfiguration", "OPTIONAL")));
+                like(
+                        "UserPoolName", "jars-dev-users",
+                        "UserPoolTier", "ESSENTIALS",
+                        "UsernameAttributes", List.of("email"),
+                        "AutoVerifiedAttributes", List.of("email"),
+                        "AdminCreateUserConfig", like("AllowAdminCreateUserOnly", false),
+                        "MfaConfiguration", "OFF"));
     }
 
     @Test
-    void domain_usesNewManagedLogin() {
-        Template.fromStack(newStack(new App()))
-                .hasResourceProperties(
-                        "AWS::Cognito::UserPoolDomain", Map.of("Domain", "jars-test-prefix", "ManagedLoginVersion", 2));
+    void userPoolSendsMailThroughTheDefaultCognitoSender() {
+        template.hasResourceProperties(
+                "AWS::Cognito::UserPool", like("EmailConfiguration", like("EmailSendingAccount", "COGNITO_DEFAULT")));
     }
 
     @Test
-    void resourceServer_exposesReadAndWriteScopes() {
-        Template.fromStack(newStack(new App()))
-                .hasResourceProperties(
-                        "AWS::Cognito::UserPoolResourceServer",
-                        Map.of(
-                                "Identifier",
-                                "jars-api",
-                                "Scopes",
-                                Match.arrayWith(List.of(
-                                        Match.objectLike(Map.of("ScopeName", "read")),
-                                        Match.objectLike(Map.of("ScopeName", "write"))))));
+    void userPoolIsRetainedSoUsersSurviveStackDeletion() {
+        template.hasResource(
+                "AWS::Cognito::UserPool", like("DeletionPolicy", "Retain", "UpdateReplacePolicy", "Retain"));
     }
 
     @Test
-    void spaClient_isPublicCodeFlowOnlyWithExplicitAuthFlows() {
-        Template.fromStack(newStack(new App()))
-                .hasResourceProperties(
-                        "AWS::Cognito::UserPoolClient",
-                        Map.of(
-                                "GenerateSecret",
-                                false,
-                                "AllowedOAuthFlows",
-                                List.of("code"), // no implicit flow
-                                // regression guard: omitting this list makes Cognito enable CUSTOM_AUTH by default
-                                "ExplicitAuthFlows",
-                                List.of("ALLOW_USER_SRP_AUTH", "ALLOW_REFRESH_TOKEN_AUTH"),
-                                "CallbackURLs",
-                                List.of("http://localhost:5173/auth/callback"),
-                                "PreventUserExistenceErrors",
-                                "ENABLED",
-                                "EnableTokenRevocation",
-                                true));
+    void managedLoginDomainUsesTheDocumentedPrefix() {
+        template.hasResourceProperties(
+                "AWS::Cognito::UserPoolDomain", like("Domain", "jars-dev-thphuc06", "ManagedLoginVersion", 2));
     }
 
     @Test
-    void cdkNag_passesWithOnlyTheDocumentedAcknowledgements() {
-        App app = new App();
-        newStack(app);
-        Validations.of(app).addPlugins(new AwsSolutionsChecks(app));
-
-        assertThatCode(app::synth).doesNotThrowAnyException();
-    }
-
-    /** Guards the guard: an obviously non-compliant resource must make synth fail. */
-    @Test
-    void cdkNag_failsSynthForNonCompliantResource() {
-        App app = new App();
-        Stack stack = new Stack(app, "Insecure", StackProps.builder().build());
-        new Bucket(stack, "PlainBucket"); // no SSL enforcement, no access logs
-        Validations.of(app).addPlugins(new AwsSolutionsChecks(app));
-
-        assertThatThrownBy(app::synth).isInstanceOf(RuntimeException.class);
+    void resourceServerExposesReadAndWriteScopes() {
+        template.hasResourceProperties(
+                "AWS::Cognito::UserPoolResourceServer",
+                like(
+                        "Identifier", "jars-api",
+                        "Scopes",
+                                List.of(
+                                        like("ScopeName", "read"), like("ScopeName", "write"))));
     }
 
     @Test
-    void commonTags_areAppliedToEveryTaggableResource() {
-        App app = new App();
-        AuthStack stack = newStack(app);
-        JarsInfraApp.applyCommonTags(app, CONFIG);
+    void smokeClientIsPublicAndOnlyAllowsAdminPasswordAndRefreshFlows() {
+        template.hasResourceProperties(
+                "AWS::Cognito::UserPoolClient",
+                like(
+                        "ClientName", "jars-dev-smoke",
+                        "GenerateSecret", false,
+                        "ExplicitAuthFlows", List.of("ALLOW_ADMIN_USER_PASSWORD_AUTH", "ALLOW_REFRESH_TOKEN_AUTH"),
+                        "AllowedOAuthFlowsUserPoolClient", false));
+    }
 
-        Map<String, Map<String, Object>> pools = Template.fromStack(stack).findResources("AWS::Cognito::UserPool");
-        assertThat(pools.values().iterator().next().toString())
-                .contains("Project=jars")
-                .contains("Env=test")
-                .contains("ManagedBy=cdk");
+    @Test
+    void thereIsNoSpaClientInThisStack() {
+        // it needs the CloudFront domain and therefore lives in JarsApp
+        List<Map<String, Object>> clients = properties(template, "AWS::Cognito::UserPoolClient");
+        assertThat(clients).hasSize(1);
+        assertThat(clients.get(0)).containsEntry("ClientName", "jars-dev-smoke");
+    }
+
+    @Test
+    void outputsGiveTheSmokeTestWhatItNeeds() {
+        template.hasOutput("UserPoolId", map());
+        template.hasOutput("SmokeClientId", map());
+        template.hasOutput("IssuerUri", map());
+        template.hasOutput("ManagedLoginBaseUrl", map());
     }
 }

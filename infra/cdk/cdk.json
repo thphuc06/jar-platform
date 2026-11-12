@@ -1,27 +1,37 @@
 {
-  "app": "node scripts/synth-app.mjs",
+  "app": "node scripts/cdk-app.mjs",
   "watch": {
     "include": [
-      "src/main/**"
+      "**"
+    ],
+    "exclude": [
+      "README.md",
+      "cdk*.json",
+      "target",
+      "pom.xml",
+      "src/test"
     ]
   },
   "context": {
-    "jars:env": "dev",
-    "jars:region": "ap-southeast-1",
-    "jars:authDomainPrefix": "jars-dev-thphuc06",
-    "jars:localWebOrigin": "http://localhost:5173",
-    "jars:githubRepo": "thphuc06/jar-platform",
-    "jars:githubOidcProviderArn": "",
-    "jars:monthlyBudgetUsd": 30,
+    "env": "dev",
+    "account": "626212071763",
+    "region": "ap-southeast-1",
+    "apiDesiredCount": 1,
+    "alertEmail": "",
+    "imageTag": "",
+    "dbMode": "aurora",
+    "deployWeb": false,
     "@aws-cdk-containers/ecs-service-extensions:enableDefaultLogDriver": true,
     "@aws-cdk/aws-apigateway:authorizerChangeDeploymentLogicalId": true,
     "@aws-cdk/aws-apigateway:disableCloudWatchRole": true,
+    "@aws-cdk/aws-apigateway:logGroupDestinationArnWithoutWildcard": true,
     "@aws-cdk/aws-apigateway:requestValidatorUniqueId": true,
     "@aws-cdk/aws-appsync:appSyncGraphQLAPIScopeLambdaPermission": true,
     "@aws-cdk/aws-appsync:useArnForSourceApiAssociationIdentifier": true,
     "@aws-cdk/aws-autoscaling:generateLaunchTemplateInsteadOfLaunchConfig": true,
     "@aws-cdk/aws-batch:defaultToAL2023": true,
     "@aws-cdk/aws-cloudfront:defaultFunctionRuntimeV2_0": true,
+    "@aws-cdk/aws-cloudfront:defaultViewerProtocolPolicyRedirectToHttps": true,
     "@aws-cdk/aws-cloudwatch-actions:changeLambdaPermissionLogicalIdForLambdaAction": true,
     "@aws-cdk/aws-codedeploy:removeAlarmsFromDeploymentGroup": true,
     "@aws-cdk/aws-codepipeline-actions:useNewDefaultBranchForCodeCommitSource": true,
@@ -89,7 +99,6 @@
     "@aws-cdk/core:aspectPrioritiesMutating": true,
     "@aws-cdk/core:cfnIncludeRejectComplexResourceUpdateCreatePolicyIntrinsics": true,
     "@aws-cdk/core:checkSecretUsage": true,
-    "@aws-cdk/core:defaultCrossStackReferences": "weak",
     "@aws-cdk/core:enableAdditionalMetadataCollection": true,
     "@aws-cdk/core:enablePartitionLiterals": true,
     "@aws-cdk/core:explicitStackTags": true,
@@ -102,6 +111,7 @@
     "@aws-cdk/core:validateSnapshotRemovalPolicy": true,
     "@aws-cdk/custom-resources:logApiResponseDataPropertyTrueDefault": false,
     "@aws-cdk/customresources:installLatestAwsSdkDefault": false,
-    "@aws-cdk/s3-notifications:addS3TrustKeyPolicyForSnsSubscriptions": true
+    "@aws-cdk/s3-notifications:addS3TrustKeyPolicyForSnsSubscriptions": true,
+    "@aws-cdk/core:defaultCrossStackReferences": "strong"
   }
 }

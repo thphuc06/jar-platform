@@ -1,50 +1,90 @@
 # infra/cdk
 
-AWS CDK v2 viết bằng **Java** ([ADR-0012](../../docs/04-adr/0012-iac-aws-cdk-java.md)). Toàn bộ hạ tầng của Jars Platform nằm ở đây.
+AWS CDK v2 viết bằng **Java 21** ([ADR-0012](../../docs/04-adr/0012-iac-aws-cdk-java.md)). Toàn bộ hạ tầng của Jars Platform nằm ở đây.
 
-> Trạng thái (P1.1, 2026-10-23): stack **`JarsAuth`** (`jars-dev-auth`) đã deploy ở ap-southeast-1; đã chạy `cdk bootstrap` cho ap-southeast-1.
+> Trạng thái: 6 stack đã viết và có test (`JarsFoundation`, `JarsNetwork`, `JarsAuth`, `JarsData`, `JarsMessaging`, `JarsApp`). **Chưa deploy.** `JarsQuant` và `JarsObservability` thuộc phase sau. Trước lần deploy đầu đọc [deployment.md, mục "Dọn stack cũ"](../../docs/05-operations/deployment.md#dọn-stack-cũ-trước-lần-deploy-đầu).
 
-## Version
+## Cấu trúc
 
-| Thành phần | Version | Ghi chú |
-|---|---|---|
-| `aws-cdk-lib` | 2.273.0 | `pom.xml` |
-| `constructs` | 10.8.1 | |
-| `cdk-nag` | 3.0.2 | **API v3** chạy qua `Validations.of(app).addPlugins(...)` của CDK. Dùng `Validations.of(construct).acknowledge(...)` để chấp nhận vi phạm, ID dạng `AwsSolutions::AwsSolutions-XXX` (v2 dùng `NagSuppressions`, không còn nữa) |
-| CDK CLI | 2.1145.0 | Ghim trong `package.json`; chạy bằng `npx cdk ...` sau khi `npm ci` |
-| JUnit / AssertJ | 6.0.3 / 3.27.7 | Cùng version mà Boot 4.1.2 dùng cho `jars-api` |
+```
+infra/cdk/
+├── cdk.json                  # app = "node scripts/cdk-app.mjs"; context (env, account, region, dbMode...) + feature flags của CDK
+├── pom.xml                   # aws-cdk-lib, constructs, cdk-nag, JUnit 6, AssertJ (version cố định)
+├── mvnw, mvnw.cmd, .mvn/     # Maven wrapper (cùng bản với apps/jars-api)
+├── scripts/cdk-app.mjs       # chạy ./mvnw hoặc mvnw.cmd tùy hệ điều hành (cdk.json không viết được lệnh chạy cả hai)
+└── src/
+    ├── main/java/io/github/thphuc06/jars/infra/
+    │   ├── JarsInfraApp.java          # main(): dựng stack, tag, bật cdk-nag
+    │   ├── FoundationStack.java       # ECR, SNS alarm, Budget, GitHub OIDC + deploy role
+    │   ├── NetworkStack.java          # VPC, subnet, security group (sở hữu MỌI rule)
+    │   ├── AuthStack.java             # Cognito user pool, domain, resource server, client smoke
+    │   ├── DataStack.java             # Aurora Serverless v2 (hoặc RDS với dbMode=rds)
+    │   ├── MessagingStack.java        # SQS jars-jobs + DLQ, Scheduler month-close, alarm DLQ
+    │   ├── AppStack.java              # ECS, ALB, CloudFront + VPC origin, web bucket, client SPA
+    │   └── config/EnvConfig.java      # đọc context thành record
+    └── test/java/...                  # Template assertions, guardrail, cdk-nag
+```
 
 ## Lệnh
 
 ```bash
 cd infra/cdk
-npm ci                                   # cài CDK CLI đã ghim (lần đầu)
-./mvnw verify                            # test template + cdk-nag + Spotless (không cần AWS)
-npx cdk synth JarsAuth                   # sinh CloudFormation; cdk-nag fail nếu có vi phạm chưa acknowledge
-npx cdk diff  JarsAuth                   # xem thay đổi trước khi deploy
-npx cdk deploy JarsAuth --outputs-file cdk-outputs.json
+./mvnw test                                                  # test + cdk-nag (Windows: mvnw.cmd test)
+npx aws-cdk@2 synth --quiet -c imageTag=<sha>                # sinh CloudFormation vào cdk.out/, KHÔNG gọi AWS
+npx aws-cdk@2 diff   JarsApp -c imageTag=<sha> --profile jars-dev
+npx aws-cdk@2 deploy JarsAuth --profile jars-dev             # Phase 1: chỉ cần Cognito
+npx aws-cdk@2 destroy JarsApp --profile jars-dev             # chế độ TEARDOWN
 ```
 
-- `cdk.json` gọi `node scripts/synth-app.mjs`. Launcher này chạy `mvnw.cmd` trên Windows và `./mvnw` trên Linux/macOS, bằng **đường dẫn tuyệt đối**. Lý do: Windows có thể bật `NoDefaultCurrentDirectoryInExePath=1`, khi đó `cmd` không tìm thấy `mvnw` trong thư mục hiện tại.
-- Account **không hardcode**: CDK lấy từ credential đang dùng (`CDK_DEFAULT_ACCOUNT`); region và các tham số khác nằm trong `cdk.json` → `context` (`jars:*`), có thể ghi đè bằng `-c key=value`.
-- `cdk.json` có **87 feature flag khuyến nghị**, lấy từ `cdk init` của CLI 2.1145.0.
+JDK phải là 21 (Temurin) và Node phải có trong `PATH` (jsii và CDK CLI cần Node). `synth` không cần credential AWS: AZ ghi cứng (`<region>a`, `<region>b`) nên không có context lookup.
 
-## Stacks
+Danh sách stack, vòng đời, thứ tự deploy: [aws-infrastructure.md §1](../../docs/02-architecture/aws-infrastructure.md#1-cdk-stacks) · [deployment.md](../../docs/05-operations/deployment.md).
 
-| Stack | Tên CloudFormation | Trạng thái | Nội dung |
-|---|---|---|---|
-| `JarsAuth` | `jars-dev-auth` | ✅ deploy 23/10 | User pool `jars-dev-users` (Essentials, MFA TOTP tùy chọn, RETAIN), domain managed login `jars-dev-thphuc06`, resource server `jars-api` (`read`, `write`), app client `jars-dev-web-local` (public, PKCE, chỉ code flow, callback `http://localhost:5173/auth/callback`) + managed login branding |
-| Foundation, Network, Data, Messaging, App, Quant, Observability | | ⬜ | Xem [aws-infrastructure.md §1](../../docs/02-architecture/aws-infrastructure.md#1-cdk-stacks) |
+## Context
 
-Output của `JarsAuth` (xem bằng `aws cloudformation describe-stacks --stack-name jars-dev-auth --region ap-southeast-1`): `UserPoolId`, `LocalWebClientId`, `IssuerUri`, `ManagedLoginBaseUrl`. Những giá trị này **không phải secret** (SPA nào cũng phải biết).
+Đặt trong `cdk.json` hoặc truyền `-c key=value` (giá trị từ CLI luôn là chuỗi, `EnvConfig` nhận cả hai dạng). Bảng đầy đủ: [deployment.md §3](../../docs/05-operations/deployment.md#3-cấu-hình-theo-môi-trường-infracdkcdkjson--context).
 
-## Test bắt buộc
+| Key | Mặc định trong `cdk.json` | Ghi chú |
+|---|---|---|
+| `env`, `account`, `region` | `dev`, `626212071763`, `ap-southeast-1` | Tiền tố tên resource và nơi stack được gắn vào |
+| `apiDesiredCount` | `1` | `0` = SLEEP |
+| `imageTag` | trống | **Bắt buộc để có `JarsApp`**: trống thì stack này không được synth (synth in cảnh báo, các stack khác vẫn chạy) |
+| `dbMode` | `aurora` | `rds` = RDS PostgreSQL 17 `db.t4g.micro` ([ADR-0008](../../docs/04-adr/0008-database-aurora-serverless-v2.md)) |
+| `alertEmail` | trống | **Placeholder, không commit email thật.** Truyền `-c alertEmail=<địa chỉ của bạn>` hoặc đặt biến môi trường `JARS_ALERT_EMAIL`. Trống thì không có subscription và synth in cảnh báo |
+| `deployWeb` | `false` | `true` = upload `apps/web/dist` (`-c webDistDir=...` để đổi thư mục) |
+
+## CloudFormation outputs
+
+Script smoke test và bước deploy đọc các output này (`aws cloudformation describe-stacks --stack-name <stack>`):
+
+| Stack | Output |
+|---|---|
+| `JarsFoundation` | `EcrRepositoryUri`, `AlarmTopicArn`, `GitHubDeployRoleArn` |
+| `JarsAuth` | `UserPoolId`, `SmokeClientId`, `IssuerUri`, `ManagedLoginBaseUrl` |
+| `JarsData` | `DbClusterIdentifier`, `DbEndpoint`, `DbSecretArn` |
+| `JarsMessaging` | `JobsQueueUrl`, `JobsDeadLetterQueueUrl` |
+| `JarsApp` | `CloudFrontDomain`, `SpaClientId`, `DistributionId`, `WebBucketName`, `EcsClusterName`, `EcsServiceName` |
+| `JarsNetwork` | `VpcId` |
+
+## Test
+
+`./mvnw test` chạy 95 test trong khoảng 1,5 phút (mỗi biến thể của app được synth một lần rồi dùng chung). Hai dòng `ERROR` về một S3 bucket (AwsSolutions-S1, S10) trong log là của `NagWiringTest`: nó cố ý dựng một stack sai để chứng minh cdk-nag chặn được.
 
 | Test | Bảo vệ điều gì |
 |---|---|
-| `AuthStackTest` (7 test) | User pool Essentials + RETAIN; managed login v2; scope read/write; client public, **chỉ code flow**, `ExplicitAuthFlows` khai báo tường minh (bỏ trống thì Cognito mặc định bật cả `CUSTOM_AUTH`); tag chung; cdk-nag pass; **cdk-nag fail với resource sai** (test của test) |
-| Sẽ thêm (Phase 3) | Không có `AWS::EC2::NatGateway`; Fargate ARM64; không SG nào mở `0.0.0.0/0`; log retention ≤ 14 ngày; Aurora `MinCapacity = 0` |
+| `GuardrailTest` | Không có NAT gateway; task definition ARM64; không security group nào mở inbound `0.0.0.0/0` hay `::/0`; log retention ≤ 14 ngày; Aurora `MinCapacity=0`; ECR tag immutable; trust của OIDC role không có wildcard; S3 chặn public access; ALB internal; DB mã hóa và không public; client Cognito đều public; tag `Project` có trên mọi resource tính phí. Chạy cho cả Aurora và RDS |
+| `NagTest` | cdk-nag (gói **AwsSolutions**) trên toàn app, ba biến thể: mặc định, `dbMode=rds`, `deployWeb=true` |
+| `NagWiringTest` | Chứng minh cdk-nag thật sự làm synth thất bại khi vi phạm, và acknowledgement thì không |
+| `*StackTest` | Cấu hình từng stack theo đúng tài liệu (CIDR, lifecycle ECS, scale-to-zero, cron...) |
+| `EnvConfigTest` | Đọc context dạng chuỗi và dạng JSON |
 
-## Lưu ý khi deploy bằng root
+### cdk-nag v3
 
-`cdk deploy` báo *"current credentials could not be used to assume ...deploy-role... Proceeding anyway"*. **Root user không thể assume IAM role**, nên CDK bỏ qua các role bootstrap và dùng thẳng quyền root. Deploy vẫn chạy được, nhưng đây là một lý do nữa để thực hiện [ADR-0018](../../docs/04-adr/0018-human-access-iam-user-aws-login.md) trước khi bật CI/CD deploy (P3.6). CI/CD sẽ assume role qua OIDC.
+`cdk-nag` 3.x chạy như **validation plugin** của CDK, không còn là Aspect. Mọi finding (cả mức warning) làm `app.synth()` thất bại, kể cả khi chỉ deploy một stack. Một finding chỉ được bỏ qua bằng `Validations.of(construct).acknowledge(...)` đặt **ngay cạnh construct**, kèm lý do gắn với một deviation đã ghi trong [well-architected-review.md §9](../../docs/02-architecture/well-architected-review.md#9-tổng-hợp-các-điểm-cố-ý-lệch-chuẩn). Không có suppression theo quy tắc chung: mỗi finding IAM5 phải được liệt kê riêng, ví dụ `AwsSolutions-IAM5[Resource::*]`. Khi test thất bại, thông báo liệt kê từng finding và đường dẫn construct.
+
+## Quy ước trong code
+
+- **Security group:** `NetworkStack` sở hữu mọi rule. Stack khác nhận group qua `NetworkStack.immutable(...)`, nên `connections.allowFrom(...)` không thể âm thầm thêm rule ở stack khác. `AppStackTest.thisStackAddsNoSecurityGroupRules` giữ quy ước này.
+- **SPA fallback** là CloudFront Function, không phải custom error response ([ADR-0020](../../docs/04-adr/0020-spa-fallback-cloudfront-function.md)).
+- **Tên cố định** (`jars-jobs`, `jars-dev-db`, cluster `jars-dev`, service `jars-api`) khớp runbook và biến môi trường của app; đổi tên là thay thế resource.
+- Tag `Project=jars`, `Env=dev`, `ManagedBy=cdk`, `Owner=thphuc06` gắn ở cấp app; `propagateTags=SERVICE` đưa tag xuống task để budget theo tag nhìn thấy chi phí Fargate.

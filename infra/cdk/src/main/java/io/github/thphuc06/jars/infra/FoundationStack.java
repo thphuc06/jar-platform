@@ -1,196 +1,195 @@
 package io.github.thphuc06.jars.infra;
 
+import io.github.thphuc06.jars.infra.config.EnvConfig;
 import java.util.List;
 import java.util.Map;
 import software.amazon.awscdk.Acknowledgment;
-import software.amazon.awscdk.Aws;
+import software.amazon.awscdk.Annotations;
 import software.amazon.awscdk.CfnOutput;
+import software.amazon.awscdk.DefaultStackSynthesizer;
 import software.amazon.awscdk.Duration;
 import software.amazon.awscdk.RemovalPolicy;
 import software.amazon.awscdk.Stack;
 import software.amazon.awscdk.StackProps;
 import software.amazon.awscdk.Validations;
 import software.amazon.awscdk.services.budgets.CfnBudget;
-import software.amazon.awscdk.services.budgets.CfnBudgetProps;
 import software.amazon.awscdk.services.ecr.LifecycleRule;
 import software.amazon.awscdk.services.ecr.Repository;
 import software.amazon.awscdk.services.ecr.TagMutability;
-import software.amazon.awscdk.services.iam.IOidcProvider;
+import software.amazon.awscdk.services.ecr.TagStatus;
+import software.amazon.awscdk.services.iam.Effect;
 import software.amazon.awscdk.services.iam.OidcProviderNative;
 import software.amazon.awscdk.services.iam.PolicyStatement;
 import software.amazon.awscdk.services.iam.Role;
 import software.amazon.awscdk.services.iam.ServicePrincipal;
 import software.amazon.awscdk.services.iam.WebIdentityPrincipal;
 import software.amazon.awscdk.services.sns.Topic;
+import software.amazon.awscdk.services.sns.subscriptions.EmailSubscription;
 import software.constructs.Construct;
 
 /**
- * Long-lived account-level pieces of the project (aws-infrastructure.md §1): the image registry, the identity
- * GitHub Actions deploys with, where alarms go, and the cost budget. Nothing here costs money by the hour.
+ * JarsFoundation: things that are created once and kept (docs/02-architecture/aws-infrastructure.md
+ * section 1): ECR repository, alarm topic, project budget and the GitHub OIDC deploy role.
  */
-public class FoundationStack extends Stack {
+public final class FoundationStack extends Stack {
 
-    static final String GITHUB_OIDC_URL = "https://token.actions.githubusercontent.com";
+    /** The only GitHub OIDC subject allowed to assume the deploy role. No wildcards (ADR-0016). */
+    public static final String GITHUB_SUBJECT = "repo:thphuc06/jar-platform:ref:refs/heads/main";
 
-    /** The CDK bootstrap roles (default qualifier hnb659fds) of the deploying account and region. */
-    static final String BOOTSTRAP_ROLES =
-            "arn:aws:iam::" + Aws.ACCOUNT_ID + ":role/cdk-hnb659fds-*-" + Aws.ACCOUNT_ID + "-" + Aws.REGION;
+    private static final String GITHUB_ISSUER = "token.actions.githubusercontent.com";
 
     private final Repository apiRepository;
-    private final Topic alarms;
-    private final Role deployRole;
+    private final Topic alarmTopic;
+    private final Role githubDeployRole;
 
-    public FoundationStack(Construct scope, String id, StackProps props, EnvConfig config) {
+    public FoundationStack(Construct scope, String id, StackProps props, EnvConfig cfg) {
         super(scope, id, props);
 
-        apiRepository = Repository.Builder.create(this, "JarsApiRepository")
+        this.apiRepository = Repository.Builder.create(this, "JarsApiRepository")
                 .repositoryName("jars/jars-api")
-                // a tag is the git SHA and never moves: what was tested is what runs, and rollback is exact
                 .imageTagMutability(TagMutability.IMMUTABLE)
                 .imageScanOnPush(true)
+                // the repository outlives the stack, like the data it protects: images are paid per GB
+                // but a stack delete must never drop the rollback window
+                .removalPolicy(RemovalPolicy.RETAIN)
                 .lifecycleRules(List.of(LifecycleRule.builder()
+                        .rulePriority(1)
                         .description("Keep the 10 most recent images (rollback window); storage is paid per GB")
+                        .tagStatus(TagStatus.ANY)
                         .maxImageCount(10)
                         .build()))
-                // images are rebuilt from git, but deleting the stack must not break a running service
-                .removalPolicy(RemovalPolicy.RETAIN)
                 .build();
 
-        alarms = Topic.Builder.create(this, "Alarms")
-                .topicName(config.name("alarms"))
+        this.alarmTopic = Topic.Builder.create(this, "Alarms")
+                .topicName(cfg.name("alarms"))
                 .displayName("Jars alarms")
                 .enforceSsl(true)
                 .build();
-        // AWS Budgets publishes to the topic, but only for this account's budgets (confused-deputy protection)
-        alarms.addToResourcePolicy(PolicyStatement.Builder.create()
+        if (cfg.alertEmail().isBlank()) {
+            Annotations.of(this)
+                    .addWarningV2(
+                            "jars:no-alert-email",
+                            "context 'alertEmail' is empty: alarms and budget alerts reach an SNS topic nobody reads."
+                                    + " Pass -c alertEmail=<address> or set JARS_ALERT_EMAIL.");
+        } else {
+            this.alarmTopic.addSubscription(new EmailSubscription(cfg.alertEmail()));
+        }
+        // AWS Budgets and CloudWatch alarms publish as service principals; the account condition
+        // blocks the confused-deputy case
+        this.alarmTopic.addToResourcePolicy(PolicyStatement.Builder.create()
                 .sid("AllowBudgetsFromThisAccount")
+                .effect(Effect.ALLOW)
                 .principals(List.of(new ServicePrincipal("budgets.amazonaws.com")))
                 .actions(List.of("sns:Publish"))
-                .resources(List.of(alarms.getTopicArn()))
+                .resources(List.of(alarmTopic.getTopicArn()))
+                .conditions(Map.of("StringEquals", Map.of("aws:SourceAccount", getAccount())))
+                .build());
+        this.alarmTopic.addToResourcePolicy(PolicyStatement.Builder.create()
+                .sid("AllowCloudWatchAlarmsFromThisAccount")
+                .effect(Effect.ALLOW)
+                .principals(List.of(new ServicePrincipal("cloudwatch.amazonaws.com")))
+                .actions(List.of("sns:Publish"))
+                .resources(List.of(alarmTopic.getTopicArn()))
                 .conditions(Map.of("StringEquals", Map.of("aws:SourceAccount", getAccount())))
                 .build());
 
-        new CfnBudget(this, "MonthlyBudget", budget(config, alarms.getTopicArn()));
+        addBudget(cfg);
+        this.githubDeployRole = addGitHubDeployRole(cfg);
 
-        deployRole = githubDeployRole(config);
+        CfnOutput.Builder.create(this, "EcrRepositoryUri")
+                .description("docker push target for jars-api images")
+                .value(apiRepository.getRepositoryUri())
+                .build();
+        CfnOutput.Builder.create(this, "AlarmTopicArn")
+                .description("SNS topic that receives budget and CloudWatch alarms")
+                .value(alarmTopic.getTopicArn())
+                .build();
+        CfnOutput.Builder.create(this, "GitHubDeployRoleArn")
+                .description("role-to-assume for aws-actions/configure-aws-credentials")
+                .value(githubDeployRole.getRoleArn())
+                .build();
 
-        output("ApiRepositoryUri", apiRepository.getRepositoryUri(), "docker push target for jars-api images");
-        output("AlarmTopicArn", alarms.getTopicArn(), "subscribe an e-mail once: aws sns subscribe ...");
-        output(
-                "GitHubDeployRoleArn",
-                deployRole.getRoleArn(),
-                "role-to-assume for aws-actions/configure-aws-credentials");
+        Validations.of(alarmTopic)
+                .acknowledge(Acknowledgment.builder()
+                        .id("AwsSolutions-SNS2")
+                        .reason("Server-side encryption needs a customer managed KMS key (about 1 USD a month):"
+                                + " the AWS managed key alias/aws/sns cannot be used by CloudWatch alarms and AWS"
+                                + " Budgets. The topic carries alarm text only, no customer data."
+                                + " TLS is enforced instead (enforceSSL).")
+                        .build());
     }
 
-    /**
-     * Monthly cost budget for resources tagged Project=jars (the tag must be activated as a cost allocation tag,
-     * otherwise the budget sees $0). Alerts at 50/80/100 % of actual spend and 100 % of the forecast.
-     */
-    private static CfnBudgetProps budget(EnvConfig config, String topicArn) {
-        return CfnBudgetProps.builder()
+    private void addBudget(EnvConfig cfg) {
+        // Budgets filters on cost allocation tags as "user:<key>$<value>". The tag must be activated
+        // once in Billing (docs/05-operations/deployment.md section 1, step 4).
+        List<CfnBudget.NotificationWithSubscribersProperty> notifications = List.of(
+                notification("ACTUAL", 50),
+                notification("ACTUAL", 80),
+                notification("ACTUAL", 100),
+                notification("FORECASTED", 100));
+        CfnBudget.Builder.create(this, "MonthlyBudget")
                 .budget(CfnBudget.BudgetDataProperty.builder()
-                        .budgetName(config.name("monthly"))
+                        .budgetName(cfg.name("monthly"))
                         .budgetType("COST")
                         .timeUnit("MONTHLY")
                         .budgetLimit(CfnBudget.SpendProperty.builder()
-                                .amount(config.monthlyBudgetUsd())
+                                .amount(30)
                                 .unit("USD")
                                 .build())
-                        // "user:" = a user-defined cost allocation tag; "$" separates key and value
-                        .costFilters(Map.of("TagKeyValue", List.of("user:Project$jars")))
+                        .costFilters(Map.of("TagKeyValue", List.of("user:Project$" + EnvConfig.PROJECT)))
                         .build())
-                .notificationsWithSubscribers(List.of(
-                        alert("ACTUAL", 50, topicArn),
-                        alert("ACTUAL", 80, topicArn),
-                        alert("ACTUAL", 100, topicArn),
-                        alert("FORECASTED", 100, topicArn)))
+                .notificationsWithSubscribers(notifications)
                 .build();
     }
 
-    private static CfnBudget.NotificationWithSubscribersProperty alert(String type, double percent, String topicArn) {
+    private CfnBudget.NotificationWithSubscribersProperty notification(String type, int thresholdPercent) {
         return CfnBudget.NotificationWithSubscribersProperty.builder()
                 .notification(CfnBudget.NotificationProperty.builder()
                         .notificationType(type)
                         .comparisonOperator("GREATER_THAN")
-                        .threshold(percent)
                         .thresholdType("PERCENTAGE")
+                        .threshold(thresholdPercent)
                         .build())
                 .subscribers(List.of(CfnBudget.SubscriberProperty.builder()
                         .subscriptionType("SNS")
-                        .address(topicArn)
+                        .address(alarmTopic.getTopicArn())
                         .build()))
                 .build();
     }
 
-    /**
-     * The role GitHub Actions assumes with OIDC (no access key anywhere). Trusted only for jobs of this repository
-     * that run in the GitHub Environment "dev": a job with {@code environment: dev} gets the subject
-     * {@code repo:OWNER/REPO:environment:dev}, NOT {@code ...:ref:refs/heads/main}.
-     */
-    private Role githubDeployRole(EnvConfig config) {
-        IOidcProvider github = config.githubOidcProviderArn()
-                .<IOidcProvider>map(arn -> OidcProviderNative.fromOidcProviderArn(this, "GitHubOidc", arn))
-                .orElseGet(() -> OidcProviderNative.Builder.create(this, "GitHubOidc")
-                        .url(GITHUB_OIDC_URL)
-                        .clientIds(List.of("sts.amazonaws.com"))
-                        .build());
+    private Role addGitHubDeployRole(EnvConfig cfg) {
+        OidcProviderNative provider = OidcProviderNative.Builder.create(this, "GitHubOidc")
+                .url("https://" + GITHUB_ISSUER)
+                .clientIds(List.of("sts.amazonaws.com"))
+                .build();
 
         Role role = Role.Builder.create(this, "GitHubDeployRole")
-                .roleName(config.name("github-deploy"))
-                .description("GitHub Actions (OIDC) deploys Jars: push images, run cdk deploy")
+                .roleName(cfg.name("github-deploy"))
+                .description("GitHub Actions (OIDC) deploys Jars by assuming the CDK bootstrap roles")
                 .maxSessionDuration(Duration.hours(1))
                 .assumedBy(new WebIdentityPrincipal(
-                        github.getOidcProviderArn(),
+                        provider.getOidcProviderArn(),
                         Map.of(
                                 "StringEquals",
                                 Map.of(
-                                        "token.actions.githubusercontent.com:aud",
-                                        "sts.amazonaws.com",
-                                        "token.actions.githubusercontent.com:sub",
-                                        "repo:" + config.githubRepo() + ":environment:" + config.envName()))))
+                                        GITHUB_ISSUER + ":aud", "sts.amazonaws.com",
+                                        GITHUB_ISSUER + ":sub", GITHUB_SUBJECT))))
                 .build();
 
-        // cdk deploy works by assuming the bootstrap roles; this role itself can change nothing else
+        // the only permission: assume the four CDK bootstrap roles (security.md section 3).
+        // Everything else (CloudFormation, ECR push for image assets, S3) happens inside those roles.
+        String qualifier = DefaultStackSynthesizer.DEFAULT_QUALIFIER;
+        List<String> bootstrapRoleArns = List.of("deploy-role", "file-publishing-role", "image-publishing-role", "lookup-role")
+                .stream()
+                .map(kind -> "arn:" + getPartition() + ":iam::" + getAccount() + ":role/cdk-" + qualifier + "-" + kind
+                        + "-" + getAccount() + "-" + getRegion())
+                .toList();
         role.addToPolicy(PolicyStatement.Builder.create()
                 .sid("AssumeCdkBootstrapRoles")
+                .effect(Effect.ALLOW)
                 .actions(List.of("sts:AssumeRole"))
-                // pseudo parameters, not getAccount(): the template (and the cdk-nag finding acknowledged below)
-                // stays the same whether or not the CLI knows the account at synth time
-                .resources(List.of(BOOTSTRAP_ROLES))
+                .resources(bootstrapRoleArns)
                 .build());
-        // docker push of the jars-api image (built outside CDK, with the AOT-cache training run)
-        role.addToPolicy(PolicyStatement.Builder.create()
-                .sid("EcrLogin")
-                .actions(List.of("ecr:GetAuthorizationToken"))
-                .resources(List.of("*")) // this action has no resource-level permissions
-                .build());
-        role.addToPolicy(PolicyStatement.Builder.create()
-                .sid("PushJarsApiImage")
-                .actions(List.of(
-                        "ecr:BatchCheckLayerAvailability",
-                        "ecr:InitiateLayerUpload",
-                        "ecr:UploadLayerPart",
-                        "ecr:CompleteLayerUpload",
-                        "ecr:PutImage",
-                        "ecr:BatchGetImage"))
-                .resources(List.of(apiRepository.getRepositoryArn()))
-                .build());
-
-        // only the findings cdk-nag reports for this role, each with a reason a reviewer can challenge
-        Validations.of(role)
-                .acknowledge(
-                        Acknowledgment.builder()
-                                .id("AwsSolutions::AwsSolutions-IAM5[Resource::arn:aws:iam::<AWS::AccountId>"
-                                        + ":role/cdk-hnb659fds-*-<AWS::AccountId>-<AWS::Region>]")
-                                .reason("The four CDK bootstrap roles (deploy, file-publishing, image-publishing,"
-                                        + " lookup) of this account and region; the qualifier pins them to the"
-                                        + " default bootstrap stack. cdk deploy needs to assume them.")
-                                .build(),
-                        Acknowledgment.builder()
-                                .id("AwsSolutions::AwsSolutions-IAM5[Resource::*]")
-                                .reason("ecr:GetAuthorizationToken has no resource-level permissions (it returns a"
-                                        + " registry login token); the push actions are limited to jars/jars-api.")
-                                .build());
         return role;
     }
 
@@ -198,11 +197,11 @@ public class FoundationStack extends Stack {
         return apiRepository;
     }
 
-    public Topic alarms() {
-        return alarms;
+    public Topic alarmTopic() {
+        return alarmTopic;
     }
 
-    private void output(String id, String value, String description) {
-        CfnOutput.Builder.create(this, id).value(value).description(description).build();
+    public Role githubDeployRole() {
+        return githubDeployRole;
     }
 }

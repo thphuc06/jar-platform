@@ -1,11 +1,8 @@
-# only what the build stage needs: .mvn, mvnw, pom.xml, src
 target/
+.git/
 .idea/
 .vscode/
 *.iml
-.classpath
-.project
-.settings/
-.factorypath
+*.log
 Dockerfile
 .dockerignore

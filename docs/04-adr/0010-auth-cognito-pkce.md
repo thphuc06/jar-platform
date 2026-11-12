@@ -1,6 +1,6 @@
 # ADR-0010: Cognito managed login + Authorization Code/PKCE; jars-api là OAuth2 Resource Server
 
-- **Trạng thái:** Accepted. Phần frontend (Amplify Auth, localStorage) superseded by [ADR-0020](0020-spa-auth-oidc-client-ts.md)
+- **Trạng thái:** Accepted
 - **Ngày:** 2026-10-23
 
 ## Bối cảnh
@@ -21,11 +21,6 @@ Bản cũ: UI gọi `InitiateAuth` với `USER_PASSWORD_AUTH` và **client secre
 | Keycloak | Phổ biến ở ngân hàng Việt Nam, nhưng phải tự host (EC2/ECS + DB), tốn tiền và công vận hành; không AWS-native |
 | Giữ `USER_PASSWORD_AUTH` + form tự làm | Password đi qua code của mình; phải giữ client secret ở browser (sai) hoặc bỏ secret; không có SSO hay MFA sẵn |
 | Pattern BFF (session cookie HttpOnly, token giữ ở server) | Bảo mật hơn trước XSS; phức tạp hơn. Ghi lại để làm sau |
-
-## Cập nhật khi cài đặt (P1.2, 2026-10-23)
-- Access token của Cognito **không có claim `email`**. jars-api gọi `/oauth2/userInfo` bằng chính access token, **chỉ ở request đầu tiên** của mỗi user. Cách khác là Lambda pre-token-generation thêm `email` vào token: chuẩn hơn nhưng tốn thêm Lambda và IAM; xem lại khi cần claim ở mọi request.
-- Đã kiểm tra với token thật: access token thiếu scope `jars-api/*` → 403; ID token → 401 (`token_use`); token bị sửa chữ ký → 401.
-- Spring Security 7.1 tự phục vụ metadata **RFC 9728** tại `/.well-known/oauth-protected-resource`; đã cấu hình đúng issuer, scope và `tls_client_certificate_bound_access_tokens=false`.
 
 ## Hệ quả
 - ✅ Không giữ password; có MFA/passkey sẵn; Spring chỉ cần cấu hình resource server.

@@ -1,37 +1,45 @@
-import { useRef } from "react";
-import { ApiError } from "./client";
+import { useState } from "react";
 
-/**
- * One Idempotency-Key per user action (api-contract §4), with three rules:
- *  - the SAME body sent again after a failure (lost response, 5xx, the user pressing Save again) reuses the key, so
- *    the server replays the stored result instead of moving the money twice;
- *  - a DIFFERENT body gets a new key (reusing it would be 422 idempotency-key-reused);
- *  - after a success, call done(): the next save is a new action with a new key.
- */
-export function useIdempotencyKey() {
-  const attempt = useRef<{ key: string; body: string } | null>(null);
-  return {
-    keyFor(body: unknown): string {
-      const json = JSON.stringify(body);
-      if (attempt.current?.body !== json) {
-        attempt.current = { key: crypto.randomUUID(), body: json };
-      }
-      return attempt.current.key;
-    },
-    done() {
-      attempt.current = null;
-    },
-  };
+/** RFC 4122 version 4 UUID. `crypto.randomUUID` exists only in secure contexts (https, localhost). */
+export function uuidv4(source: Crypto = globalThis.crypto): string {
+  if (typeof source.randomUUID === "function") return source.randomUUID();
+  const bytes = source.getRandomValues(new Uint8Array(16));
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  const hex = Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
 }
 
 /**
- * Retrying a money-moving POST is safe ONLY because the retry carries the same Idempotency-Key. Retried: a network
- * failure (the request may or may not have reached the server) and a 5xx (the server rolled the attempt back, and a
- * failed attempt is never stored under the key). Never retried: 4xx, the answer would not change.
+ * One `Idempotency-Key` per user intent (api-contract.md section 4).
+ *
+ * Retrying the same intent after a network error or a 5xx must send the SAME key, so the server returns the stored
+ * result instead of booking the money twice. If the user edits the form after a failure it is a different request:
+ * reusing the key would be answered with 422 `idempotency-key-reused`, so a new key is made. The form's values are
+ * the fingerprint; call {@link clear} after the intent succeeded.
  */
-export function retryIdempotent(failures: number, error: Error): boolean {
-  const transient = !(error instanceof ApiError) || error.status >= 500;
-  return transient && failures < 2;
+export class IntentKey {
+  private key: string | null = null;
+  private fingerprint: string | null = null;
+
+  constructor(private readonly generate: () => string = uuidv4) {}
+
+  get(fingerprint: string): string {
+    if (this.key === null || this.fingerprint !== fingerprint) {
+      this.key = this.generate();
+      this.fingerprint = fingerprint;
+    }
+    return this.key;
+  }
+
+  clear(): void {
+    this.key = null;
+    this.fingerprint = null;
+  }
 }
 
-export const retryDelay = (attempt: number) => Math.min(500 * 2 ** attempt, 4000);
+/** One {@link IntentKey} per form instance. */
+export function useIntentKey(): IntentKey {
+  const [intent] = useState(() => new IntentKey());
+  return intent;
+}

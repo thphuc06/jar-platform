@@ -43,7 +43,7 @@ flowchart TB
 
     subgraph aws["AWS ap-southeast-1"]
         cf["CloudFront<br/>/* → S3 · /api/* → ALB"]
-        api["<b>jars-api</b><br/>Java 25 · Spring Boot 4.1<br/>modular monolith · ECS Fargate"]
+        api["<b>jars-api</b><br/>Java 21 · Spring Boot 4.1<br/>modular monolith · ECS Fargate"]
         worker["<b>insights-worker</b><br/>Java · ECS Fargate<br/>(Phase 5)"]
         quant["<b>quant-fn</b><br/>Python 3.13 · Lambda<br/>vnstock + PyPortfolioOpt"]
         db[("Aurora PostgreSQL<br/>Serverless v2")]
@@ -71,9 +71,9 @@ flowchart TB
 
 | Container | Công nghệ | Trách nhiệm | Có từ phase |
 |---|---|---|---|
-| `web` | React 18, Vite 8, shadcn/ui, TanStack Query, `oidc-client-ts` ([ADR-0020](../04-adr/0020-spa-auth-oidc-client-ts.md)), `openapi-fetch` | UI/PWA. Gọi `/api/*` qua cùng domain | 1 |
-| `jars-api` | Java 25, Spring Boot 4.1, Modulith | Toàn bộ nghiệp vụ: identity, ledger, budgeting, goals, insights (đến Phase 4), notification, advisor (AI), market gateway, imports | 0 |
-| `insights-worker` | Java 25, Spring Boot 4.1, Spring Cloud AWS SQS | Nhận `TransactionPosted`, chạy CUSUM/MAD, cập nhật read model, phát `AnomalyDetected` | 5 |
+| `web` | React 18, Vite, shadcn/ui, TanStack Query, Amplify Auth | UI/PWA. Gọi `/api/*` qua cùng domain | 1 |
+| `jars-api` | Java 21, Spring Boot 4.1, Modulith | Toàn bộ nghiệp vụ: identity, ledger, budgeting, goals, insights (đến Phase 4), notification, advisor (AI), market gateway, imports | 0 |
+| `insights-worker` | Java 21, Spring Boot 4.1, Spring Cloud AWS SQS | Nhận `TransactionPosted`, chạy CUSUM/MAD, cập nhật read model, phát `AnomalyDetected` | 5 |
 | `quant-fn` | Python 3.13, AWS Lambda (container image, arm64) | Lấy giá và lịch sử giá (vnstock), tối ưu danh mục (PyPortfolioOpt). Stateless | 4 |
 
 Phân rã chi tiết bên trong `jars-api`: [modules.md](modules.md).
@@ -84,7 +84,7 @@ Version được chốt ngày **2026-10-23** theo bản stable mới nhất. C�
 
 | Thành phần | Version | Ghi chú | Đã xác minh |
 |---|---|---|---|
-| JDK | **25 LTS** (Eclipse Temurin) | JDK 27 (9/2026) không phải LTS. Bật virtual threads | ✅ JDK 25 là LTS hiện hành |
+| JDK | **21 LTS** (Eclipse Temurin) | Đổi từ 25 sang 21 theo [ADR-0019](../04-adr/0019-java-21-lts.md). Bật virtual threads (lưu ý pinning khi `synchronized`, sửa ở JDK 24) | ✅ `./mvnw verify` xanh trên 21.0.13 (12/11/2026) |
 | Spring Boot | **4.1.x** (mới nhất: 4.1.2) | Framework 7, Jackson 3, có starter OpenTelemetry | ✅ tag `v4.1.2` trên GitHub |
 | Spring Modulith | **2.1.x** (2.1.2) | Event publication registry (outbox), `@ApplicationModuleTest` | ✅ |
 | Spring AI | **2.0.x** (2.0.1) | `spring-ai-starter-model-bedrock-converse`, tool calling, streaming | ✅ GA 12/06/2026 |
@@ -93,7 +93,7 @@ Version được chốt ngày **2026-10-23** theo bản stable mới nhất. C�
 | Flyway | theo BOM của Boot | Migration | – |
 | PostgreSQL | Aurora PostgreSQL **17.x** | Scale-to-zero yêu cầu ≥ 16.3 / 15.7 | ⚠️ Kiểm tra minor version khả dụng ở ap-southeast-1 khi deploy |
 | Resilience4j | 2.x | Circuit breaker cho `quant-fn`. Spring Framework 7 đã có sẵn `@Retryable` / `@ConcurrencyLimit` | ⚠️ Kiểm tra starter cho Boot 4 ở Phase 4 |
-| springdoc-openapi | **3.1.x** (3.1.1) | Sinh OpenAPI 3.1 → `contracts/openapi/jars-api.yaml` → TypeScript client | ✅ P1.10 với Boot 4.1.2 + Jackson 3 (3.1.1 build trên Boot 4.1.0). 3.2.0 (24/10/2026, build trên 4.1.2) để Dependabot nâng sau |
+| springdoc-openapi | 3.x | Sinh OpenAPI → TypeScript client | ⚠️ Kiểm tra ở Phase 1 |
 | Testcontainers | 2.x | PostgreSQL, LocalStack (cần auth token, xem local-development) | – |
 | AWS CDK | v2 (Java) | `aws-cdk-lib` | ✅ Account đã từng dùng CDK (stack `CDKToolkit` ở us-east-1) |
 | Node.js | 22/24 LTS | Build web, chạy CDK CLI qua `npx` | ✅ máy dev có Node 24 |

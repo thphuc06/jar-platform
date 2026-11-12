@@ -1,27 +1,26 @@
 package io.github.thphuc06.jars.ledger.internal.web;
 
-import com.fasterxml.jackson.annotation.JsonSetter;
-import io.github.thphuc06.jars.identity.IdentityApi;
-import io.github.thphuc06.jars.ledger.TransactionType;
-import io.github.thphuc06.jars.ledger.internal.JarCode;
-import io.github.thphuc06.jars.ledger.internal.PostingService;
-import io.github.thphuc06.jars.ledger.internal.TransactionDetails;
-import io.github.thphuc06.jars.ledger.internal.TransactionQueries;
-import io.github.thphuc06.jars.shared.MoneyFormat;
-import io.github.thphuc06.jars.shared.VndAmount;
+import io.github.thphuc06.jars.ledger.internal.domain.TransactionType;
+import io.github.thphuc06.jars.ledger.internal.service.LedgerCommandService;
+import io.github.thphuc06.jars.ledger.internal.service.LedgerCommandService.PostTransactionCommand;
+import io.github.thphuc06.jars.ledger.internal.service.LedgerQueryService;
+import io.github.thphuc06.jars.ledger.internal.service.Views.CategoryView;
+import io.github.thphuc06.jars.ledger.internal.service.Views.DailyBalanceView;
+import io.github.thphuc06.jars.ledger.internal.service.Views.TransactionPage;
+import io.github.thphuc06.jars.ledger.internal.service.Views.TransactionReceipt;
+import io.github.thphuc06.jars.ledger.internal.service.Views.TransactionView;
+import io.github.thphuc06.jars.platform.idempotency.IdempotencyService;
+import io.github.thphuc06.jars.shared.Money;
+import io.github.thphuc06.jars.shared.UserId;
 import jakarta.validation.Valid;
-import jakarta.validation.constraints.Max;
-import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.Digits;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
-import java.util.Optional;
 import java.util.UUID;
-import org.jspecify.annotations.Nullable;
-import org.springframework.format.annotation.DateTimeFormat;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -31,169 +30,88 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
+import tools.jackson.databind.json.JsonMapper;
 
 @RestController
-@RequestMapping("/api/v1/transactions")
+@RequestMapping("/api/v1")
 class TransactionController {
 
-    static final String IDEMPOTENCY_KEY = "Idempotency-Key";
+    private final LedgerQueryService queries;
+    private final LedgerCommandService commands;
+    private final JsonMapper json;
 
-    private final IdentityApi identity;
-    private final PostingService posting;
-    private final TransactionQueries queries;
-
-    TransactionController(IdentityApi identity, PostingService posting, TransactionQueries queries) {
-        this.identity = identity;
-        this.posting = posting;
+    TransactionController(LedgerQueryService queries, LedgerCommandService commands, JsonMapper json) {
         this.queries = queries;
+        this.commands = commands;
+        this.json = json;
     }
 
-    /**
-     * Records an INCOME (into POOL unless jarId is given) or an EXPENSE (from jarId, never POOL). BR-2. The
-     * Idempotency-Key header is required: re-sending the same request with the same key never records it twice.
-     */
-    @PostMapping
-    @ResponseStatus(HttpStatus.CREATED)
-    ResponseEntity<PostingResponse> postTransaction(
-            @RequestHeader(IDEMPOTENCY_KEY) UUID idempotencyKey, @Valid @RequestBody PostTransactionRequest request) {
-        // the owner always comes from the access token, never from the request (IDOR protection)
-        UUID userId = identity.currentUser().id();
-        return PostingResponse.created(posting.post(userId, idempotencyKey, request.toCommand()));
+    @PostMapping("/transactions")
+    ResponseEntity<TransactionReceipt> post(
+            UserId userId,
+            @RequestHeader("Idempotency-Key") String idempotencyKey,
+            @Valid @RequestBody PostTransactionRequest request) {
+        PostTransactionCommand cmd = new PostTransactionCommand(
+                request.type(),
+                new Money(request.amount(), Money.VND),
+                request.jarId(),
+                request.categoryId(),
+                request.counterparty(),
+                request.note(),
+                request.occurredAt());
+        // hash the normalised command, not the raw body: "85000" and "85000.00" are the same request
+        String hash = IdempotencyService.hash("POST", "/api/v1/transactions", json.writeValueAsString(cmd));
+        return JarController.respond(commands.post(userId, idempotencyKey, hash, cmd));
     }
 
-    /** Money Inbox, newest first. Pass {@code nextCursor} of a page as {@code cursor} to get the following one. */
-    @GetMapping
-    TransactionPageResponse listTransactions(
-            @RequestParam(defaultValue = "50") @Min(1) @Max(TransactionQueries.MAX_LIMIT) int limit,
-            @RequestParam(required = false) String cursor,
+    @PatchMapping("/transactions/{id}")
+    TransactionView recategorize(
+            UserId userId, @PathVariable UUID id, @Valid @RequestBody PatchTransactionRequest request) {
+        return commands.recategorize(userId, id, request.categoryId(), request.jarId());
+    }
+
+    @GetMapping("/transactions")
+    TransactionPage list(
+            UserId userId,
             @RequestParam(required = false) UUID jarId,
             @RequestParam(required = false) UUID categoryId,
             @RequestParam(required = false) TransactionType type,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant from,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant to) {
-        TransactionQueries.Page page = queries.list(
-                identity.currentUser().id(),
-                new TransactionQueries.Filter(jarId, categoryId, type, from, to),
-                cursor,
-                limit);
-        return new TransactionPageResponse(
-                page.items().stream().map(TransactionItem::from).toList(), page.nextCursor());
+            @RequestParam(required = false) Instant from,
+            @RequestParam(required = false) Instant to,
+            @RequestParam(required = false) Integer limit,
+            @RequestParam(required = false) String cursor) {
+        return queries.transactions(userId, jarId, categoryId, type, from, to, limit, cursor);
     }
 
-    @GetMapping("/{id}")
-    TransactionItem getTransaction(@PathVariable UUID id) {
-        return TransactionItem.from(queries.get(identity.currentUser().id(), id));
+    @GetMapping("/categories")
+    List<CategoryView> categories(UserId userId) {
+        return queries.categories(userId);
     }
 
-    /**
-     * Changes category, note and/or jar; amount and type never change (BR-2). Fields left out stay as they are; a
-     * JSON {@code null} clears {@code categoryId} or {@code note}. Responds with the jars whose balance changed.
-     */
-    @PatchMapping("/{id}")
-    PostingResponse amendTransaction(@PathVariable UUID id, @Valid @RequestBody AmendTransactionRequest request) {
-        return PostingResponse.from(posting.amend(identity.currentUser().id(), id, request.toCommand()));
+    @GetMapping("/balances/daily")
+    List<DailyBalanceView> dailyBalances(UserId userId, @RequestParam(defaultValue = "30") int days) {
+        return queries.dailyBalances(userId, days);
     }
 
     record PostTransactionRequest(
-            @NotNull TransactionType type,
-            @NotNull @VndAmount BigDecimal amount,
-            @Nullable UUID jarId,
-            @Nullable UUID categoryId,
-            @Size(max = 200) @Nullable String counterparty,
-            @Size(max = 500) @Nullable String note,
-            @Nullable Instant occurredAt) {
+            @NotNull(message = "Thiếu loại giao dịch") TransactionType type,
 
-        PostingService.PostTransaction toCommand() {
-            return new PostingService.PostTransaction(type, amount, jarId, categoryId, counterparty, note, occurredAt);
-        }
-    }
+            @NotNull(message = "Thiếu số tiền")
+            @Positive(message = "Số tiền phải lớn hơn 0")
+            @Digits(integer = 17, fraction = 2, message = "Số tiền tối đa 2 chữ số thập phân")
+            BigDecimal amount,
 
-    /**
-     * A class with setters, NOT a record: PATCH must tell "field not sent" (keep) apart from "field sent as null"
-     * (clear). Jackson calls a setter only for properties present in the JSON, also when their value is null. With a
-     * record it cannot: an absent {@code Optional} component arrives as {@code Optional.empty()}, exactly like an
-     * explicit null (found by {@code patch_categoryAndNote_explicitNullClears_absentKeeps}).
-     */
-    static final class AmendTransactionRequest {
+            UUID jarId,
+            UUID categoryId,
 
-        private boolean categorySent;
-        private @Nullable UUID categoryId;
+            @Size(max = 120, message = "Nơi nhận/nguồn tối đa 120 ký tự")
+            String counterparty,
 
-        private boolean noteSent;
+            @Size(max = 500, message = "Ghi chú tối đa 500 ký tự")
+            String note,
 
-        @Size(max = 500)
-        private @Nullable String note;
+            Instant occurredAt) {}
 
-        private @Nullable UUID jarId;
-
-        @JsonSetter("categoryId")
-        void categoryId(UUID value) {
-            categorySent = true;
-            categoryId = value;
-        }
-
-        @JsonSetter("note")
-        void note(String value) {
-            noteSent = true;
-            note = value;
-        }
-
-        @JsonSetter("jarId")
-        void jarId(UUID value) {
-            jarId = value;
-        }
-
-        PostingService.Amendment toCommand() {
-            return new PostingService.Amendment(
-                    categorySent ? Optional.ofNullable(categoryId) : null,
-                    noteSent ? Optional.ofNullable(note) : null,
-                    jarId);
-        }
-    }
-
-    record TransactionPageResponse(
-            List<TransactionItem> items, @Nullable String nextCursor) {}
-
-    record TransactionItem(
-            UUID id,
-            TransactionType type,
-            String amount,
-            String currency,
-            JarRef jar,
-            @Nullable JarRef toJar,
-            @Nullable CategoryRef category,
-            @Nullable String counterparty,
-            @Nullable String note,
-            Instant occurredAt) {
-
-        record JarRef(UUID id, JarCode code, String name) {
-
-            static JarRef from(TransactionDetails.JarRef jar) {
-                return jar == null ? null : new JarRef(jar.id(), jar.code(), jar.name());
-            }
-        }
-
-        record CategoryRef(UUID id, String name) {
-
-            static CategoryRef from(TransactionDetails.CategoryRef category) {
-                return category == null ? null : new CategoryRef(category.id(), category.name());
-            }
-        }
-
-        static TransactionItem from(TransactionDetails t) {
-            return new TransactionItem(
-                    t.id(),
-                    t.type(),
-                    MoneyFormat.format(t.amount()),
-                    t.currency(),
-                    JarRef.from(t.jar()),
-                    JarRef.from(t.toJar()),
-                    CategoryRef.from(t.category()),
-                    t.counterparty(),
-                    t.note(),
-                    t.occurredAt());
-        }
-    }
+    record PatchTransactionRequest(UUID categoryId, UUID jarId) {}
 }

@@ -1,21 +1,26 @@
 package io.github.thphuc06.jars.shared;
 
+import java.util.Objects;
+
 /**
- * Base of all business errors thrown by modules. It knows nothing about HTTP: the {@code code} becomes the problem
- * {@code type} ({@code https://jars.local/problems/{code}}) and the platform decides the status from the subclass.
- * The UI translates messages by {@code code}, so codes are stable identifiers (kebab-case) and part of the API.
+ * A business rule was broken. {@code platform.web} maps it to a {@code ProblemDetail} using the
+ * {@link ProblemType}; {@code detail} is shown to the client, so keep it free of internals.
  */
-public abstract sealed class DomainException extends RuntimeException
-        permits NotFoundException, BusinessRuleViolationException, ConflictException {
+public class DomainException extends RuntimeException {
 
-    private final String code;
+    private final ProblemType type;
 
-    protected DomainException(String code, String message) {
-        super(message);
-        this.code = code;
+    public DomainException(ProblemType type, String detail) {
+        super(detail);
+        this.type = Objects.requireNonNull(type, "type");
     }
 
-    public String code() {
-        return code;
+    public ProblemType type() {
+        return type;
+    }
+
+    /** 404 for a resource that does not exist <em>or does not belong to the caller</em> (anti-IDOR, see security.md). */
+    public static DomainException notFound(String what) {
+        return new DomainException(ProblemTypes.NOT_FOUND, what + " không tồn tại");
     }
 }

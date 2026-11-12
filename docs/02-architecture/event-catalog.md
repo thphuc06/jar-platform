@@ -31,38 +31,32 @@ Mọi domain event ra khỏi process đều có cấu trúc chung (JSON, đặt 
 
 | Event | Phát bởi | Nghe bởi | Payload chính | Externalize (Phase 5) |
 |---|---|---|---|---|
-| `UserRegistered` | identity | ledger (✅ P1.4: tạo 6 hũ + hũ ẩn `POOL`; danh mục mặc định là của hệ thống, seed sẵn trong V3, không tạo theo user) | `userId`, `locale`. **Không có `email`**: event được lưu vào outbox, nên PII trong event bị chép sang bảng thứ hai. Listener cần email thì hỏi `IdentityApi` | Không |
-| `RiskProfileAssessed` | identity (✅ P1.8, mỗi lần làm bảng hỏi) | advisor (ngữ cảnh chat, Phase 4) | `userId`, `riskLevel`, `score`, `questionnaireVersion` (không gửi câu trả lời) | Không |
-| `TransactionPosted` | ledger (✅ P1.5, phát cho cả 3 loại giao dịch; chưa có listener) | insights (CUSUM/MAD, read model), budgeting (đã chi của kỳ). Consumer lọc theo `type`: `JAR_TRANSFER` là chuyển tiền, không phải chi tiêu | `transactionId`, `userId`, `type`, `amount`, `currency`, `jarId`, `toJarId`, `categoryId`, `occurredAt` | **Có** → `jars-ledger-events.fifo`, group = `userId` |
-| `TransactionRecategorized` | ledger (✅ P1.7, khi PATCH đổi danh mục hoặc hũ; sửa riêng `note` thì không phát) | insights | `transactionId`, `userId`, `type`, `amount`, `oldCategoryId`, `newCategoryId`, `oldJarId`, `newJarId`, `occurredAt` | **Có** |
+| `UserRegistered` | identity | ledger (tạo 6 hũ mặc định) | `userId`, `locale` | Không. **Nghe đồng bộ trong cùng transaction** với việc tạo user (`@EventListener`, không phải `@ApplicationModuleListener`), để user không bao giờ tồn tại mà thiếu 6 hũ |
+| `RiskProfileAssessed` | identity | advisor (ngữ cảnh chat) | `riskLevel`, `score` | Không |
+| `TransactionPosted` | ledger | insights (MAD + CUSUM, read model), budgeting (đã chi của kỳ: chỉ tính `EXPENSE` có `jarId`) | `eventId` (UUIDv7), `transactionId`, `userId`, `type`, `amount`, `jarId`, `categoryId`, `occurredAt`, `source`. Một lần `LedgerApi.allocateIncome` phát **một** event `INCOME` với `jarId = null` (tiền chia cho nhiều hũ) | **Có** → `jars-ledger-events.fifo`, group = `userId` |
+| `TransactionRecategorized` | ledger | insights, budgeting (chuyển `spent_amount` giữa hai hũ khi khoản chi đổi hũ) | `transactionId`, `oldCategoryId`, `newCategoryId`, `oldJarId`, `newJarId` | **Có** |
 | `JarCreated` | ledger | insights (khởi tạo detector state) | `jarId`, `code` | **Có** |
-| `MonthClosed` | budgeting | notification, insights | `month`, `summary` (theo từng hũ) | Không |
-| `AnomalyDetected` | insights | notification | `anomalyId`, `jarId`, `detector`, `direction`, `score`, `threshold`, `transactionId` | **Có** → `jars-insights-events.fifo` |
+| `MonthClosed` | budgeting | notification (tạo thông báo "Đã khép sổ tháng MM/YYYY"; bỏ qua tháng có kế hoạch và chi đều bằng 0). insights chưa nghe | `eventId` (UUIDv7), `userId`, `month` (`YYYY-MM`), `summary[{jarId, jarName, planned, spent}]` cho mọi hũ có dòng trong tháng (kể cả hũ đã archive). Mỗi user mỗi tháng phát **tối đa một lần** | Không |
+| `AnomalyDetected` | insights | notification | `eventId`, `anomalyId`, `userId`, `jarId`, `jarName`, `detector` (MAD/CUSUM), `direction`, `severity`, `score`, `threshold`, `transactionId`, `amount` | **Có** → `jars-insights-events.fifo` |
 | `StatementImportCompleted` | imports | notification | `importId`, `rowsOk`, `rowsFailed` | Không |
-| `GoalCreated` | goals | (dự phòng) | `goalId`, `targetAmount`, `targetDate` | Không. **Chưa phát** ở P1.8 vì chưa có consumer; thêm khi có |
+| `GoalCreated` | goals | (dự phòng) | `goalId`, `targetAmount`, `targetDate` | Không |
 
 ## 4. Platform event
 
 | Nguồn | Rule / Schedule | Đích | Message mà jars-api nhận |
 |---|---|---|---|
 | S3 `jars-dev-statements`, prefix `uploads/{userId}/{importId}.csv` | Rule `statement-uploaded`: `source=aws.s3`, `detail-type=Object Created` | SQS `jars-imports` | Event EventBridge gốc (`detail.object.key`). jars-api tách `userId` / `importId` từ key **rồi kiểm tra với bảng `statement_imports`** (không tin key) |
-| EventBridge Scheduler `month-close` | `cron(5 0 1 * ? *)`, TZ `Asia/Ho_Chi_Minh` | SQS `jars-jobs` | `{"job":"MONTH_CLOSE","month":"2026-10"}` |
+| EventBridge Scheduler `month-close` | `cron(5 0 1 * ? *)`, TZ `Asia/Ho_Chi_Minh` | SQS `jars-jobs` | `{"job":"MONTH_CLOSE"}`. Tháng cần khép không nằm trong message: job tự tính **tháng trước** theo giờ Việt Nam. Có thể gửi tay `{"job":"MONTH_CLOSE","month":"2026-10"}` để chạy lại một tháng ([F6](flows.md#f6)) |
+
+## 4b. Cách event in-process được giao nhận (đã cài đặt)
+
+- Event được publish **trong transaction nghiệp vụ**; Spring Modulith ghi một dòng `event_publication` cho **mỗi listener** (outbox) trong cùng transaction đó.
+- Sau commit, `@ApplicationModuleListener` chạy bất đồng bộ trong transaction riêng. Listener xong thì dòng bị xóa (`completion-mode: delete`); listener lỗi thì dòng **ở lại** và không mất event.
+- **Chưa bật** tự publish lại các dòng còn tồn khi khởi động; hiện chúng là hàng đợi cần xem tay (`SELECT * FROM event_publication`). Việc này nằm trong backlog.
+- Consumer luôn kiểm tra `processed_messages(consumer, eventId)` ở đầu transaction để bỏ qua event bị giao lại.
+- `UserRegistered` là ngoại lệ có chủ đích: ledger nghe **đồng bộ** trong transaction tạo user.
 
 ## 5. Đảm bảo giao nhận
-
-**In-process (đang chạy từ P1.4):** `@ApplicationModuleListener` = `@TransactionalEventListener(AFTER_COMMIT)` + `@Async` + `@Transactional(REQUIRES_NEW)`.
-
-| Tình huống | Điều xảy ra |
-|---|---|
-| Transaction phát event commit | Mỗi listener quan tâm có 1 dòng `event_publication` (ghi trong cùng transaction), listener chạy trên thread khác |
-| Transaction phát event rollback | Dòng outbox cũng rollback, listener không chạy |
-| Listener thành công | Dòng bị xóa (`completion-mode=delete`) |
-| Listener ném exception | Transaction của listener rollback, dòng ở lại với `status=FAILED`. Gửi lại bằng `FailedEventPublications.resubmit(...)` (đã có test). **Chưa có job tự động** (P2.1) |
-| App chết giữa chừng | Dòng ở lại (chưa hoàn tất). Có thể bật `spring.modulith.events.republish-outstanding-events-on-restart`, nhưng **không** bật khi có nhiều instance (mọi instance cùng gửi lại) |
-
-Listener khai báo `id` cố định (ví dụ `ledger.default-jars`), vì cột `listener_id` mặc định là tên method đầy đủ: đổi tên class hoặc method sẽ làm các dòng đang chờ không còn khớp với listener nào. Listener phải **idempotent** vì việc gửi lại có thể trùng (`DefaultJarsProvisioner`: đã có hũ thì bỏ qua, unique index `uk_jars_user_code` chặn ở tầng DB).
-
-**Khi đã externalize (Phase 5):**
 
 | Đảm bảo | Cách đạt được |
 |---|---|

@@ -1,19 +1,16 @@
 import "@fontsource-variable/plus-jakarta-sans";
 import "@fontsource-variable/space-grotesk";
-import { ThemeProvider } from "next-themes";
 import { createRoot } from "react-dom/client";
-import { AuthProvider } from "react-oidc-context";
-import { userManager } from "@/auth/oidc";
-import App from "./App.tsx";
+import { ThemeProvider } from "next-themes";
+import App from "./App";
+import { configureAuth } from "./auth/amplify";
 import "./index.css";
 
-/** Removes ?code=...&state=... from the address bar once the code has been exchanged (a code works only once). */
-const onSigninCallback = () => window.history.replaceState({}, document.title, window.location.pathname);
+// before the first render: on /auth/callback?code=... this completes the sign-in
+configureAuth();
 
 createRoot(document.getElementById("root")!).render(
   <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
-    <AuthProvider userManager={userManager} onSigninCallback={onSigninCallback}>
-      <App />
-    </AuthProvider>
+    <App />
   </ThemeProvider>,
 );

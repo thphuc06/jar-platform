@@ -1,5 +1,7 @@
 # Learning Notes
 
+> **Lưu ý (12/11/2026):** các ghi chú P1.x và P3.x mô tả **bản cài đặt đầu tiên** (Java 25, các bước `P<n>.x`). Nhánh `main` hiện dùng bản cài đặt "Core to Cloud" (Java 21, các work package `WP0`–`WP9`), nên tên class, migration và số đo trong các ghi chú đó có thể không khớp với code đang có. Kiến thức nền, trade-off và câu hỏi phỏng vấn vẫn dùng được; code tương ứng nằm trong lịch sử git, phía cha thứ nhất của merge commit hợp nhất hai bản.
+
 Ghi chú học tập viết **trong lúc làm** từng bước của [roadmap](../06-plan/roadmap.md): mỗi bước một file, cùng commit với code. Roadmap ghi *đã làm gì và kết quả*; các file ở đây giải thích *vì sao*, *kiến thức nền* và *lỗi đã gặp thật*, để ôn lại và chuẩn bị phỏng vấn.
 
 ## Cấu trúc mỗi file (7 mục)

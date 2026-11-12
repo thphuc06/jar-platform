@@ -59,12 +59,47 @@ class BaselineMigrationTest {
     }
 
     @Test
-    void users_rejectsSameEmailWithDifferentCase() {
+    void users_allowTheSameEmailUnderDifferentSubjects() {
+        // V3: identity is the Cognito sub only, so re-registering with the same e-mail must not fail
         insertUser("sub-a", "An@Example.com");
 
-        assertThatThrownBy(() -> insertUser("sub-b", "an@example.COM"))
-                .isInstanceOf(DuplicateKeyException.class)
-                .hasMessageContaining("uk_users_email_lower");
+        UUID second = insertUser("sub-b", "an@example.com");
+
+        assertThat(second).isNotNull();
+    }
+
+    @Test
+    void users_allowAMissingEmail() {
+        jdbc.sql("INSERT INTO users (id, cognito_sub) VALUES (?, ?)")
+                .params(UUID.randomUUID(), "sub-no-email")
+                .update();
+
+        Integer count = jdbc.sql("SELECT count(*) FROM users WHERE cognito_sub = 'sub-no-email' AND email IS NULL")
+                .query(Integer.class)
+                .single();
+        assertThat(count).isEqualTo(1);
+    }
+
+    @Test
+    void riskAssessments_rejectScoresOutsideZeroToHundred() {
+        UUID userId = insertUser("sub-risk", null);
+
+        assertThatThrownBy(() -> jdbc.sql("""
+                                INSERT INTO risk_assessments (id, user_id, answers, score, risk_level, assessed_at)
+                                VALUES (?, ?, '[0,0,0,0,0]'::jsonb, 101, 'GROWTH', now())
+                                """).params(UUID.randomUUID(), userId).update())
+                .hasMessageContaining("ck_risk_assessments_score");
+    }
+
+    @Test
+    void riskAssessments_rejectUnknownLevels() {
+        UUID userId = insertUser("sub-risk-2", null);
+
+        assertThatThrownBy(() -> jdbc.sql("""
+                                INSERT INTO risk_assessments (id, user_id, answers, score, risk_level, assessed_at)
+                                VALUES (?, ?, '[0,0,0,0,0]'::jsonb, 50, 'YOLO', now())
+                                """).params(UUID.randomUUID(), userId).update())
+                .hasMessageContaining("ck_risk_assessments_level");
     }
 
     private UUID insertUser(String cognitoSub, String email) {

@@ -1,27 +1,32 @@
 package io.github.thphuc06.jars.goals.internal.web;
 
-import com.fasterxml.jackson.annotation.JsonSetter;
-import io.github.thphuc06.jars.goals.internal.GoalService;
-import io.github.thphuc06.jars.goals.internal.GoalStatus;
-import io.github.thphuc06.jars.goals.internal.GoalView;
-import io.github.thphuc06.jars.identity.IdentityApi;
-import io.github.thphuc06.jars.ledger.JarSummary;
-import io.github.thphuc06.jars.shared.MoneyFormat;
-import io.github.thphuc06.jars.shared.VndAmount;
+import io.github.thphuc06.jars.goals.internal.domain.GoalStatus;
+import io.github.thphuc06.jars.goals.internal.domain.roadmap.RoadmapResponse;
+import io.github.thphuc06.jars.goals.internal.service.FeasibilityService;
+import io.github.thphuc06.jars.goals.internal.service.FeasibilityService.FeasibilityView;
+import io.github.thphuc06.jars.goals.internal.service.GoalService;
+import io.github.thphuc06.jars.goals.internal.service.GoalService.CreateGoal;
+import io.github.thphuc06.jars.goals.internal.service.GoalService.GoalView;
+import io.github.thphuc06.jars.goals.internal.service.GoalService.UpdateGoal;
+import io.github.thphuc06.jars.goals.internal.service.RoadmapService;
+import io.github.thphuc06.jars.goals.internal.service.ScenarioService;
+import io.github.thphuc06.jars.goals.internal.service.ScenarioService.ScenarioCommand;
+import io.github.thphuc06.jars.goals.internal.service.ScenarioService.ScenarioView;
+import io.github.thphuc06.jars.shared.Money;
+import io.github.thphuc06.jars.shared.UserId;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Digits;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
 import java.math.BigDecimal;
-import java.net.URI;
 import java.time.LocalDate;
 import java.util.List;
-import java.util.Optional;
 import java.util.UUID;
-import org.jspecify.annotations.Nullable;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -36,142 +41,134 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/v1/goals")
 class GoalController {
 
-    private final IdentityApi identity;
     private final GoalService goals;
+    private final FeasibilityService feasibility;
+    private final ScenarioService scenarios;
+    private final RoadmapService roadmaps;
 
-    GoalController(IdentityApi identity, GoalService goals) {
-        this.identity = identity;
+    GoalController(
+            GoalService goals, FeasibilityService feasibility, ScenarioService scenarios, RoadmapService roadmaps) {
         this.goals = goals;
+        this.feasibility = feasibility;
+        this.scenarios = scenarios;
+        this.roadmaps = roadmaps;
     }
 
-    /** Goals that are not archived, nearest deadline first, with the progress of their funding jar. */
     @GetMapping
-    GoalsResponse listGoals() {
-        return new GoalsResponse(
-                goals.list(userId()).stream().map(GoalResponse::from).toList());
-    }
-
-    @GetMapping("/{id}")
-    GoalResponse getGoal(@PathVariable UUID id) {
-        return GoalResponse.from(goals.get(userId(), id));
+    List<GoalView> listGoals(UserId userId) {
+        return goals.list(userId);
     }
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    ResponseEntity<GoalResponse> createGoal(@Valid @RequestBody CreateGoalRequest request) {
-        GoalView created = goals.create(userId(), request.toCommand());
-        return ResponseEntity.created(URI.create("/api/v1/goals/" + created.id()))
-                .body(GoalResponse.from(created));
+    GoalView createGoal(UserId userId, @Valid @RequestBody CreateGoalRequest request) {
+        return goals.create(
+                userId,
+                new CreateGoal(
+                        request.name(),
+                        new Money(request.targetAmount(), Money.VND),
+                        request.targetDate(),
+                        request.fundingJarId()));
     }
 
-    /** Fields left out stay as they are; {@code "fundingJarId": null} detaches the jar. */
     @PatchMapping("/{id}")
-    GoalResponse updateGoal(@PathVariable UUID id, @Valid @RequestBody UpdateGoalRequest request) {
-        return GoalResponse.from(goals.update(userId(), id, request.toCommand()));
+    GoalView updateGoal(UserId userId, @PathVariable UUID id, @Valid @RequestBody UpdateGoalRequest request) {
+        return goals.update(
+                userId,
+                id,
+                new UpdateGoal(
+                        request.name(),
+                        request.targetAmount() == null ? null : new Money(request.targetAmount(), Money.VND),
+                        request.targetDate(),
+                        request.fundingJarId(),
+                        request.status()));
     }
 
-    /** Archives (soft delete). 204 also when the goal was already archived. */
+    /** Archives the goal: it disappears from the list and every operation on it answers 404. */
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    ResponseEntity<Void> archiveGoal(@PathVariable UUID id) {
-        goals.archive(userId(), id);
-        return ResponseEntity.noContent().build();
+    void archiveGoal(UserId userId, @PathVariable UUID id) {
+        goals.archive(userId, id);
     }
 
-    private UUID userId() {
-        return identity.currentUser().id();
+    /** Can the target be reached by the date at the current saving pace, and how much per month does it take? */
+    @GetMapping("/{id}/feasibility")
+    FeasibilityView goalFeasibility(UserId userId, @PathVariable UUID id) {
+        return feasibility.feasibility(userId, id);
+    }
+
+    /** What-if: the same goal with a changed saving, income or spending. Computes only; nothing is stored. */
+    @PostMapping("/{id}/scenarios")
+    ScenarioView goalScenarios(UserId userId, @PathVariable UUID id, @Valid @RequestBody ScenarioRequest request) {
+        return scenarios.scenarios(
+                userId,
+                id,
+                new ScenarioCommand(
+                        money(request.monthlySavingDelta()),
+                        money(request.incomeDelta()),
+                        money(request.spendingDelta()),
+                        money(request.oneOffContribution()),
+                        request.horizonMonths(),
+                        request.seed()));
+    }
+
+    /** The staged plan of the goal, in the shape of the legacy UI's {@code RoadmapResponse}. */
+    @GetMapping("/{id}/roadmap")
+    RoadmapResponse goalRoadmap(UserId userId, @PathVariable UUID id) {
+        return roadmaps.roadmap(userId, id);
+    }
+
+    private static Money money(BigDecimal amount) {
+        return amount == null ? null : new Money(amount, Money.VND);
     }
 
     record CreateGoalRequest(
-            @NotBlank @Size(max = 100) String name,
-            @NotNull @VndAmount BigDecimal targetAmount,
-            @NotNull LocalDate targetDate,
-            @Nullable UUID fundingJarId) {
-
-        GoalService.NewGoal toCommand() {
-            return new GoalService.NewGoal(name, targetAmount, targetDate, fundingJarId);
-        }
-    }
-
-    /** A class, not a record, to tell "fundingJarId not sent" from "sent as null" (see the PATCH of transactions). */
-    static final class UpdateGoalRequest {
-
-        @Size(min = 1, max = 100)
-        @Pattern(regexp = ".*\\S.*", message = "must not be blank")
-        private @Nullable String name;
-
-        @VndAmount
-        private @Nullable BigDecimal targetAmount;
-
-        private @Nullable LocalDate targetDate;
-
-        private boolean fundingJarSent;
-        private @Nullable UUID fundingJarId;
-
-        private @Nullable GoalStatus status;
-
-        @JsonSetter("name")
-        void name(String value) {
-            name = value;
-        }
-
-        @JsonSetter("targetAmount")
-        void targetAmount(BigDecimal value) {
-            targetAmount = value;
-        }
-
-        @JsonSetter("targetDate")
-        void targetDate(LocalDate value) {
-            targetDate = value;
-        }
-
-        @JsonSetter("fundingJarId")
-        void fundingJarId(UUID value) {
-            fundingJarSent = true;
-            fundingJarId = value;
-        }
-
-        @JsonSetter("status")
-        void status(GoalStatus value) {
-            status = value;
-        }
-
-        GoalService.GoalChanges toCommand() {
-            return new GoalService.GoalChanges(
-                    name, targetAmount, targetDate, fundingJarSent ? Optional.ofNullable(fundingJarId) : null, status);
-        }
-    }
-
-    record GoalsResponse(List<GoalResponse> items) {}
-
-    record GoalResponse(
-            UUID id,
+            @NotBlank(message = "Tên mục tiêu không được để trống")
+            @Size(max = 80, message = "Tên mục tiêu tối đa 80 ký tự")
             String name,
-            String targetAmount,
+
+            @NotNull(message = "Thiếu số tiền mục tiêu")
+            @Positive(message = "Số tiền mục tiêu phải lớn hơn 0")
+            @Digits(integer = 17, fraction = 2, message = "Số tiền tối đa 2 chữ số thập phân")
+            BigDecimal targetAmount,
+
+            @NotNull(message = "Thiếu ngày đạt mục tiêu") LocalDate targetDate,
+
+            UUID fundingJarId) {}
+
+    /** Every field is optional; a missing field keeps the current value. */
+    record UpdateGoalRequest(
+            @Size(min = 1, max = 80, message = "Tên mục tiêu từ 1 đến 80 ký tự")
+            String name,
+
+            @Positive(message = "Số tiền mục tiêu phải lớn hơn 0")
+            @Digits(integer = 17, fraction = 2, message = "Số tiền tối đa 2 chữ số thập phân")
+            BigDecimal targetAmount,
+
             LocalDate targetDate,
-            GoalStatus status,
-            @Nullable FundingJar fundingJar,
-            @Nullable Integer progressPct) {
+            UUID fundingJarId,
+            GoalStatus status) {}
 
-        record FundingJar(UUID id, String code, String name, String balance, boolean archived) {
+    /**
+     * Every field is optional. With none of the four changes the response compares the base case with three default
+     * scenarios; with at least one it compares the base case with that change.
+     */
+    record ScenarioRequest(
+            @Digits(integer = 15, fraction = 2, message = "Tối đa 15 chữ số và 2 chữ số thập phân")
+            BigDecimal monthlySavingDelta,
 
-            static FundingJar from(JarSummary jar) {
-                return jar == null
-                        ? null
-                        : new FundingJar(
-                                jar.id(), jar.code(), jar.name(), MoneyFormat.format(jar.balance()), jar.archived());
-            }
-        }
+            @Digits(integer = 15, fraction = 2, message = "Tối đa 15 chữ số và 2 chữ số thập phân")
+            BigDecimal incomeDelta,
 
-        static GoalResponse from(GoalView goal) {
-            return new GoalResponse(
-                    goal.id(),
-                    goal.name(),
-                    MoneyFormat.format(goal.targetAmount()),
-                    goal.targetDate(),
-                    goal.status(),
-                    FundingJar.from(goal.fundingJar()),
-                    goal.progressPct());
-        }
-    }
+            @Digits(integer = 15, fraction = 2, message = "Tối đa 15 chữ số và 2 chữ số thập phân")
+            BigDecimal spendingDelta,
+
+            @Digits(integer = 15, fraction = 2, message = "Tối đa 15 chữ số và 2 chữ số thập phân")
+            BigDecimal oneOffContribution,
+
+            @Min(value = 1, message = "horizonMonths tối thiểu 1")
+            @Max(value = ScenarioService.MAX_HORIZON_MONTHS, message = "horizonMonths tối đa 120")
+            Integer horizonMonths,
+
+            Long seed) {}
 }

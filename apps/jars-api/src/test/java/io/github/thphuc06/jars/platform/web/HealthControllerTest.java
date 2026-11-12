@@ -12,15 +12,20 @@ import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.assertj.MockMvcTester;
 
 @WebMvcTest(HealthController.class)
-// importing the real SecurityConfig proves /api/v1/health is reachable WITHOUT a token
-@Import({SecurityConfig.class, HealthControllerTest.FixedBuildInfo.class})
+@Import({HealthControllerTest.FixedBuildInfo.class, SecurityConfig.class})
 class HealthControllerTest {
 
     @Autowired
     MockMvcTester mvc;
+
+    // SecurityConfig needs a decoder bean; the health endpoint is public so it is never called
+    @MockitoBean
+    JwtDecoder jwtDecoder;
 
     @Test
     void health_returnsUpWithServiceNameAndBuildVersion() {

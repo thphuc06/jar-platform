@@ -7,7 +7,6 @@ Tài liệu được viết theo kiểu **docs-as-code**: nằm cùng repo với
 | Thư mục / file | Trả lời câu hỏi | Khi nào cập nhật |
 |---|---|---|
 | [01-product/vision-and-scope.md](01-product/vision-and-scope.md) | Sản phẩm giải quyết vấn đề gì? Cho ai? Trong phạm vi và ngoài phạm vi là gì? | Khi thêm hoặc bỏ feature |
-| [01-product/business-rules.md](01-product/business-rules.md) | Quy tắc nghiệp vụ: hũ mặc định, loại giao dịch, danh mục, chấm bảng hỏi rủi ro, làm tròn | Mỗi khi đổi quy tắc (sửa **trước** code) |
 | [01-product/cv-showcase.md](01-product/cv-showcase.md) | Hoàn thành thì demo được gì? Viết mục project trên CV thế nào? Chuẩn bị câu chuyện phỏng vấn nào? | Cuối mỗi phase (điền số liệu thật) |
 | [02-architecture/overview.md](02-architecture/overview.md) | Hệ thống gồm những phần nào và nói chuyện với nhau ra sao (C4)? Dùng stack nào? | Khi thêm hoặc bỏ thành phần lớn |
 | [02-architecture/aws-infrastructure.md](02-architecture/aws-infrastructure.md) | Từng dịch vụ AWS dùng để làm gì, cấu hình ra sao, thuộc CDK stack nào, tốn bao nhiêu? | Khi đổi hạ tầng |
@@ -24,7 +23,6 @@ Tài liệu được viết theo kiểu **docs-as-code**: nằm cùng repo với
 | [05-operations/deployment.md](05-operations/deployment.md) | Deploy lên AWS lần đầu và các lần sau ra sao? CI/CD hoạt động thế nào? | Khi đổi pipeline hoặc stack |
 | [05-operations/runbook.md](05-operations/runbook.md) | Các thao tác vận hành: sleep/wake, xem log, xử lý DLQ, rollback | Khi có thao tác vận hành mới |
 | [06-plan/roadmap.md](06-plan/roadmap.md) | Đang ở đâu, việc tiếp theo là gì, khi nào xong? | **Mỗi tuần** |
-| [learning/](learning/README.md) | Mỗi bước đã làm: **vì sao**, kiến thức nền, phương án khác, lỗi đã gặp thật, câu hỏi phỏng vấn, bài tập | Mỗi bước roadmap, cùng commit với code |
 | [06-plan/skills-matrix.md](06-plan/skills-matrix.md) | Feature nào rèn kỹ năng gì, phỏng vấn sẽ hỏi gì? | Khi thêm feature |
 | [07-legacy/hackathon-migration.md](07-legacy/hackathon-migration.md) | Project cũ có gì, cái gì được giữ, cái gì bị bỏ, vì sao? | Hiếm khi |
 | [engineering/conventions.md](engineering/conventions.md) | Quy ước git, code style, test, Definition of Done | Khi team thống nhất quy ước mới |

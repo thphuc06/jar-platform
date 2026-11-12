@@ -6,7 +6,7 @@
 
 | Công cụ | Version | Trạng thái máy dev (2026-10-23) | Cài bằng |
 |---|---|---|---|
-| JDK | **25** (Temurin) | ✅ 25.0.4 (cài 23/10; 21.0.11 vẫn còn, nên phải trỏ `JAVA_HOME` đúng bản) | `winget install EclipseAdoptium.Temurin.25.JDK` |
+| JDK | **21** (Temurin) | ✅ 21.0.13 ([ADR-0019](../04-adr/0019-java-21-lts.md)); máy còn JDK 17 và 8 nên phải trỏ `JAVA_HOME` đúng bản 21 | `winget install EclipseAdoptium.Temurin.21.JDK` |
 | Maven | dùng **Maven Wrapper** (`./mvnw`) | ❌ chưa có `mvn` (không cần nếu dùng wrapper) | đi kèm repo |
 | Docker Desktop | mới nhất | ✅ 29.5.3 đang chạy | mở Docker Desktop |
 | Node.js | 22/24 LTS | ✅ 24.15 | – |
@@ -33,9 +33,9 @@
 
 | Profile | Khi nào | DB | Auth | Messaging | AI |
 |---|---|---|---|---|---|
-| `local` (**mặc định** khi không đặt `SPRING_PROFILES_ACTIVE`) | Chạy app trên máy | compose `postgres`, Spring Boot **tự khởi động** `local/compose.yaml` (`spring-boot-docker-compose`, chế độ `start-only`) | JWT thật từ Cognito user pool dev (`JarsAuth` deploy sớm) | in-process (Modulith) | Bedrock thật qua `aws login`, **hoặc** `jars.advisor.stub=true` |
+| `local` (**mặc định** khi không đặt `SPRING_PROFILES_ACTIVE`) | Chạy app trên máy | compose `postgres`, Spring Boot **tự khởi động** `local/compose.yaml` (`spring-boot-docker-compose`, chế độ `start-only`) | App tự phát token: `POST /dev/token` (chỉ có ở profile `local`, khóa RSA sinh ngẫu nhiên mỗi lần chạy), **không cần Cognito** | in-process (Modulith) | chưa có (ngoài phạm vi Phase 1) |
 | (test) | `./mvnw verify` | Testcontainers `postgres:17-alpine` (`@ServiceConnection`, class `TestcontainersConfiguration`) | `spring-security-test` `jwt()` | in-process; LocalStack container cho test tích hợp SQS | Stub `ChatModel` |
-| `aws` | ECS | Aurora (secret từ Secrets Manager) | Cognito | SQS/SNS thật | Bedrock |
+| `aws` | ECS | Aurora (`SPRING_DATASOURCE_*` do task definition cấp, secret từ Secrets Manager) | Cognito (chỉ nhận access token của các app client trong `JARS_ALLOWED_CLIENT_IDS`) | SQS thật cho job khép sổ; log JSON; không có `/dev/token` và không publish OpenAPI | – |
 
 ## 4. Chạy
 
@@ -50,15 +50,27 @@ curl localhost:8080/actuator/health                             # có "db":{"sta
 docker compose -f ../../local/compose.yaml stop
 #    Xóa sạch dữ liệu local:  docker compose -f ../../local/compose.yaml down -v
 
-# 3. Frontend (Vite proxy /api -> localhost:8080, nên cùng origin, không cần CORS). Cổng 5173 là bắt buộc:
-#    đó là callback URL đã đăng ký ở Cognito. Đăng nhập bằng user của user pool dev (managed login).
+# 2. Lấy token và gọi API (profile local, không cần Cognito)
+curl -s -X POST localhost:8080/dev/token -H 'Content-Type: application/json' -d '{"sub":"demo"}'   # -> {"accessToken":"..."}
+curl -s localhost:8080/api/v1/jars -H "Authorization: Bearer <accessToken>"
+# Swagger UI: http://localhost:8080/swagger-ui.html (nút Authorize, dán accessToken)
+
+#    Dữ liệu mẫu (3 tháng giao dịch + 2 khoản chi bất thường để thấy cảnh báo) cho subject "demo":
+./mvnw spring-boot:run "-Dspring-boot.run.arguments=--jars.seed.enabled=true"
+#    chạy lại không nhân đôi dữ liệu; mất khoảng 30 giây để các detector học xong, sau đó GET /api/v1/anomalies có 2 cảnh báo
+
+# 3. Frontend (Vite proxy /api -> localhost:8080, nên cùng origin, không cần CORS)
 cd apps/web
-cp .env.example .env.local                                     # điền issuer + client id của pool dev (không commit)
-npm ci --ignore-scripts && npm run dev                          # http://localhost:5173
-#    Đổi API ở backend xong: npm run gen:api (sinh lại src/api/schema.d.ts), rồi npm run typecheck
+npm ci && npm run dev                                           # http://localhost:5173
 
 # 4. Test toàn bộ backend (cần Docker đang chạy)
-cd apps/jars-api && ./mvnw verify
+cd apps/jars-api && ./mvnw clean verify
+#    Nếu IDE (VS Code Java) vẫn cấu hình JDK cũ, nó có thể ghi class file sai phiên bản vào target/ trong lúc Maven chạy
+#    (lỗi "class file has wrong version 69.0"): reload project Java trong IDE hoặc build từ một bản sao của repo.
+
+# 5. Image Docker như trên Fargate (đã thử: sẵn sàng sau ~30 giây với 0.5 vCPU / 1 GB, dùng ~355 MiB)
+docker build -t jars-api:dev apps/jars-api
+docker run --rm --read-only --tmpfs /tmp -p 8080:8080 -e SPRING_DATASOURCE_URL=jdbc:postgresql://host.docker.internal:5432/jars -e SPRING_DATASOURCE_USERNAME=jars -e SPRING_DATASOURCE_PASSWORD=jars-local jars-api:dev
 ```
 
 ## 5. AWS credentials cho local (không dùng root)
@@ -85,14 +97,7 @@ credential_process = aws configure export-credentials --profile jars-dev --forma
 
 ## 6. Dữ liệu mẫu
 
-✅ P1.12: `DemoDataSeeder` (chỉ ở profile `local`, chỉ khi được yêu cầu). Đăng nhập web app một lần để có user, rồi:
-
-```bash
-cd apps/jars-api
-./mvnw spring-boot:run -Dspring-boot.run.arguments=--jars.seed.email=you@example.com
-```
-
-Sinh 3 tháng đủ + tháng này tới hôm qua (giờ VN): lương 20 triệu mỗi tháng phân bổ theo `targetPct`, chi tiêu hằng ngày, hóa đơn cố định, thu nhập tự do, và **một cú sốc chi tiêu** tháng trước (để demo CUSUM ở Phase 2). Đi qua `PostingService` thật, nên dữ liệu tuân thủ mọi quy tắc nghiệp vụ. User đã có giao dịch thì không sinh thêm; muốn làm lại từ đầu: `docker compose -f ../../local/compose.yaml down -v`. Ý tưởng id/key tất định lấy từ seeder Python cũ (`_stable_uuid`).
+Phase 1 sẽ viết `SeedDataRunner` (chỉ chạy ở profile `local`): tạo 1 user demo, 6 hũ, khoảng 3 tháng giao dịch giả lập (ý tưởng từ `backend/seed/seed.json` của bản cũ), và một vài "cú sốc chi tiêu" để demo CUSUM.
 
 ## 7. Lỗi hay gặp
 
@@ -102,9 +107,7 @@ Sinh 3 tháng đủ + tháng này tới hôm qua (giờ VN): lương 20 triệu 
 | AWS CLI báo `Invalid name` khi tên bắt đầu bằng `/` (ví dụ `/jars/dev/...`) | Git Bash (MSYS) tự đổi tham số thành đường dẫn `C:/Program Files/Git/...` | Thêm `MSYS_NO_PATHCONV=1` trước lệnh, hoặc chạy trong PowerShell |
 | Test (kể cả test Modulith) đòi credential AWS | `spring.config.import=aws-secretsmanager:` đặt trong `application.yaml` chung | Chỉ đặt trong `application-aws.yaml`, có tiền tố `optional:` |
 | Bedrock `AccessDeniedException ... is not available for this account` | Model có inference profile nhưng account chưa được phép gọi (ví dụ Haiku 5.5) | Dùng model đã kiểm chứng: `global.anthropic.claude-haiku-4-5-20251001-v1:0` |
-| `401` dù đã đăng nhập | Gửi **ID token** thay vì access token | `apps/web/src/api/client.ts` chỉ gửi `user.access_token` (có test) |
-| Cognito báo `redirect_mismatch` | Vite chạy ở cổng khác 5173 | `strictPort: true` trong `vite.config.ts`; tắt tiến trình đang giữ cổng 5173 |
-| Logout xong lại thấy trang login của Cognito thay vì quay về app | Gửi `post_logout_redirect_uri` (chuẩn OIDC) mà Cognito bỏ qua | Gửi `client_id` + `logout_uri` (`cognitoLogoutParams`) |
-| `Unsupported class file major version 69` | Chạy bằng JDK 21 | Đặt `JAVA_HOME` trỏ tới JDK 25 |
+| `401` dù đã đăng nhập | Gửi **ID token** thay vì access token | Lấy `accessToken` từ Amplify `fetchAuthSession()` |
+| `jars-api needs JDK 21 or newer` (từ maven-enforcer) hoặc `Unsupported class file major version 65` | Chạy bằng JDK 17 hoặc 8 | Đặt `JAVA_HOME` trỏ tới JDK 21 |
 | LocalStack thoát ngay khi start | Thiếu `LOCALSTACK_AUTH_TOKEN` | Xem mục 2 |
 | `AccessDeniedException` / `ExpiredToken` từ AWS | Phiên `aws login` hết hạn (12 giờ) hoặc model Bedrock chưa được bật | `aws login --profile jars-dev`; kiểm tra model access ở console Bedrock (ap-southeast-1) |

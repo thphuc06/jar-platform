@@ -1,6 +1,6 @@
 # API Contract
 
-> Nguồn sự thật cuối cùng là file **OpenAPI** do `jars-api` sinh ra (springdoc), được commit ở [`contracts/openapi/jars-api.yaml`](../../contracts/openapi/jars-api.yaml) (✅ P1.10, [ADR-0019](../04-adr/0019-code-first-openapi-contract.md)). `OpenApiContractTest` bảo đảm file đó khớp với API, security trong file đúng với filter chain, và response thật của mọi operation khớp schema. Từ file này sinh TypeScript client cho `web` (`openapi-typescript`). Tài liệu này là bản thiết kế và giải thích các quy ước.
+> Nguồn sự thật cuối cùng là file **OpenAPI** do `jars-api` sinh ra (springdoc), được commit ở `contracts/openapi/jars-api.yaml`. Từ file này sinh TypeScript client cho `web` (`openapi-typescript`). Tài liệu này là bản thiết kế và giải thích các quy ước.
 
 ## 1. Quy ước chung
 
@@ -9,29 +9,12 @@
 | Base path | `/api/v1` (CloudFront chuyển `/api/*` sang ALB) |
 | Định dạng | JSON UTF-8, field `camelCase`; tiền là **string** dạng số thập phân (`"85000.00"`) kèm `currency`, tránh JS làm tròn số |
 | Thời gian | ISO-8601 UTC (`2026-11-15T03:21:09Z`); tháng dạng `YYYY-MM` |
-| `null` và field vắng | Response **luôn có đủ mọi field**, kể cả khi giá trị là `null` (OpenAPI: mọi property đều `required`). Field có thể `null` được khai báo bằng JSpecify `@Nullable` trên DTO, hiện trong OpenAPI là `type: [..., "null"]` hoặc `oneOf: [$ref, null]`, và trong TypeScript là `T \| null` (✅ P1.10). Request: field không bắt buộc thì có thể bỏ qua hoặc gửi `null`; với PATCH, bỏ qua và `null` khác nghĩa nhau (§2) |
-| Auth | `Authorization: Bearer <Cognito access token>` cho mọi endpoint trừ `/api/v1/health`. Metadata RFC 9728 công khai tại `/.well-known/oauth-protected-resource` |
-| Lỗi | **RFC 9457 `application/problem+json`**, luôn có `type`, `title`, `status`, `detail`, `instance`, **`traceId`**. `type` = `https://jars.local/problems/{code}`: `code` là định danh ổn định (UI dịch thông báo theo `code`, còn `detail` là tiếng Anh dành cho developer). Validation có thêm `errors: [{field, message}]` |
-| Phân trang | **Cursor (keyset)**: `?limit=50&cursor=<opaque>` → `{items, nextCursor}`; `nextCursor = null` ở trang cuối; cursor sửa tay → 422 `invalid-cursor` (✅ P1.7). Không có tổng số dòng: đếm `COUNT(*)` mỗi trang là tốn kém và UI cuộn vô hạn không cần |
+| Auth | `Authorization: Bearer <Cognito access token>` cho mọi endpoint trừ `/api/v1/health` |
+| Lỗi | **RFC 9457 `application/problem+json`** |
+| Phân trang | **Cursor (keyset)**: `?limit=50&cursor=<opaque>` → `{items, nextCursor}` |
 | Idempotency | Header `Idempotency-Key` (UUID) **bắt buộc** với các POST làm thay đổi tiền |
 | Versioning | Chỉ đổi `/v1` → `/v2` khi phá vỡ tương thích; thêm field optional thì không đổi |
-| Correlation | Gửi `traceparent` (W3C) thì server tiếp tục trace đó; không gửi thì server tạo mới. Response **luôn** có header `traceparent`. Mọi dòng log phía server đều có `traceId` (✅ P1.3) |
-
-### Mã lỗi (`code`) hiện có (✅ P1.3)
-
-| `code` | HTTP | Khi nào |
-|---|---|---|
-| `validation-failed` | 422 | `@Valid` body hoặc ràng buộc trên `@RequestParam`/`@PathVariable` sai; kèm `errors[]` |
-| `{resource}-not-found` | 404 | Ví dụ `jar-not-found`. Không tồn tại **hoặc** không thuộc user (không trả 403: 403 xác nhận rằng id đó tồn tại). Đã kiểm chứng ở P1.12 (`CrossUserAccessTest`) cho mọi `{id}` trên path, id trong body và bộ lọc |
-| *(mã nghiệp vụ)* | 422 | ✅ P1.5: `insufficient-jar-balance`, `expense-requires-jar`, `expense-from-pool`, `jar-archived`, `category-kind-mismatch`, `same-jar-transfer`, `use-transfer-endpoint`, `occurred-at-in-future` (lệch quá 5 phút); P1.7: `transfer-has-no-category`, `transfer-jars-immutable`; P1.8: `target-date-not-in-future`, `funding-jar-is-pool`, `funding-jar-archived`, `use-delete-to-archive` |
-| `email-already-registered` | 409 | Email đã gắn với tài khoản Cognito khác |
-| `invalid-cursor` | 422 | `cursor` không phải do API trả về (✅ P1.7) |
-| `idempotency-key-reused` | 422 | Cùng `Idempotency-Key` đã dùng cho một request khác (✅ P1.6, [§4](#4-idempotency)) |
-| `concurrent-modification` | 409 | Request khác sửa cùng hũ cùng lúc và vẫn xung đột sau 3 lần retry phía server; không có gì được ghi, client gửi lại được (✅ P1.5) |
-| `conflict` | 409 | Ràng buộc DB bị vi phạm mà code chưa kiểm tra trước (không lộ SQL) |
-| `unauthorized` / `forbidden` | 401 / 403 | Lỗi xác thực / thiếu scope (do Spring Security sinh ra) |
-| `internal-error` | 500 | Lỗi không lường trước; không có stack trace; client nên gửi kèm `traceId` khi báo lỗi |
-| `about:blank` | 400, 404, 405, 415 | Lỗi chuẩn của Spring MVC (JSON hỏng, sai kiểu tham số, đường dẫn không tồn tại, sai method) |
+| Correlation | Response có header `traceparent` (W3C). Nên log `traceId` |
 
 ### Ví dụ lỗi
 
@@ -42,17 +25,18 @@
   "status": 422,
   "detail": "Hũ PLAY còn 120000.00 VND, yêu cầu chi 200000.00 VND",
   "instance": "/api/v1/transactions",
-  "traceId": "4bf92f3577b34da6a3ce929d0e0e4736"
+  "traceId": "4bf92f3577b34da6a3ce929d0e0e4736",
+  "errors": [{ "field": "amount", "message": "vượt số dư" }]
 }
 ```
 
 | HTTP | Khi nào |
 |---|---|
 | 400 | JSON sai cú pháp, sai kiểu dữ liệu |
-| 401 | Thiếu hoặc sai token (kể cả **ID token**: chỉ nhận access token). Có header `WWW-Authenticate: Bearer ...`; nội dung là ProblemDetail `type=.../unauthorized` |
-| 403 | Thiếu scope: **mọi GET `/api/**` cần `jars-api/read`; mọi method khác cần `jars-api/write`**. ProblemDetail `type=.../forbidden`. Đường dẫn ngoài danh sách cho phép bị chặn mặc định (`denyAll`) |
+| 401 | Thiếu hoặc sai token |
+| 403 | Thiếu scope |
 | 404 | Không tồn tại **hoặc không thuộc user** (chống IDOR) |
-| 409 | Xung đột version (sau khi đã retry vẫn thất bại) |
+| 409 | Xung đột đồng thời (version hoặc deadlock) còn lại sau khi đã retry tối đa 5 lần |
 | 422 | Sai quy tắc nghiệp vụ (validation, số dư, Idempotency-Key bị dùng lại với request khác) |
 | 429 | Vượt rate limit (có header `Retry-After`) |
 | 503 | Phụ thuộc bên ngoài lỗi (quant-fn, Bedrock); circuit đang mở |
@@ -62,51 +46,54 @@
 ### Identity
 | Method | Path | Mô tả | Phase |
 |---|---|---|---|
-| GET | `/me` | ✅ (P1.2) Thông tin user `{id, email, displayName, locale, createdAt}`; tự tạo lazy ở lần gọi đầu. Cần scope `jars-api/read` | 1 |
+| GET | `/me` | Thông tin user (tự tạo lazy ở lần gọi đầu) | 1 |
 | PATCH | `/me` | Đổi `displayName`, `locale` | 1 |
-| PUT | `/me/risk-profile` | ✅ (P1.8) `{riskTolerance, horizon, liquidity, experience, mainGoal}` (mã ở [BR-4](../01-product/business-rules.md#br-4-bảng-hỏi-khẩu-vị-rủi-ro-onboarding), đủ 5 câu) → 200 `{answers, score, maxScore, riskLevel, capped, questionnaireVersion, assessedAt}`. Mỗi lần gửi lưu một bản ghi mới | 1 |
-| GET | `/me/risk-profile` | ✅ (P1.8) Hồ sơ hiện tại (bản mới nhất); chưa làm bảng hỏi → 404 `risk-profile-not-found` | 1 |
+| PUT | `/me/risk-profile` | Nộp 5 câu trả lời onboarding `{"answers":[2,3,2,2,1]}` (mỗi phần tử là chỉ số lựa chọn, thứ tự câu hỏi như UI) → `{score 0..100, riskLevel, assessedAt}`. Mỗi lần nộp thêm một dòng lịch sử; bảng điểm ở `RiskQuestionnaire` | 1 |
+| GET | `/me/risk-profile` | Risk profile hiện tại (404 nếu chưa làm onboarding) | 1 |
 
 ### Ledger: hũ và giao dịch
 | Method | Path | Mô tả | Phase |
 |---|---|---|---|
-| GET | `/jars` | ✅ (P1.5) `{jars: [{id, code, name, targetPct, balance}], poolJarId, unallocated, total, currency}`: `POOL` bị ẩn khỏi `jars`, số dư của nó là `unallocated`, id của nó là `poolJarId` (✅ P1.11c: client cần id này làm `fromJarId` để phân bổ thu nhập; trước đó chỉ đọc được trong DB); `total` gồm cả `POOL` ([BR-1, BR-2](../01-product/business-rules.md)). Lần gọi đầu tự tạo hũ mặc định nếu listener chưa chạy xong | 1 |
+| GET | `/jars` | Danh sách hũ + số dư | 1 |
 | POST | `/jars` | Tạo hũ tùy chỉnh | 1 |
-| PATCH | `/jars/{id}` | Đổi tên, `targetPct` (tổng các hũ phải = 100) | 1 |
+| PATCH | `/jars/{id}` | Đổi tên, `targetPct`. Tổng tỷ lệ các hũ đang dùng phải **≤ 100** (422 `allocation-exceeds-100`); phải bằng đúng 100 khi áp dụng một lần phân bổ thu nhập | 1 |
 | DELETE | `/jars/{id}` | Archive (chỉ khi số dư = 0) | 1 |
-| POST | `/jars/transfers` | ✅ (P1.5) `{fromJarId, toJarId, amount, note?, occurredAt?}` → 201 + `Location`. Chuyển tiền giữa 2 hũ, **gồm cả phân bổ từ `POOL`** (`fromJarId` = id của `POOL`) (**Idempotency-Key bắt buộc**, ✅ P1.6) | 1 |
-| GET | `/categories` | ✅ (P1.5) `{items: [{id, name, kind, defaultJarCode, system}]}`: danh mục hệ thống (BR-3) + của user | 1 |
-| GET | `/transactions?limit&cursor&jarId&categoryId&type&from&to` | ✅ (P1.7) Money Inbox, mới nhất trước. `limit` 1–100 (mặc định 50); `jarId` khớp cả giao dịch chuyển **vào** hũ; `from` bao gồm, `to` không bao gồm (ISO-8601). Mỗi item có `jar {id, code, name}`, `toJar`, `category {id, name}`, nên UI không phải tra thêm | 1 |
-| GET | `/transactions/{id}` | ✅ (P1.7) Một giao dịch, cùng dạng với item ở trên; của user khác → 404 | 1 |
-| POST | `/transactions` | ✅ (P1.5) `{type: INCOME/EXPENSE, amount, jarId?, categoryId?, counterparty?, note?, occurredAt?}` → 201 + `Location` + `{transaction, jars: [{id, code, balance}]}` (số dư mới của các hũ bị ảnh hưởng). INCOME không có `jarId` thì vào `POOL`; EXPENSE bắt buộc có `jarId` khác `POOL` ([BR-2](../01-product/business-rules.md)). `amount` nhận string hoặc number, phải là số đồng nguyên dương (BR-5, `@VndAmount`) (**Idempotency-Key bắt buộc**, ✅ P1.6) | 1 |
-| PATCH | `/transactions/{id}` | ✅ (P1.7) `{categoryId?, note?, jarId?}` theo kiểu merge-patch: **không gửi** = giữ nguyên, gửi **`null`** = xóa (`categoryId`, `note`). Đổi hũ sinh cặp bút toán `ADJUST`; trả 200 `{transaction, jars}` (các hũ đổi số dư). Tự nhiên idempotent nên **không** cần Idempotency-Key. Giao dịch `JAR_TRANSFER` chỉ sửa được `note` | 1 |
-| GET | `/balances/daily?days=30` | ✅ (P1.9) `{items: [{date, balance}], currency}`: tổng số dư cuối mỗi ngày (giờ VN) trong `days` ngày (1–366), cũ nhất trước, hôm nay cuối; tính theo `occurredAt` (số dư đầu kỳ + cộng dồn) | 1 |
+| POST | `/jars/transfers` | Chuyển tiền giữa 2 hũ (**Idempotency-Key**); hũ nguồn phải đủ tiền | 1 |
+| GET | `/categories` | Danh mục (mặc định của hệ thống + của user) | 1 |
+| GET | `/transactions?limit&cursor&jarId&categoryId&type&from&to` | Money Inbox | 1 |
+| POST | `/transactions` | Ghi thu/chi (**Idempotency-Key**). Chi bắt buộc có `jarId`; thu có thể không có `jarId` (chỉ ghi nhận thu nhập, chưa vào hũ). Trả `201 {transaction, jarBalances[]}` và header `Idempotency-Replayed: true` khi là bản phát lại | 1 |
+| PATCH | `/transactions/{id}` | Đổi danh mục và/hoặc hũ của một khoản **chi** (đổi hũ sinh bút toán `ADJUST` trả tiền về hũ cũ và `SPEND` trừ hũ mới). Thu nhập chỉ đổi được danh mục; giao dịch chuyển hũ không sửa được | 1 |
+| GET | `/balances/daily?days=30` | Chuỗi số dư theo ngày (biểu đồ) | 1 |
 
 ### Budgeting
 | Method | Path | Mô tả | Phase |
 |---|---|---|---|
-| GET | `/budget/periods/{month}` | Kế hoạch và thực chi theo hũ trong tháng | 2 |
-| POST | `/budget/allocation-suggestions` | Gợi ý tỷ lệ phân bổ cho khoản thu nhập `{amount}` | 2 |
-| POST | `/budget/allocations` | Áp dụng phân bổ thu nhập vào các hũ (**Idempotency-Key**) | 2 |
+| GET | `/budget/periods/{month}` | `{month}` dạng `YYYY-MM` (sai định dạng: 400). Kế hoạch và thực chi của **mọi hũ đang dùng** trong tháng, hũ chưa có dòng nào hiện với số 0: `{month, closed, planned, spent, jars[{jarId, code, name, planned, spent, remaining, closedAt}]}`. `planned` là tiền đã phân bổ vào hũ bằng `POST /budget/allocations` trong tháng đó; `spent` là chi tiêu trong tháng, cập nhật bất đồng bộ từ event nên có thể trễ vài trăm ms. `closed` là true khi mọi hũ đã khép sổ | 2 |
+| POST | `/budget/allocation-suggestions` | Body `{amount}` (> 0, tối đa 2 chữ số thập phân; sai: 422). Trả `200 {amount, lines[{jarId, code, name, targetPct, sharePct, amount}], monthsOfHistory, historyWeight}`: chia `amount` cho các hũ đang dùng theo `targetPct`, điều chỉnh nhẹ theo chi tiêu thực tế 6 tháng gần nhất (quy tắc ở dưới). `sharePct` cộng đúng 100.00 và `amount` các dòng cộng đúng bằng số tiền nhập. Không ghi gì | 2 |
+| POST | `/budget/allocations` | **Idempotency-Key bắt buộc** (thiếu hoặc sai định dạng: 400). Body `{amount, splits[{jarId, amount}], categoryId?, counterparty?, note?, occurredAt?, skip?}`. Ghi **một** khoản thu nhập qua ledger và chia vào các hũ (`LedgerApi.allocateIncome`: một giao dịch `INCOME` không gắn hũ + mỗi hũ một bút toán `ALLOCATE`, cùng một transaction), rồi ghi một dòng `allocation_decisions`. Trả `201 {decisionId, decision, transactionId, amount, month, splits[{jarId, amount, balance}]}` và `Idempotency-Replayed: true` khi là bản phát lại. `decision` là `ACCEPTED` nếu `splits` đúng bằng gợi ý hiện tại cho số tiền đó (hũ gợi ý 0 đồng có thể bỏ khỏi `splits`), ngược lại `EDITED`. `skip: true` (không kèm `splits`) chỉ ghi quyết định `SKIPPED`, không ghi giao dịch nào. Lỗi: 404 hũ không tồn tại **hoặc của người khác**; 422 `invalid-allocation` (không có `splits`, `skip` kèm `splits`), `allocation-sum-mismatch` (tổng các phần khác `amount`), hũ lặp lại, số tiền không dương, hũ đã archive; 422 `idempotency-key-reused` khi dùng lại key cho request khác (thứ tự `splits` và cách viết số như `1000` / `1000.00` không làm request khác đi); 409 khi va chạm đồng thời quá 5 lần | 2 |
+
+**Quy tắc gợi ý phân bổ** (`AllocationPlanner`, port rút gọn từ `allocation.py` cũ): (1) bắt đầu từ `targetPct` của từng hũ (tổng không cần bằng 100, chuẩn hóa lại; không hũ nào có tỷ lệ thì chia đều); (2) nếu có lịch sử chi tiêu (số tháng trọn vẹn có chi trong 6 tháng trước tháng hiện tại, `monthsOfHistory`), trộn thêm tỷ lệ chi thực tế của từng hũ với trọng số `0.20 × min(tháng, 6) / 6` (`historyWeight`); hũ có `targetPct = 0` luôn giữ 0; (3) chuẩn hóa về đúng 100% và làm tròn tiền bằng **largest remainder** nên tổng các phần đúng bằng số tiền nhập. Bỏ so với bản cũ: suy luận "vai trò" của hũ từ tên, thác nước cố định (hóa đơn, 20% khẩn cấp, mục tiêu, sinh hoạt), thu nhập ước từ lịch sử, đề xuất chuyển tiền giữa hũ, độ tin cậy/forecast.
+
+**Áp dụng phân bổ gồm hai bước, mỗi bước idempotent theo cùng một key:** ledger ghi tiền (idempotent theo `(user, key)`), rồi budgeting ghi `allocation_decisions` và cộng `planned_amount` đúng một lần (unique `(user, key)`). Hai bước không chung một transaction vì ledger tự retry khi va chạm optimistic lock. Nếu tiến trình chết giữa hai bước thì client gửi lại cùng request là hoàn tất được; `Idempotency-Replayed` là true chỉ khi quyết định đã được ghi từ trước.
 
 ### Goals
 | Method | Path | Mô tả | Phase |
 |---|---|---|---|
-| GET / POST | `/goals` | ✅ (P1.8) Danh sách `{items}` (chưa archive, ngày đích gần nhất trước) / tạo `{name, targetAmount, targetDate, fundingJarId?}` → 201 + `Location`. Mỗi mục tiêu có `fundingJar {id, code, name, balance, archived}` và `progressPct` ([BR-6](../01-product/business-rules.md#br-6-mục-tiêu-tiết-kiệm-goals)) | 1 |
-| GET / PATCH / DELETE | `/goals/{id}` | ✅ (P1.8) Xem / sửa (merge-patch: không gửi = giữ, `"fundingJarId": null` = bỏ hũ; `status` ACTIVE ⇄ ACHIEVED) / archive (204, idempotent) | 1 |
+| GET / POST | `/goals` | Danh sách / tạo mục tiêu | 1 |
+| PATCH / DELETE | `/goals/{id}` | Sửa / archive | 1 |
 | GET | `/goals/{id}/feasibility` | Khả thi? Cần tiết kiệm bao nhiêu mỗi tháng? | 2 |
 | POST | `/goals/{id}/scenarios` | What-if `{monthlySavingDelta, incomeDelta, ...}` | 2 |
-| GET | `/goals/{id}/roadmap` | Lộ trình theo giai đoạn (khớp type `RoadmapResponse` của UI) | 2 |
+| GET | `/goals/{id}/roadmap` | Lộ trình theo giai đoạn. Cùng cấu trúc với `RoadmapResponse` của prototype hackathon nhưng tên field là **camelCase** (`roadmapContract`, không phải `roadmap_contract`), số tiền là số JSON thuần; kiểu của UI sinh từ OpenAPI | 2 |
 
 ### Insights và notification
 | Method | Path | Mô tả | Phase |
 |---|---|---|---|
-| GET | `/dashboard?month=YYYY-MM` | ✅ (P1.9, trong module ledger) Một request trả đủ: `balances {total, unallocated, allocated}`, `income`, `expense`, `net` của tháng, `byCategory [{categoryId, name, amount}]` (lớn nhất trước; không có danh mục → `null`), `byJar [{jarId, code, name, balance, spent}]` (mọi hũ trừ POOL), `trend` 6 tháng kết thúc ở `month` (tháng trống = 0). Tháng theo **giờ Việt Nam**, mặc định là tháng hiện tại. Chuyển sang read model của `insights` ở P2.3 | 1–2 |
-| GET | `/anomalies?status=OPEN` | Danh sách cảnh báo | 2 |
-| POST | `/anomalies/{id}/feedback` | `{label: CONFIRMED / EXPECTED / FALSE_POSITIVE}` | 2 |
-| GET | `/notifications?limit&cursor` | Danh sách thông báo | 2 |
+| GET | `/dashboard?month=YYYY-MM` | Một request trả đủ: số dư, thu/chi tháng, chi theo danh mục, chi theo hũ, xu hướng 6 tháng | 1–2 |
+| GET | `/anomalies?status&limit&cursor` | `{items, nextCursor}`, mới nhất trước; `status` = OPEN / CONFIRMED / EXPECTED / FALSE_POSITIVE | 2 |
+| POST | `/anomalies/{id}/feedback` | `{label: CONFIRMED / EXPECTED / FALSE_POSITIVE}` (nhãn khác, kể cả OPEN, trả 422; cảnh báo của người khác trả 404) | 2 |
+| GET | `/notifications?limit&cursor&unreadOnly` | `{items, nextCursor, unreadCount}`, mới nhất trước | 2 |
 | POST | `/notifications/{id}/read` | Đánh dấu đã đọc | 2 |
-| GET | `/notifications/stream` | **SSE** thông báo realtime | 2 |
+| GET | `/notifications/stream` | **SSE** thông báo realtime. Gửi comment `: connected` khi mở, `: heartbeat` mỗi 15 s; header `Last-Event-ID` phát lại tối đa 100 thông báo mới hơn id đó | 2 |
 
 ### Imports
 | Method | Path | Mô tả | Phase |
@@ -170,50 +157,31 @@ data: {"id":"0193b2...","type":"ANOMALY","severity":"HIGH","title":"Hũ PLAY tă
 
 ## 4. Idempotency
 
-✅ Cài đặt ở P1.6 cho `POST /transactions` và `POST /jars/transfers`.
+1. Client sinh `Idempotency-Key` (UUIDv4) **một lần cho mỗi ý định của người dùng**. Nếu bấm lại do mạng lỗi thì vẫn gửi **cùng key**.
+2. Server, **trong cùng transaction với nghiệp vụ**: `INSERT idempotency_keys (user_id, key, request_hash) ON CONFLICT DO NOTHING`.
+   - Chèn được: tiếp tục xử lý nghiệp vụ.
+   - Không chèn được (key đã có) và `request_hash` giống: trả response đã lưu. Nếu request trước chưa commit thì INSERT chờ khóa unique tới khi nó commit hoặc rollback.
+   - Không chèn được và `request_hash` khác: trả 422.
+3. Xử lý xong thì `UPDATE` dòng key với `status_code` + `response_body` rồi commit. Nghiệp vụ lỗi thì rollback cả dòng key, nên client gửi lại cùng key vẫn chạy được.
+4. Key hết hạn sau 24 giờ (có job dọn dẹp).
 
-1. Client sinh `Idempotency-Key` (UUID) **một lần cho mỗi ý định của người dùng**. Nếu gửi lại do mạng lỗi hoặc timeout thì vẫn dùng **cùng key và cùng body**. Header **bắt buộc**: thiếu hoặc không phải UUID thì 400.
-2. Key được tính **theo từng user** (khóa chính `(user_id, idempotency_key)`) và sống **24 giờ**.
-3. Server giữ chỗ key **ngay đầu transaction nghiệp vụ** (`INSERT ... ON CONFLICT`) và lưu kết quả **ở cuối cùng transaction đó**. Key và việc trừ tiền vì vậy cùng commit hoặc cùng rollback, không có lúc tiền đã đi mà key chưa được lưu.
-4. Kết quả:
-
-| Tình huống | Response |
-|---|---|
-| Key mới | Thực hiện, 201 |
-| Cùng key, cùng request (kể cả `85000` và `"85000.00"`, vì số tiền được chuẩn hóa trước khi băm) | **201 với đúng body và `Location` của lần đầu**, kèm header `Idempotent-Replayed: true`; không ghi gì thêm |
-| Cùng key, request khác, hoặc cùng key nhưng ở endpoint khác | 422 `idempotency-key-reused` |
-| Hai request cùng key đến **đồng thời** | Request thứ hai **chờ** khóa của dòng key cho tới khi request đầu kết thúc, rồi replay kết quả của nó. Không trả 409 `request-in-progress` như thiết kế ban đầu: client không phải xử lý thêm trường hợp nào |
-| Lần đầu thất bại (ví dụ 422 thiếu số dư) | **Không lưu**: transaction rollback kéo theo dòng key. Gửi lại cùng key sau khi sửa nguyên nhân thì được thực hiện. (Stripe lưu cả response lỗi; ở đây lần lỗi không thay đổi gì nên không cần) |
-| Key đã hết hạn | Request mới chiếm lại key (`ON CONFLICT DO UPDATE ... WHERE expires_at <= now`) |
-
-5. Dọn key hết hạn: chưa có job (key hết hạn vẫn được chiếm lại đúng; bảng chỉ lớn dần). Job dọn dẹp ghi ở P2.1.
-
-
-### Phía client (✅ P1.11c, `apps/web/src/api/idempotency.ts`)
-
-| Tình huống | Key |
-|---|---|
-| Gửi lại **đúng nội dung đó** sau khi thất bại (mất response, 5xx, người dùng bấm Lưu lần nữa) | **Giữ nguyên**: server trả kết quả đã lưu (`Idempotent-Replayed: true`), UI báo "đã ghi từ lần trước" |
-| Người dùng sửa form rồi gửi | **Key mới** (giữ key cũ sẽ bị 422 `idempotency-key-reused`) |
-| Sau khi thành công | **Key mới** cho lần lưu sau, kể cả khi nội dung giống hệt (hai khoản chi bằng nhau là hai hành động) |
-
-Tự retry (tối đa 2 lần, backoff) chỉ cho lỗi mạng và 5xx, **và chỉ an toàn vì retry mang cùng key**; 4xx không retry. `POST /goals` không có key nên **không** tự retry.
+> Thiết kế này thay cho bản trước dùng trạng thái `IN_PROGRESS` và mã 409 `request-in-progress`: vì INSERT nằm trong transaction nghiệp vụ nên request đồng thời tự xếp hàng trên unique index, không cần trạng thái trung gian.
 
 ## 5. Mapping màn hình UI → API
 
-UI cũ (`ius_financial_ui`) gọi thẳng Supabase. Bảng dưới đây là danh sách việc khi chuyển UI sang API mới (Phase 1–4); ✅ = đã chuyển vào `apps/web`.
+UI hiện tại (`ius_financial_ui`) gọi thẳng Supabase. Bảng dưới đây là danh sách việc khi chuyển UI sang API mới (Phase 1–4).
 
 | Màn hình (file) | Hook / lời gọi hiện tại | API mới |
 |---|---|---|
-| Login (`pages/Login.tsx`) | `InitiateAuth USER_PASSWORD_AUTH` + client secret | ✅ P1.11a: bỏ trang; `oidc-client-ts` chuyển tới managed login (Authorization Code + PKCE), về `/auth/callback` ([ADR-0020](../04-adr/0020-spa-auth-oidc-client-ts.md)) |
-| Signup (`pages/Signup.tsx`) | **Giả** (`setTimeout`) | ✅ P1.11a: bỏ trang; đăng ký nằm trên managed login. Request đầu tiên tạo user (F1) |
-| Onboarding (`pages/Onboarding.tsx`) | Không lưu | ✅ P1.11a: `PUT /me/risk-profile` (5 câu khớp 1:1 với enum); user chưa có hồ sơ được đưa tới đây ngay sau đăng nhập |
-| Profile (`pages/Profile.tsx`) | State local (tên, điện thoại, ngày sinh gõ cứng) | ✅ P1.11a: viết lại với `GET /me`, `GET /me/risk-profile`, logout. Sửa tên (`PATCH /me`) chưa có API |
-| Dashboard (`pages/Index.tsx`) | `useLatestBalance`, `useMonthlyFlow`, `useSpendingByCategory`, `useTransactions` | ✅ P1.11b (`pages/Dashboard.tsx`): `GET /dashboard` (không gửi `month` thì server chọn tháng hiện tại theo giờ VN; `?month=` nằm trong URL của UI), `GET /balances/daily?days=30`, `GET /transactions?limit=5`. Bỏ thẻ "Services" gõ cứng (lãi suất 6,5 %, "3 goals") |
-| Money Inbox (`pages/MoneyInbox.tsx`) | `useTransactions`, `useCategories` | ✅ P1.11b: `GET /transactions` theo trang (cursor, nút "Load older"), lọc phía server theo `type`/`categoryId`/`jarId` (lưu trong URL), `GET /categories`, `PATCH /transactions/{id}` chỉ gửi field đã đổi. **Bỏ ô tìm kiếm chữ**: API chưa có `q`, còn lọc trên các trang đã tải sẽ bỏ sót kết quả cũ hơn (xem lại khi cần, ví dụ `pg_trgm`) |
-| Transfer (`pages/Transfer.tsx`) | `useInsertTransaction`, `useJars` | ✅ P1.11c (`pages/NewTransaction.tsx`, route `/transfer`): `POST /transactions` với `type=EXPENSE`, `jarId` = hũ đã chọn, `counterparty` = "số tài khoản (ngân hàng)" (màn này là **chi tiền từ hũ**, không phải chuyển giữa các hũ). **Thêm** chế độ ghi thu nhập (`INCOME`, không `jarId` → `POOL`): UI cũ không có chỗ nào nhập thu nhập |
-| Budget Jars (`pages/BudgetJars.tsx`) | `useJars`, `useAddJar`, `useUpdateJarAllocation`, `useDeleteJar`, `useJarSpending`, `useJarMonthlyTrend`, `useLatestBalance` | ✅ P1.11c: `GET /jars` + `POST /jars/transfers` (phân bổ từ `poolJarId`, chuyển giữa hai hũ, gợi ý số tiền theo `targetPct`). **Bỏ** tạo/xóa hũ và "sửa phân bổ": 6 hũ cố định (BR-1), số dư chỉ đổi qua giao dịch. Ngân sách theo tháng (`/budget/periods`) để Phase 2 |
-| Goal Planner (`pages/GoalPlanner.tsx`) + `components/roadmap/*` (đang dùng mock) | `useGoals`, `useAddGoal`, `useDeleteGoal`, `useBalanceHistory`, `mock-roadmap.ts` | ✅ P1.11c (`pages/Goals.tsx`): `GET/POST /goals`, `PATCH /goals/{id}` (merge patch, `status`), `DELETE` (archive). Phần roadmap AI (`/goals/{id}/roadmap`) để Phase 4 |
+| Login (`pages/Login.tsx`) | `InitiateAuth USER_PASSWORD_AUTH` + client secret | Amplify Auth `signInWithRedirect` (managed login + PKCE) |
+| Signup (`pages/Signup.tsx`) | **Giả** (`setTimeout`) | Managed login sign-up, rồi gọi `GET /me` |
+| Onboarding (`pages/Onboarding.tsx`) | Không lưu | `PUT /me/risk-profile` |
+| Profile (`pages/Profile.tsx`) | State local | `GET/PATCH /me`, `GET /me/risk-profile` |
+| Dashboard (`pages/Index.tsx`) | `useLatestBalance`, `useMonthlyFlow`, `useSpendingByCategory`, `useTransactions` | `GET /dashboard?month=` + `GET /transactions?limit=5` |
+| Money Inbox (`pages/MoneyInbox.tsx`) | `useTransactions`, `useCategories` | `GET /transactions`, `GET /categories`, `PATCH /transactions/{id}` |
+| Transfer (`pages/Transfer.tsx`) | `useInsertTransaction`, `useJars` | `POST /transactions` hoặc `POST /jars/transfers` |
+| Budget Jars (`pages/BudgetJars.tsx`) | `useJars`, `useAddJar`, `useUpdateJarAllocation`, `useDeleteJar`, `useJarSpending`, `useJarMonthlyTrend`, `useLatestBalance` | `GET/POST/PATCH/DELETE /jars`, `GET /budget/periods/{month}`, `GET /dashboard` |
+| Goal Planner (`pages/GoalPlanner.tsx`) + `components/roadmap/*` (đang dùng mock) | `useGoals`, `useAddGoal`, `useDeleteGoal`, `useBalanceHistory`, `mock-roadmap.ts` | `/goals/*`, `/goals/{id}/roadmap`, `/balances/daily` |
 | Alerts (`pages/Alerts.tsx`) | `useNotifications`, `useDismissNotification` | `/notifications`, `/notifications/stream`, `/anomalies/{id}/feedback` |
 | AI Chat (`pages/AIChat.tsx`, `FloatingChat.tsx`) | `POST {CHAT_STREAM_URL}` + `POST {STOCK_AGENT_URL}/ask` | `/chat/sessions/*` (một endpoint; câu hỏi cổ phiếu do tool `market` xử lý) |
 | `lib/api.ts` | **Không file nào dùng** | Xóa; thay bằng client sinh từ OpenAPI |

@@ -1,21 +1,25 @@
 package io.github.thphuc06.jars.ledger;
 
-import java.math.BigDecimal;
+import io.github.thphuc06.jars.shared.Money;
+import io.github.thphuc06.jars.shared.UserId;
 import java.time.Instant;
 import java.util.UUID;
-import org.jspecify.annotations.Nullable;
 
 /**
- * Published in the transaction that records a money movement (docs/02-architecture/event-catalog.md). Consumers
- * (insights, budgeting from Phase 2) filter on {@code type}: a JAR_TRANSFER moves money but is not spending.
+ * Money was recorded (income, expense or jar transfer). Published inside the posting transaction, so listeners that
+ * use {@code @ApplicationModuleListener} only see it after a commit, and a rolled-back posting is never announced.
+ *
+ * @param eventId unique per publication (UUIDv7); consumers use it to ignore a redelivered event
+ * @param type {@code INCOME}, {@code EXPENSE} or {@code JAR_TRANSFER}
+ * @param jarId the jar spent from or credited; null for income that is not assigned to a jar
  */
 public record TransactionPosted(
+        UUID eventId,
         UUID transactionId,
-        UUID userId,
-        TransactionType type,
-        BigDecimal amount,
-        String currency,
+        UserId userId,
+        String type,
+        Money amount,
         UUID jarId,
-        @Nullable UUID toJarId,
-        @Nullable UUID categoryId,
-        Instant occurredAt) {}
+        UUID categoryId,
+        Instant occurredAt,
+        String source) {}

@@ -8,19 +8,18 @@
 | Version | File | Nội dung | Bước |
 |---|---|---|---|
 | V1 | `V1__baseline_users.sql` | Bảng `users`: `id` UUID (app sinh), `cognito_sub` UNIQUE, `email` UNIQUE **không phân biệt hoa/thường** (unique index trên `lower(email)`), `locale` mặc định `vi-VN`, `created_at`/`updated_at` | P0.6 |
-| V2 | `V2__event_publication_registry.sql` | Bảng outbox `event_publication` của Spring Modulith, chép từ DDL **v2** chính thức của `spring-modulith-events-jdbc` 2.1.2 (có `status`, `completion_attempts`, `last_resubmission_date`). Khi nâng Modulith: so sánh lại với file `schemas/v2/schema-postgresql.sql` trong jar | P1.4 |
-| V8 | `V8__goals.sql` | `goals` (BR-6): `status` ACTIVE/ACHIEVED/ARCHIVED (soft delete), `@Version`, `funding_jar_id` **không có FK** sang `jars` (bảng của module ledger; kiểm tra qua `LedgerApi` lúc ghi) | P1.8 |
-| V7 | `V7__identity_risk_assessments.sql` | `risk_assessments` (BR-4): mỗi câu trả lời một cột có `CHECK`, `score` 0–13, `risk_level`, `capped`, `questionnaire_version`; chỉ thêm, bản mới nhất là hồ sơ hiện tại | P1.8 |
-| V6 | `V6__transactions_version.sql` | `transactions.version` (optimistic lock): giao dịch giờ sửa được bằng PATCH, nên 2 lần sửa đồng thời không được ghi đè lên nhau | P1.7 |
-| V5 | `V5__idempotency_keys.sql` | `idempotency_keys`: PK `(user_id, idempotency_key)`, `request_hash` (SHA-256 của endpoint + request đã chuẩn hóa), `response_body JSONB`, `expires_at` (24 h) | P1.6 |
-| V4 | `V4__ledger_transactions_and_entries.sql` | `transactions` (amount > 0; `to_jar_id` chỉ có ở `JAR_TRANSFER` và khác `jar_id`; **FK kép `(jar_id, user_id)` → `jars(id, user_id)`**: DB từ chối giao dịch trỏ vào hũ của user khác) và `jar_entries` (dấu của `amount` theo `entry_type`, `balance_after >= 0`, **trigger append-only** chặn UPDATE/DELETE); unique `jars(id, user_id)` | P1.5 |
-| V3 | `V3__ledger_jars_and_categories.sql` | `jars` (CHECK: code hợp lệ, `POOL` ⇔ không có `target_pct`, `POOL` không archive, `balance >= 0`; unique `(user_id, code)` trừ `CUSTOM`) và `categories` (`user_id` NULL = hệ thống; EXPENSE không gợi ý `POOL`; tên unique theo `(user_id, kind, lower(name))` **`NULLS NOT DISTINCT`**) + seed 15 danh mục BR-3 với id cố định | P1.4 |
+| V2 | `V2__idempotency_keys.sql` | Bảng `idempotency_keys` (PK `user_id` + `key`), chủ sở hữu là `platform` | WP1 |
+| V5 | `V5__modulith_event_publication.sql` | `event_publication` (+ `_archive`): outbox của Spring Modulith (cột theo bản 2.1; chế độ hoàn tất `delete`, listener xong thì xóa dòng) | WP4 |
+| V6 | `V6__insights_notifications.sql` | `processed_messages` (inbox), `anomaly_detector_state`, `anomalies`, `monthly_jar_spend`, `monthly_category_spend`, `monthly_cashflow`, `notifications`. Không có khóa ngoại sang bảng của ledger (module chỉ tham chiếu nhau bằng id) | WP4 |
+| V4 | `V4__ledger.sql` | `jars` (có `version`, `balance` cache, index unique `(user_id, code)` cho 6 hũ mặc định), `categories` (+ 19 danh mục hệ thống, id cố định), `transactions` (có `to_jar_id` cho chuyển hũ và các CHECK ràng buộc loại giao dịch), `jar_entries` (chỉ ghi thêm). `currency` là `VARCHAR(3)` thay vì `CHAR(3)` để Hibernate `validate` khớp kiểu. `jar_entries.created_at` là thời điểm **phát sinh** của giao dịch (để vẽ số dư theo ngày), còn `balance_after` là số dư chạy theo **thứ tự ghi sổ** | WP3 |
+| V7 | `V7__budgeting.sql` | `jar_periods` (mỗi hũ mỗi tháng một dòng, `UNIQUE (jar_id, period_month)`, `period_month` là ngày đầu tháng giờ VN, `planned_amount`, `spent_amount`, `closed_at`) và `allocation_decisions` (`UNIQUE (user_id, idempotency_key)`, `decision` ACCEPTED / EDITED / SKIPPED, `suggested`/`applied` JSONB). Không có khóa ngoại sang bảng của ledger hay `users` (giống V6) | WP5 |
+| V3 | `V3__identity.sql` | Bỏ unique index email và cho phép `email` NULL (danh tính chỉ dựa trên `cognito_sub`; access token Cognito không có claim email); thêm `risk_assessments` (một dòng mỗi lần nộp bảng hỏi, dòng mới nhất là hồ sơ hiện tại) | WP2 |
 
 ## 1. Quy ước
 
 | Chủ đề | Quy ước | Lý do |
 |---|---|---|
-| Khóa chính | `UUID` sinh ở app theo **UUIDv7** (có thứ tự theo thời gian) bằng `shared.Ids.newId()`, gán trong factory method của entity. Entity có `@Version Long version` (kiểu **wrapper**): Spring Data coi `version == null` là entity mới và gọi `persist` thay vì `merge`. Entity không có version (`JarEntry`) implement `Persistable` (`isNew()` = chưa qua `@PostPersist`/`@PostLoad`) | Không lộ số lượng bản ghi, index B-tree không bị phân mảnh như UUIDv4. Có id ngay trước khi lưu (dùng được trong event). Không dùng `@UuidGenerator` để cả app chỉ có một bộ sinh id |
+| Khóa chính | `UUID` sinh ở app theo **UUIDv7** (có thứ tự theo thời gian) | Không lộ số lượng bản ghi, index B-tree không bị phân mảnh như UUIDv4 |
 | Tiền | `NUMERIC(19,2)` + cột `currency CHAR(3)`; trong Java dùng `BigDecimal` bọc trong record `Money` | Không bao giờ dùng `double` hay `float`. VND không có đơn vị lẻ nhưng vẫn để scale 2 để sau này mở rộng đa tiền tệ ([ADR-0014](../04-adr/0014-money-and-ledger-model.md)) |
 | Dấu của số tiền | `transactions.amount` luôn **> 0**, hướng dòng tiền thể hiện qua cột `type`. `jar_entries.amount` **có dấu** (+ vào hũ, − ra khỏi hũ) | Dữ liệu người dùng nhập thì dễ hiểu, còn sổ cái thì dễ cộng dồn |
 | Thời gian | `TIMESTAMPTZ`, lưu UTC; trong Java dùng `Instant` | Quy đổi sang giờ `Asia/Ho_Chi_Minh` chỉ khi tính "tháng" hoặc khi hiển thị |
@@ -28,7 +27,7 @@
 | Enum | `TEXT` + `CHECK` constraint; trong Java dùng `enum` + `@Enumerated(STRING)` | Dễ migrate hơn kiểu enum của PostgreSQL |
 | Concurrency | Bảng có cập nhật đồng thời có cột `version BIGINT` (`@Version`) | Optimistic locking |
 | Audit cột | `created_at`, `updated_at` (`@CreatedDate` / `@LastModifiedDate`) | |
-| Xóa | Xóa mềm: `archived_at` với `jars`, `status = ARCHIVED` với `goals`; **giao dịch không bao giờ xóa**, muốn sửa thì ghi bút toán điều chỉnh | Giữ toàn vẹn lịch sử tài chính |
+| Xóa | Xóa mềm (`archived_at`) với `jars` và `goals`; **giao dịch không bao giờ xóa**, muốn sửa thì ghi bút toán điều chỉnh | Giữ toàn vẹn lịch sử tài chính |
 | Phân quyền dữ liệu | Mọi bảng nghiệp vụ có `user_id`; mọi query đều lọc theo `user_id` | Chống IDOR |
 
 ## 2. ERD
@@ -44,7 +43,8 @@ erDiagram
     users ||--o{ chat_sessions : opens
     users ||--o{ statement_imports : uploads
     jars ||--o{ jar_entries : "ledger of"
-    jars ||--o{ jar_periods : "budget per month"
+    jars ||--o{ jar_periods : "budget per month (by id, no FK)"
+    users ||--o{ allocation_decisions : decides
     transactions ||--o{ jar_entries : "produces 1..2"
     categories ||--o{ transactions : classifies
     categories ||--o{ categories : parent
@@ -57,7 +57,7 @@ erDiagram
     users {
         uuid id PK
         text cognito_sub UK "JWT sub"
-        text email UK
+        text email "nullable, không unique (V3)"
         text display_name
         text locale "vi-VN"
         timestamptz created_at
@@ -65,21 +65,15 @@ erDiagram
     risk_assessments {
         uuid id PK
         uuid user_id FK
-        int questionnaire_version
-        text risk_tolerance "Q1"
-        text horizon "Q2"
-        text liquidity "Q3"
-        text experience "Q4"
-        text main_goal "Q5, not scored"
-        int score "0..13"
+        jsonb answers
+        int score
         text risk_level "CONSERVATIVE|BALANCED|GROWTH"
-        boolean capped
         timestamptz assessed_at
     }
     jars {
         uuid id PK
         uuid user_id FK
-        text code "NEC|FFA|LTSS|EDU|PLAY|GIVE|POOL|CUSTOM"
+        text code "NEC|FFA|LTSS|EDU|PLAY|GIVE|CUSTOM"
         text name
         numeric target_pct "0..100"
         numeric balance "cached = SUM(jar_entries)"
@@ -91,18 +85,33 @@ erDiagram
         uuid id PK
         uuid jar_id FK
         uuid transaction_id FK "nullable"
-        text entry_type "INCOME|SPEND|TRANSFER_IN|TRANSFER_OUT|ADJUST"
+        text entry_type "ALLOCATE|SPEND|TRANSFER_IN|TRANSFER_OUT|ADJUST"
         numeric amount "signed"
         numeric balance_after
         timestamptz created_at
     }
     jar_periods {
         uuid id PK
-        uuid jar_id FK
+        uuid jar_id "UNIQUE cùng period_month, không FK"
+        uuid user_id
+        date period_month "ngày đầu tháng, giờ VN"
+        numeric planned_amount "đã phân bổ vào hũ trong tháng"
+        numeric spent_amount "đã chi, cộng dồn từ event"
+        timestamptz closed_at "đặt một lần khi khép sổ"
+        timestamptz created_at
+    }
+    allocation_decisions {
+        uuid id PK
+        uuid user_id
+        text idempotency_key "UNIQUE cùng user_id"
+        text request_hash
+        text decision "ACCEPTED|EDITED|SKIPPED"
+        numeric amount ">0"
         date period_month
-        numeric planned_amount
-        numeric spent_amount
-        timestamptz closed_at
+        uuid transaction_id "null khi SKIPPED"
+        jsonb suggested "[{jarId, amount}] gợi ý"
+        jsonb applied "[{jarId, amount}] đã áp dụng"
+        timestamptz created_at
     }
     categories {
         uuid id PK
@@ -110,7 +119,6 @@ erDiagram
         uuid parent_id FK
         text name
         text kind "EXPENSE|INCOME"
-        text default_jar_code "suggested jar (BR-3)"
     }
     transactions {
         uuid id PK
@@ -118,8 +126,8 @@ erDiagram
         text type "INCOME|EXPENSE|JAR_TRANSFER"
         numeric amount ">0"
         char currency
-        uuid jar_id FK "INCOME: POOL or chosen jar; EXPENSE: paying jar; JAR_TRANSFER: source"
-        uuid to_jar_id FK "JAR_TRANSFER only"
+        uuid jar_id FK "nullable for INCOME; nguồn của JAR_TRANSFER"
+        uuid to_jar_id FK "chỉ cho JAR_TRANSFER"
         uuid category_id FK
         text counterparty
         text note
@@ -134,19 +142,18 @@ erDiagram
         text name
         numeric target_amount
         date target_date
-        uuid funding_jar_id "jar id, no FK (other module)"
+        uuid funding_jar_id FK
         text status "ACTIVE|ACHIEVED|ARCHIVED"
-        bigint version
     }
     anomaly_detector_state {
         uuid jar_id PK
-        numeric cusum_pos
-        numeric cusum_neg
-        numeric ref_mean
-        numeric ref_sigma
-        numeric k_param
-        numeric h_param
+        uuid user_id
         int sample_count
+        double mean "Welford: trung bình chạy"
+        double m2 "Welford: tổng bình phương độ lệch"
+        double cusum_pos
+        double cusum_neg
+        jsonb recent_amounts "cửa sổ cho kiểm định MAD"
         bigint version
     }
     anomalies {
@@ -156,8 +163,11 @@ erDiagram
         uuid transaction_id FK
         text detector "CUSUM|MAD"
         text direction "UP|DOWN"
+        text severity "LOW|MEDIUM|HIGH"
         numeric score
         numeric threshold
+        numeric amount
+        timestamptz feedback_at
         text status "OPEN|CONFIRMED|EXPECTED|FALSE_POSITIVE"
         timestamptz detected_at
     }
@@ -201,11 +211,12 @@ erDiagram
 
 | Bảng | Module | Mục đích |
 |---|---|---|
-| `idempotency_keys` (`user_id`, `idempotency_key`) PK, `request_hash`, `response_body JSONB`, `expires_at` | ledger (`IdempotencyStore`, chạy **bên trong** transaction nghiệp vụ, không phải filter: filter nằm ngoài transaction nên không commit cùng việc trừ tiền được) | Header `Idempotency-Key` cho các POST làm thay đổi tiền ([api-contract.md](../03-api/api-contract.md#4-idempotency)) |
+| `idempotency_keys` (`user_id`, `key`) PK, `request_hash`, `status_code`, `response_body JSONB`, `expires_at` | platform (dùng chung cho ledger, budgeting) | Header `Idempotency-Key` cho các POST làm thay đổi tiền ([api-contract.md](../03-api/api-contract.md#4-idempotency)). Thuộc `platform` vì nhiều module nghiệp vụ cùng dùng, và `platform` không được phụ thuộc module nghiệp vụ |
 | `processed_messages` (`consumer`, `message_id`) PK, `processed_at` | platform | **Inbox**: bỏ qua message SQS trùng (at-least-once) |
-| `event_publication` | Spring Modulith (bản lưu JDBC), Flyway V2 tạo bảng | **Outbox**: mỗi listener quan tâm có 1 dòng, ghi cùng transaction nghiệp vụ. `completion-mode=delete`: listener thành công thì xóa dòng, lỗi thì giữ (`status=FAILED`) để gửi lại. Không dùng bảng `_archive` |
-| `monthly_jar_spend` (`user_id`, `jar_id`, `month`) PK, `spent`, `txn_count` | insights | **Read model** cho dashboard (CQRS-lite), cập nhật từ event |
-| `allocation_decisions` | budgeting | Lưu user chấp nhận, sửa hay bỏ qua gợi ý phân bổ, dùng để cải thiện gợi ý |
+| `event_publication` (+ `_archive`) | Spring Modulith tự quản lý | **Outbox**: event được ghi cùng transaction nghiệp vụ |
+| `monthly_jar_spend` (`user_id`, `jar_id`, `month`) PK, `spent`, `txn_count`; `monthly_category_spend` (`category_id` = UUID toàn số 0 cho khoản chi chưa phân loại); `monthly_cashflow` (`income`, `expense`) | insights | **Read model** cho dashboard (CQRS-lite), cập nhật từ event bằng upsert cộng dồn (delta), nên chuyển một khoản chi sang hũ/danh mục khác chỉ là delta âm và dương |
+| `allocation_decisions` (`user_id`, `idempotency_key`) UNIQUE | budgeting | Lưu user chấp nhận (`ACCEPTED`), sửa (`EDITED`) hay bỏ qua (`SKIPPED`) gợi ý phân bổ, kèm gợi ý và phần đã áp dụng (JSONB) để cải thiện gợi ý sau này. Unique theo khóa idempotency nên gửi lại cùng request không ghi dòng thứ hai và không cộng `planned_amount` hai lần |
+| `jar_periods` (`jar_id`, `period_month`) UNIQUE | budgeting | Kế hoạch và thực chi của hũ theo tháng. `planned_amount` cộng khi áp dụng một lần phân bổ; `spent_amount` cộng dồn (delta) từ `TransactionPosted` / `TransactionRecategorized`, nên chi tiêu chuyển sang hũ khác chỉ là delta âm và dương. Job khép sổ đặt `closed_at` (không bao giờ dời) và tạo dòng tháng sau |
 | `audit_log` | platform | `actor`, `action`, `entity_type`, `entity_id`, `trace_id`, `payload JSONB` |
 | `BATCH_*` | Spring Batch tự quản lý | Metadata của job import |
 | `SPRING_AI_CHAT_MEMORY` (tùy chọn) | advisor | Nếu dùng JDBC chat memory repository của Spring AI |
@@ -226,7 +237,7 @@ erDiagram
 | Bản cũ | Bản mới | Vì sao |
 |---|---|---|
 | `jars.allocated_amount`, `used_amount` bị cập nhật đè, `remaining_amount` là cột tính | `jar_entries` chỉ ghi thêm + `jars.balance` cache + `version` | Cập nhật đè gây **lost update** khi có 2 request đồng thời và không còn lịch sử để đối soát |
-| `transactions.jar_id`, `category_id` NOT NULL cho mọi loại | `jar_id` luôn có (INCOME chưa chọn hũ thì là `POOL`), `category_id` tùy chọn; có thêm `type` và `to_jar_id` | Thu nhập chưa vào hũ nào; chuyển hũ là một loại giao dịch riêng |
+| `transactions.jar_id`, `category_id` NOT NULL cho mọi loại | `jar_id` có thể null với INCOME; có thêm `type` | Thu nhập chưa vào hũ nào; chuyển hũ là một loại giao dịch riêng |
 | `direction debit/credit` + `affects_jar_balance` | `type` + bút toán `jar_entries` | Bỏ cờ boolean khó hiểu |
 | Bảng `tier1_*` riêng cho CUSUM | `anomaly_detector_state`, `anomalies` thuộc module insights | Đặt tên theo nghiệp vụ, không theo "tier" kỹ thuật |
 | `*_log` nhiều bảng JSONB cho trace của agent | `audit_log` + trace qua OpenTelemetry | Không lưu payload của LLM vào DB nghiệp vụ |

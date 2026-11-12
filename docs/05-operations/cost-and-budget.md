@@ -46,35 +46,6 @@
 | **SLEEP** | `desiredCount=0`; giữ ALB, CloudFront, Valkey; Aurora pause | ≈ $19 | ≈ $25 | ≈ $25 |
 | **TEARDOWN** | `cdk destroy JarsApp`; chỉ còn Data/Auth/Network/Messaging/Foundation | **≈ $1** | ≈ $1 | ≈ $1 |
 
-### Cách dùng thực tế: TEARDOWN + phiên test (chọn ngày 2026-10-27)
-
-Giữ lâu dài những stack **gần như miễn phí và chứa thứ không được mất**; `JarsApp` (thứ tính tiền theo giờ) chỉ deploy khi test rồi `cdk destroy` ngay sau đó.
-
-| Stack | Giữ hay xóa | Vì sao | USD/tháng |
-|---|---|---|---|
-| `JarsAuth` | **Giữ** | User Cognito (xóa là mất tài khoản đăng nhập) | 0 (free tier Essentials) |
-| `JarsFoundation` | **Giữ** | Image ECR (để rollback), OIDC role cho CI, SNS, Budget (không có action nên miễn phí) | ≤ 0.2 (ECR khoảng 0.19 GB × tối đa 10 image) |
-| `JarsNetwork` | **Giữ** | VPC, subnet, IGW, security group không tính phí; không có IPv4 public nào khi không có task | 0 |
-| `JarsData` (P3.3) | **Giữ, Aurora tự pause** | Dữ liệu; tạo lại cluster mất khoảng 10 phút | ≈ 0.5 (storage 1 GB 0.11 + secret 0.40) |
-| `JarsApp` (P3.4) | **Deploy khi test, destroy ngay sau đó** | ECS, ALB, CloudFront: tính theo giờ | xem bảng dưới |
-
-**Một phiên test** (`JarsApp` đang chạy, Aurora đang thức):
-
-| Thành phần | USD/giờ |
-|---|---|
-| Fargate 0.5 vCPU + 1 GB (ARM) | 0.0246 |
-| IPv4 public của task | 0.005 |
-| ALB + khoảng 0.1 LCU | 0.026 |
-| Aurora 0.5 ACU (chỉ khi có kết nối; pause khi rảnh) | 0.10 |
-| **Tổng** | **≈ 0.16** |
-
-Ví dụ: 8 phiên × 3 giờ mỗi tháng ≈ **$3.8** + phần giữ lại ≈ $0.7 → **≈ $4.5/tháng** (RUNNING 24/7: ≈ $51). Mỗi phiên tốn thêm khoảng 20–30 phút deploy/destroy, phần lớn do CloudFront.
-
-**Rủi ro của cách này và cách chặn:**
-1. **Quên destroy:** `JarsApp` chạy liền ≈ $40/tháng, cộng Aurora không pause (pool giữ kết nối) ≈ $73/tháng. Chặn bằng: Budget cảnh báo ở 50 % của $30; alarm Aurora ACU > 0 trong 6 giờ (P3.3); cân nhắc lịch tự `desiredCount=0` mỗi đêm bằng EventBridge Scheduler.
-2. **Link demo đổi sau mỗi lần deploy lại** (domain `dxxxx.cloudfront.net` mới). Muốn link ổn định cho CV thì cần domain riêng (Route 53 hosted zone $0.50/tháng + phí domain) hoặc giữ CloudFront sống giữa các phiên: quyết định khi thiết kế `JarsApp` (P3.4).
-3. **Aurora thức dậy chậm** ở request đầu tiên sau khi pause (vài giây đến khoảng 30 giây, lâu hơn nếu đã pause lâu). Khi demo, mở app trước vài phút.
-
 ### Chi tiết RUNNING (Phase 3)
 
 | Thành phần | Tính | USD/tháng |
@@ -109,11 +80,10 @@ Phase 4 cộng thêm: Valkey khoảng $6 + Bedrock khoảng $3–5 (có rate lim
 
 | Giai đoạn (ước lượng) | Chế độ mặc định | Dự kiến chi |
 |---|---|---|
-| Phase 0–1 (23/10 – 27/10/2026, xong): dev local | Chỉ có `JarsAuth` (Cognito) + Bedrock thử nghiệm | ≈ $1–3 |
-| Phase 3 (28/10 – 15/11/2026; **làm trước Phase 2** từ 27/10, xem roadmap) | RUNNING khi đang làm, TEARDOWN khi nghỉ | ≈ $15–25 |
-| Phase 2 (16/11 – 06/12/2026) | TEARDOWN mặc định; deploy để kiểm chứng tính năng trên AWS (khoản này mới có vì đã deploy sớm) | ≈ $5–15 |
-| Phase 4–6 (12/2026 – 03/2027) | TEARDOWN mặc định; RUNNING vào ngày làm phần cloud hoặc demo | ≈ $30–50 |
-| **Tổng dự kiến cho Jars** | | **≈ $55–95** (trước khi đổi thứ tự: $50–80) |
+| Phase 0–2 (26/10 – 20/12/2026): dev local | Chỉ có `JarsAuth` (Cognito) + Bedrock thử nghiệm | ≈ $1–3 |
+| Phase 3 (21/12/2026 – 03/01/2027) | RUNNING khi đang làm, TEARDOWN khi nghỉ | ≈ $15–25 |
+| Phase 4–6 (01–02/2027) | TEARDOWN mặc định; RUNNING vào ngày làm phần cloud hoặc demo | ≈ $30–50 |
+| **Tổng dự kiến cho Jars** | | **≈ $50–80** |
 
 **Quy tắc vận hành:**
 1. **Mặc định là TEARDOWN.** Chỉ `cdk deploy JarsApp` khi cần làm phần cloud hoặc demo (khoảng 10–15 phút, phần lớn do CloudFront).
@@ -127,7 +97,7 @@ Phase 4 cộng thêm: Valkey khoảng $6 + Bedrock khoảng $3–5 (có rate lim
 | Budget riêng cho project | $30/tháng, lọc `Project=jars`; cảnh báo ở 50/80/100% thực chi và 100% dự báo, gửi email | `JarsFoundation` |
 | Cost Anomaly Detection | Monitor theo AWS service, email tổng hợp hằng ngày. Dịch vụ không tính phí (chỉ tính phí SNS nếu dùng alert tức thời) | Account baseline (thủ công, Phase 0) |
 | Budget tổng tài khoản | Giữ budget $10 hiện có hoặc nâng lên $60 (vì đã có project khác) | Thủ công |
-| Alarm Aurora không pause | `ServerlessDatabaseCapacity` > 0 trong 6 giờ liên tục | `JarsObservability` (tạo sớm ở Phase 3) |
+| Alarm Aurora không pause | `ServerlessDatabaseCapacity` > 0 trong 6 giờ liên tục (mỗi giờ lấy giá trị nhỏ nhất) | `JarsApp` (tạo sớm ở Phase 3; chuyển sang `JarsObservability` ở Phase 6) |
 | CDK test | Không có NAT Gateway; Fargate dùng ARM64; log retention ≤ 14 ngày | `infra/cdk` tests |
 | Tag | `Project=jars` bật làm cost allocation tag | Thủ công, 1 lần (Billing → Cost allocation tags) |
 
@@ -136,3 +106,19 @@ Phase 4 cộng thêm: Valkey khoảng $6 + Bedrock khoảng $3–5 (có rate lim
 | Tuần (thứ Hai) | Chế độ chủ yếu | Chi Jars (USD) | Credit còn lại | Ghi chú |
 |---|---|---|---|---|
 | 2026-10-26 | – | 0.00 | 197.02 | Chưa deploy gì |
+| 2026-11-09 | TEARDOWN | *(chưa có số Cost Explorer)* | *(chưa có)* | Tuần có lần deploy đầu (12/11, xem dưới). Điền số thật vào đây sau khi Cost Explorer có dữ liệu ngày 12–13/11 |
+
+### Lần chạy `JarsApp` đầu tiên (2026-11-12): ước lượng theo đơn giá niêm yết
+
+`JarsApp` tồn tại khoảng một giờ (tạo 18:32, bắt đầu xóa lúc 19:08 giờ VN, xóa xong mất thêm vài phút); chỉ có một task API chạy từ 18:47. **Đây là ước lượng từ bảng giá ở §2 và số giờ thật, không phải số trên hóa đơn.**
+
+| Thành phần | Cách tính | USD |
+|---|---|---|
+| ALB internal | 0,0252 × khoảng 0,6 giờ (từ lúc tạo đến lúc bắt đầu xóa) | 0,02 |
+| Fargate 0,5 vCPU + 1 GB | (0,5 × 0,04045 + 1 × 0,00442) × khoảng 0,35 giờ | 0,01 |
+| IPv4 public của task | 0,005 × khoảng 0,35 giờ | 0,00 |
+| Aurora Serverless v2 | khoảng 0,27 ACU-giờ (đọc từ metric `ServerlessDatabaseCapacity`: tối đa 2 ACU lúc app kết nối lần đầu, 0,5 ACU trong 10 phút trước khi pause) × 0,20 | 0,05 |
+| CloudFront, S3, Cognito, SQS, EventBridge | free tier / gần 0 | 0,00 |
+| **Tổng ước lượng** | | **≈ 0,1** |
+
+Hai điều rút ra: (1) **đã đo:** Aurora tự pause khoảng 6 phút sau connection cuối, nên không tạo ra phần chi phí "ẩn" nào ([bẫy ở §3](#bẫy-chi-phí-ẩn)); (2) **theo bảng giá, chưa đo:** phần đắt nhất của `RUNNING` là ALB và Fargate chạy liên tục (§3), nên `cdk destroy JarsApp` ngay sau khi kiểm xong là cách tiết kiệm đúng chỗ. Các stack nền (`JarsFoundation`, `JarsNetwork`, `JarsAuth`, `JarsData`, `JarsMessaging`) vẫn chạy; chi phí cố định của chúng là Secrets Manager 0,40 USD/tháng, lưu trữ Aurora và ECR vài cent.

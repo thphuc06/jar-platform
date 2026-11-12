@@ -33,7 +33,6 @@ Thiết kế ban đầu định thay root bằng **IAM Identity Center**. Khi b�
 - ✅ Câu chuyện phỏng vấn tốt: "best practice là Identity Center, nhưng bị ràng buộc bởi X nên tôi chọn Y và giảm thiểu rủi ro bằng Z".
 - ⚠️ Không có SSO đa account. Chấp nhận được vì chỉ có 1 account.
 - ⚠️ Mỗi 12 giờ phải chạy lại `aws login`.
-- 📌 *(Phát hiện ở P1.1)* Khi deploy bằng root, CDK báo không assume được các role bootstrap (`cdk-*-deploy-role`...) vì **root không thể assume IAM role**, nên phải dùng thẳng quyền root. Mô hình bootstrap chuẩn (deploy qua role có giới hạn) chỉ hoạt động khi dùng IAM user hoặc role. Thêm một lý do để thực hiện ADR này trước P3.6.
 
 ## Xem lại khi
 Project chuyển sang account mới thuộc Organizations, hoặc credit đã hết hạn (khi đó không còn lý do tránh Organizations).

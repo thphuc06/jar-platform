@@ -1,67 +1,55 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { Loader2 } from "lucide-react";
 import { lazy, Suspense } from "react";
+import { QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
-import { ApiError } from "@/api";
-import RequireAuth from "@/auth/RequireAuth";
-import AppLayout from "@/components/layout/AppLayout";
-import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
-import { TooltipProvider } from "@/components/ui/tooltip";
-import AuthCallback from "./pages/AuthCallback";
-import Install from "./pages/Install";
-import NotFound from "./pages/NotFound";
+import { createQueryClient } from "@/api/queryClient";
+import { AuthProvider } from "@/auth/AuthProvider";
+import ProtectedRoute from "@/auth/ProtectedRoute";
+import AppLayout from "@/components/layout/AppLayout";
+import PageSpinner from "@/components/PageSpinner";
 
-// one chunk per screen: the charts library (recharts) is only downloaded when the Dashboard is opened
-const BudgetJars = lazy(() => import("./pages/BudgetJars"));
-const Dashboard = lazy(() => import("./pages/Dashboard"));
-const Goals = lazy(() => import("./pages/Goals"));
-const MoneyInbox = lazy(() => import("./pages/MoneyInbox"));
-const NewTransaction = lazy(() => import("./pages/NewTransaction"));
+const Login = lazy(() => import("./pages/Login"));
+const AuthCallback = lazy(() => import("./pages/AuthCallback"));
+const Install = lazy(() => import("./pages/Install"));
 const Onboarding = lazy(() => import("./pages/Onboarding"));
+const Index = lazy(() => import("./pages/Index"));
+const MoneyInbox = lazy(() => import("./pages/MoneyInbox"));
+const BudgetJars = lazy(() => import("./pages/BudgetJars"));
+const GoalPlanner = lazy(() => import("./pages/GoalPlanner"));
+const Transfer = lazy(() => import("./pages/Transfer"));
+const Alerts = lazy(() => import("./pages/Alerts"));
 const Profile = lazy(() => import("./pages/Profile"));
+const NotFound = lazy(() => import("./pages/NotFound"));
 
-const PageLoading = () => (
-  <div className="flex justify-center py-16">
-    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" aria-label="Loading" />
-  </div>
-);
-
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      // a 4xx will not change by asking again (404, 422, 401 with an expired session); 5xx/network get 2 retries
-      retry: (failures, error) => !(error instanceof ApiError && error.status < 500) && failures < 2,
-    },
-  },
-});
+const queryClient = createQueryClient();
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
-        <Suspense fallback={<PageLoading />}>
-        <Routes>
-          <Route path="/auth/callback" element={<AuthCallback />} />
-          <Route path="/install" element={<Install />} />
-          <Route element={<RequireAuth />}>
-            <Route path="/onboarding" element={<Onboarding />} />
-            <Route element={<AppLayout />}>
-              <Route path="/" element={<Dashboard />} />
-              <Route path="/inbox" element={<MoneyInbox />} />
-              <Route path="/jars" element={<BudgetJars />} />
-              <Route path="/goals" element={<Goals />} />
-              <Route path="/transfer" element={<NewTransaction />} />
-              <Route path="/profile" element={<Profile />} />
+    <Toaster />
+    <BrowserRouter>
+      <AuthProvider>
+        <Suspense fallback={<PageSpinner />}>
+          <Routes>
+            <Route path="/login" element={<Login />} />
+            <Route path="/auth/callback" element={<AuthCallback />} />
+            <Route path="/install" element={<Install />} />
+            <Route element={<ProtectedRoute />}>
+              <Route path="/onboarding" element={<Onboarding />} />
+              <Route element={<AppLayout />}>
+                <Route path="/" element={<Index />} />
+                <Route path="/inbox" element={<MoneyInbox />} />
+                <Route path="/jars" element={<BudgetJars />} />
+                <Route path="/goals" element={<GoalPlanner />} />
+                <Route path="/alerts" element={<Alerts />} />
+                <Route path="/transfer" element={<Transfer />} />
+                <Route path="/profile" element={<Profile />} />
+              </Route>
             </Route>
-          </Route>
-          <Route path="*" element={<NotFound />} />
-        </Routes>
+            <Route path="*" element={<NotFound />} />
+          </Routes>
         </Suspense>
-      </BrowserRouter>
-    </TooltipProvider>
+      </AuthProvider>
+    </BrowserRouter>
   </QueryClientProvider>
 );
 

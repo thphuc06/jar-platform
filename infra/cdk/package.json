@@ -1,8 +1,0 @@
-{
-  "name": "jars-infra-cli",
-  "private": true,
-  "description": "Pins the AWS CDK CLI version for this repo. Use: npm ci, then npx cdk <command>.",
-  "devDependencies": {
-    "aws-cdk": "2.1145.0"
-  }
-}

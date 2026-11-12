@@ -15,16 +15,17 @@ updates:
     directory: /infra/cdk
     schedule:
       interval: weekly
+    open-pull-requests-limit: 5
     groups:
       # aws-cdk-lib and constructs must move together
       cdk:
         patterns: ["software.amazon.awscdk*", "software.constructs*", "io.github.cdklabs*"]
 
-  # pinned CDK CLI (infra/cdk/package.json)
   - package-ecosystem: npm
-    directory: /infra/cdk
+    directory: /apps/web
     schedule:
       interval: weekly
+    open-pull-requests-limit: 5
 
   - package-ecosystem: github-actions
     directory: /

@@ -14,10 +14,10 @@ Hạ tầng chia thành nhiều stack theo **vòng đời**: stack nào hay bị
 | `JarsFoundation` | ECR repositories (immutable tags, scan on push), GitHub OIDC provider + deploy role, SNS topic cho alarm, AWS Budget theo tag `Project=jars` | Tạo 1 lần, giữ mãi | – |
 | *(không phải stack)* account baseline | S3 Block Public Access (account), EBS default encryption, IAM Access Analyzer, Cost Anomaly Detection: làm bằng tay ở Phase 0 vì áp dụng cho cả account dùng chung ([deployment.md §1](../05-operations/deployment.md#1-chuẩn-bị-tài-khoản-làm-1-lần)) | Giữ mãi | – |
 | `JarsNetwork` | VPC 2 AZ (public / private / isolated subnets), security groups | Giữ mãi (không tốn phí giờ) | – |
-| `JarsData` | Aurora PostgreSQL Serverless v2 + secret, S3 `statements` bucket | Giữ mãi (`RemovalPolicy.SNAPSHOT`) | Network |
-| `JarsAuth` | Cognito User Pool, managed login domain, resource server/scopes | Giữ mãi (user không mất) | – |
-| `JarsMessaging` | SQS (jobs, imports) + DLQ, EventBridge rules, Scheduler; từ Phase 5: SNS FIFO + SQS FIFO | Giữ mãi (gần như $0) | Data (bucket) |
-| `JarsApp` | ECS cluster, task definition, service, internal ALB, CloudFront + VPC origin, web bucket, Cognito app client, (Phase 4) Valkey | **Xóa khi không demo lâu ngày** | Network, Data, Auth, Messaging |
+| `JarsData` | Aurora PostgreSQL Serverless v2 + secret (hoặc RDS với `-c dbMode=rds`). S3 `statements` bucket **chưa tạo**, thêm cùng luồng import | Giữ mãi (`RemovalPolicy.SNAPSHOT`) | Network |
+| `JarsAuth` | Cognito User Pool, managed login domain, resource server/scopes, app client `smoke` cho script smoke test | Giữ mãi (user không mất) | – |
+| `JarsMessaging` | SQS (jobs, imports) + DLQ, EventBridge rules, Scheduler; từ Phase 5: SNS FIFO + SQS FIFO. **Hiện có:** `jars-jobs` + DLQ, schedule `month-close`, alarm DLQ. `jars-imports` và rule `statement-uploaded` chưa tạo | Giữ mãi (gần như $0) | Foundation (alarm topic); Data (bucket) khi có |
+| `JarsApp` | ECS cluster, task definition, service, internal ALB, CloudFront + VPC origin, web bucket, Cognito app client, alarm Aurora không pause, (Phase 4) Valkey. Chỉ được synth khi có context `imageTag` | **Xóa khi không demo lâu ngày** | Foundation, Network, Data, Auth, Messaging |
 | `JarsQuant` | Lambda `quant-fn` (container image) | Giữ (chỉ tính tiền khi gọi) | Foundation (ECR) |
 | `JarsObservability` | CloudWatch dashboard, alarm (5xx, latency, DLQ depth, Aurora ACU) | Phase 6 | App |
 
@@ -32,16 +32,18 @@ Hạ tầng chia thành nhiều stack theo **vòng đời**: stack nào hay bị
 | Hạng mục | Cấu hình |
 |---|---|
 | Distribution | Một distribution, domain mặc định `dxxxx.cloudfront.net` (tùy chọn: domain riêng qua Route 53 + ACM ở us-east-1) |
-| Behavior `/*` (default) | Origin = S3 `web` bucket qua **Origin Access Control (OAC)**; cache policy `CachingOptimized`; SPA fallback (403/404 → `/index.html`) |
+| Behavior `/*` (default) | Origin = S3 `web` bucket qua **Origin Access Control (OAC)**; cache policy `CachingOptimized`; SPA fallback bằng **CloudFront Function** `viewer-request` (đường dẫn không có đuôi file → `/index.html`). Không dùng custom error response 403/404 vì nó áp dụng cả cho `/api/*` ([ADR-0020](../04-adr/0020-spa-fallback-cloudfront-function.md)) |
 | Behavior `/api/*` | Origin = **VPC origin** trỏ tới **internal ALB**; cache policy `CachingDisabled`; origin request policy `AllViewerExceptHostHeader`; allowed methods = ALL. CloudFront **mặc định bỏ header `Authorization`** và không cho thêm header này riêng lẻ vào origin request policy. Chỉ khi chuyển *toàn bộ* viewer header (và tắt cache) thì `Authorization` mới tới origin ([re:Post](https://repost.aws/knowledge-center/cloudfront-authorization-header), [managed policies](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/using-managed-origin-request-policies.html)) |
 | Timeout | Origin response timeout mặc định 30 s. SSE gửi **heartbeat mỗi 15 s** nên kết nối không bị coi là idle. Keep-alive timeout chỉnh được với custom/VPC origin |
-| Response headers policy | HSTS, `X-Content-Type-Options`, `Referrer-Policy`, CSP cho SPA |
+| Response headers policy | HSTS, `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, CSP `frame-ancestors 'none'` (CSP đầy đủ cho SPA thêm khi có UI). Áp dụng cho cả hai behavior |
 | WAF | Tùy chọn ở Phase 6 (tốn phí theo web ACL + rule) |
 
 **Vì sao dùng VPC origin:** CloudFront kết nối thẳng vào ALB nằm trong private subnet thông qua một ENI do AWS quản lý. ALB **không có IP public**, nên không ai bỏ qua CloudFront để gọi thẳng API được. Yêu cầu khi cấu hình:
 - Security group của ALB phải cho phép CloudFront managed prefix list.
 - Subnet phải còn IPv4 trống cho ENI.
 - VPC phải có Internet Gateway (IGW chỉ đánh dấu VPC nhận traffic internet, không dùng để route).
+- Prefix list `origin-facing` tính khoảng 55 rule vào hạn mức security group (mặc định 60 rule), nên `sg-alb` chỉ còn chỗ cho vài rule khác.
+- VPC origin tạo mất tới khoảng 15 phút; origin protocol là HTTP cổng 80.
 
 Docs: [Restrict access with VPC origins](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/private-content-vpc-origins.html).
 
@@ -52,11 +54,9 @@ Docs: [Restrict access with VPC origins](https://docs.aws.amazon.com/AmazonCloud
 | Subnet group (×2 AZ) | CDK `SubnetType` | CIDR | Chứa | Route ra internet |
 |---|---|---|---|---|
 | `public` | `PUBLIC` | 10.20.0.0/24, 10.20.1.0/24 | ECS tasks (`assignPublicIp=ENABLED`) | IGW |
-| `lb` ("private") | `PRIVATE_ISOLATED` | 10.20.2.0/24, 10.20.3.0/24 | internal ALB, ENI của CloudFront VPC origin | Không |
-| `data` ("isolated") | `PRIVATE_ISOLATED` | 10.20.4.0/24, 10.20.5.0/24 | Aurora, Valkey | Không |
+| `lb` ("private") | `PRIVATE_ISOLATED` | 10.20.10.0/24, 10.20.11.0/24 | internal ALB, ENI của CloudFront VPC origin | Không |
+| `data` ("isolated") | `PRIVATE_ISOLATED` | 10.20.20.0/24, 10.20.21.0/24 | Aurora, Valkey | Không |
 
-> **Đã cài đặt (P3.2, [NetworkStack](../../infra/cdk/src/main/java/io/github/thphuc06/jars/infra/NetworkStack.java)):** CIDR do CDK chia lần lượt theo thứ tự nhóm subnet (thiết kế ban đầu ghi 10.20.10.x/10.20.20.x; đã sửa theo code và có test). AZ ghi tường minh `ap-southeast-1a/b` (không tra AZ lúc synth, nên synth không cần credential và không có `cdk.context.json` chứa account id trong repo public). `mapPublicIpOnLaunch=false` (chỉ task ECS xin IP public mới có). Security group mặc định bị làm rỗng (`restrictDefaultSecurityGroup`, ghi rõ trong code vì unit test không đọc feature flag của `cdk.json`). Chưa bật Flow Logs (acknowledge cdk-nag VPC7, xem lại ở P3.9).
->
 > Trong CDK, `PRIVATE_WITH_EGRESS` bắt buộc phải có NAT, nên cả hai nhóm không có NAT đều khai báo là `PRIVATE_ISOLATED`. Tách làm hai nhóm `lb` và `data` để quy tắc security group và NACL rõ ràng hơn.
 
 **Không có NAT Gateway** ([ADR-0013](../04-adr/0013-networking-no-nat.md)). Task cần gọi ra ngoài (Bedrock, SQS, ECR, Cognito JWKS...) thì đi qua IP public của chính nó. An toàn được đảm bảo bằng security group:
@@ -75,14 +75,14 @@ Docs: [Restrict access with VPC origins](https://docs.aws.amazon.com/AmazonCloud
 | Hạng mục | `jars-api` | `insights-worker` (Phase 5) |
 |---|---|---|
 | Launch type | Fargate, **ARM64 (Graviton)** | Fargate ARM64 |
-| CPU / RAM | 0.5 vCPU / 1 GB (JVM `-XX:MaxRAMPercentage=75 -XX:+UseSerialGC -XX:+ExitOnOutOfMemoryError`) | 0.25 vCPU / 0.5 GB |
+| CPU / RAM | 0.5 vCPU / 1 GB (JVM `-XX:MaxRAMPercentage=75`) | 0.25 vCPU / 0.5 GB |
 | Desired count | 1 (dev). Đặt về 0 khi "ngủ" | 1 / 0 |
-| Image | ECR `jars/jars-api:<git-sha>`, [Dockerfile](../../apps/jars-api/Dockerfile) multi-stage, base `eclipse-temurin:25.0.4.1_1-jre-noble` **ghim theo digest**, target `aot` (JDK 25 AOT cache), build trên runner arm64 | `jars/insights-worker:<sha>` |
+| Image | ECR `jars/jars-api:<git-sha>`, base `eclipse-temurin:21-jre` (multi-arch) | `jars/insights-worker:<sha>` |
 | Port | 8080 (ALB target group, health check `/actuator/health/readiness`) | không mở port |
 | Deployment | Rolling + **deployment circuit breaker (auto rollback)**; Phase 6 thử **ECS native blue/green** | Rolling |
 | Logs | `awslogs` driver → CloudWatch Logs, log JSON, retention 14 ngày | như bên trái |
 | Secrets | `secrets:` trong task definition lấy từ Secrets Manager (DB credentials) | như bên trái |
-| Config | Biến môi trường (không phải secret): `SPRING_PROFILES_ACTIVE=aws`, tên queue/topic, model id... | |
+| Config | Biến môi trường (không phải secret): `SPRING_PROFILES_ACTIVE=aws`, `SPRING_DATASOURCE_URL`, `JARS_ISSUER_URI`, `JARS_ALLOWED_CLIENT_IDS`, `JARS_JOBS_QUEUE`, `JAVA_TOOL_OPTIONS=-XX:MaxRAMPercentage=75`, model id... | |
 
 **Task role (quyền của ứng dụng)** và **execution role (quyền của agent ECS để kéo image, đọc secret, ghi log)** là 2 role khác nhau, xem [security.md](security.md#3-iam).
 
@@ -97,9 +97,7 @@ Docs: [Restrict access with VPC origins](https://docs.aws.amazon.com/AmazonCloud
 | `initProcessEnabled` | `true` | Có init process chuyển tiếp tín hiệu và dọn process con |
 | Deregistration delay (target group) | **30 s** (mặc định là 300 s) | Rút ngắn thời gian deploy. Response thường < 1 s. Kết nối SSE dài sẽ bị ALB cắt khi hết draining → client **tự reconnect với `Last-Event-ID`** (đã thiết kế ở [api-contract §3](../03-api/api-contract.md#3-hợp-đồng-sse)) |
 | `readonlyRootFilesystem` | `true` + volume tạm mount vào `/tmp` | Giảm bề mặt tấn công; Tomcat cần `/tmp` để ghi |
-| User trong container | non-root (UID cố định) | Best practice bảo mật container |
-
-> **Đã đo (P3.1, container giới hạn 0.5 vCPU / 1 GB, root filesystem chỉ đọc, `/tmp` tmpfs, UID 10001):** khởi động 21,6 s (image thường) và **10,3 s với AOT cache**, nên grace period 90 s vẫn dư; RAM sau khởi động khoảng 270–300 MiB; `docker stop` (SIGTERM) dừng gọn trong 0,77 s, exit code 143, theo đúng thứ tự Tomcat → outbox Modulith → JPA → Hikari. Image nén: 159 MB (thường), 193 MB (có AOT cache). Layer thay đổi khi sửa code chỉ có `app.jar` khoảng 0,25 MB.
+| User trong container | non-root (UID cố định), đặt trong Dockerfile (CDK không ghi đè `user`) | Best practice bảo mật container |
 
 Docs: [ECS connection draining](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/load-balancer-connection-draining.html), [ECS graceful shutdown (re:Post)](https://repost.aws/knowledge-center/ecs-graceful-shutdown-connection-draining-deployments).
 
@@ -111,10 +109,10 @@ Docs: [ECS blue/green deployments](https://docs.aws.amazon.com/AmazonECS/latest/
 
 | Hạng mục | Cấu hình |
 |---|---|
-| Engine | Aurora PostgreSQL 17.x (bản mới nhất có ở region; scale-to-zero yêu cầu ≥ 16.3) |
+| Engine | Aurora PostgreSQL **17.11** (bản 17.x mới nhất ở ap-southeast-1 theo `describe-db-engine-versions` ngày 2026-11-12; scale-to-zero yêu cầu ≥ 16.3) |
 | Capacity | **min 0 ACU, max 2 ACU**; auto-pause sau **300 s** không có kết nối (`SecondsUntilAutoPause`) |
 | Topology | 1 writer instance (Serverless v2), không có reader |
-| Credentials | `credentials: fromGeneratedSecret` → Secrets Manager; app đọc qua ECS secrets |
+| Credentials | `credentials: fromGeneratedSecret` (user `jarsadmin`) → Secrets Manager, tên secret do CDK sinh (không đặt tên cố định để tạo lại stack không vướng thời gian chờ xóa; xem output `DbSecretArn`); app đọc qua ECS secrets |
 | TLS | Tham số `rds.force_ssl=1` |
 | Backup | Automated backup 1 ngày (tối thiểu); xóa stack thì tạo snapshot |
 | Kết nối từ app | HikariCP `minimum-idle=0`, `idle-timeout=60s`, `max-lifetime=5m`, `spring.datasource.connection-fetch=lazy` (tính năng mới của Boot 4.1) → **không giữ kết nối khi không có request** |
@@ -127,18 +125,17 @@ Docs: [ECS blue/green deployments](https://docs.aws.amazon.com/AmazonECS/latest/
 
 **Phương án dự phòng:** RDS PostgreSQL `db.t4g.micro` ($0.025/giờ ≈ $18/tháng, cố định). Chỉ cần đổi một CDK context flag `-c dbMode=rds`. Xem [ADR-0008](../04-adr/0008-database-aurora-serverless-v2.md).
 
-> **Đã cài đặt (P3.3, [DataStack](../../infra/cdk/src/main/java/io/github/thphuc06/jars/infra/DataStack.java)):** Aurora PostgreSQL **17.9**, 0–2 ACU, pause sau 300 s; subnet `data` + SG `db`; secret `jars-dev-db-credentials` (user `jars_admin`, mật khẩu do Secrets Manager sinh, cluster nhận qua dynamic reference); mã hóa, IAM DB auth bật, **RDS Data API** bật (chạy SQL qua API của AWS, không cần đường mạng vào subnet isolated); deletion protection + `SNAPSHOT`; backup 1 ngày; alarm `jars-dev-db-never-pauses` (Minimum mỗi giờ > 0 trong 6 giờ → SNS). Chưa có S3 bucket `statements` (thuộc tính năng import, làm cùng P2.8). Phía app: Hikari `minimum-idle=0`, `idle-timeout=30000` ms, `keepalive-time=0`; đo ở local: mặc định giữ **10** kết nối khi rảnh, cấu hình mới về **0** sau khoảng 60 s (có test). cdk-nag: acknowledge SMG4 (xoay secret cần Lambda có đường tới Secrets Manager và DB; hướng thay thế là IAM DB auth).
-
 Docs: [Aurora Serverless v2 auto-pause](https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/aurora-serverless-v2-auto-pause.html).
 
 ## 6. Auth: Cognito
 
 | Hạng mục | Cấu hình |
 |---|---|
-| User pool | ✅ **Đã deploy (P1.1)**: `jars-dev-users`, feature plan **Essentials**. Đăng nhập bằng email (tự xác minh); mật khẩu ≥ 10 ký tự gồm hoa, thường, số, ký tự đặc biệt; MFA **tùy chọn** (TOTP, không SMS); khôi phục qua email; `RemovalPolicy.RETAIN` |
-| Managed login | Domain `jars-dev-thphuc06.auth.ap-southeast-1.amazoncognito.com`, `ManagedLoginVersion = 2` + `ManagedLoginBranding` (style mặc định của Cognito) |
-| App client (SPA) | `jars-dev-web-local`: **public client, không có secret**; **chỉ** flow Authorization Code + PKCE (implicit bị từ chối, đã thử); `ExplicitAuthFlows` = SRP + refresh (khai báo tường minh, vì bỏ trống thì Cognito tự bật `CUSTOM_AUTH`); callback `http://localhost:5173/auth/callback` (sai `redirect_uri` → `redirect_mismatch`, đã thử). Client cho domain CloudFront sẽ thêm ở P3.4 |
-| Token | Access token 60 phút (managed login giữ cookie 1 giờ, nên token không nên ngắn hơn), ID token 60 phút, refresh token 30 ngày, bật token revocation; API **chỉ nhận access token** (`token_use=access`) |
+| User pool | Feature plan **Essentials**. Đăng nhập bằng email, tự đăng ký + xác minh email (sender mặc định của Cognito); password policy mặc định (8 ký tự, đủ 4 loại); **MFA tắt** ở dev |
+| Managed login | Domain `jars-dev-thphuc06.auth.ap-southeast-1.amazoncognito.com` (managed login v2; mỗi app client cần một resource branding) |
+| App client (SPA) | **Public client, không có client secret**; flow **Authorization Code + PKCE**; scope `openid email profile`; callback `https://<cloudfront-domain>/auth/callback` và `http://localhost:5173/auth/callback`; logout `https://<cloudfront-domain>/` và `http://localhost:5173/`. Nằm trong `JarsApp` |
+| App client `smoke` | Public, không secret, chỉ `ADMIN_USER_PASSWORD_AUTH` + refresh token, không OAuth. Dành cho script smoke test (script tạo user tạm bằng quyền IAM của người chạy). Nằm trong `JarsAuth` |
+| Token | Access token 60 phút, refresh token 30 ngày; API **chỉ nhận access token** (`token_use=access`) |
 | Resource server | Identifier `jars-api`, scope `jars-api/read`, `jars-api/write` |
 | Lambda trigger | Không có. User nội bộ được tạo lười (lazy) ở request đầu tiên (xem [flows.md](flows.md#f1)) |
 
@@ -149,12 +146,13 @@ Docs: [Cognito pricing](https://aws.amazon.com/cognito/pricing/). Tier Lite/Esse
 | Resource | Loại | Producer → Consumer | Cấu hình chính | Phase |
 |---|---|---|---|---|
 | `jars-jobs` | SQS standard + DLQ | EventBridge Scheduler → jars-api | visibility 5 phút, `maxReceiveCount=5` | 3 |
-| `jars-imports` | SQS standard + DLQ | S3 → EventBridge rule → jars-api | visibility 15 phút | 3 |
+| `jars-jobs-scheduler-dlq` | SQS standard | EventBridge Scheduler (gửi lỗi) | retention 14 ngày; alarm khi có message | 3 |
+| `jars-imports` | SQS standard + DLQ | S3 → EventBridge rule → jars-api | visibility 15 phút | 3 (chưa tạo) |
 | `jars-ledger-events.fifo` | **SNS FIFO** | jars-api (outbox) → subscribers | content-based dedup, message group = `userId` | 5 |
 | `jars-insights-ledger.fifo` | SQS FIFO + DLQ | SNS ledger → insights-worker | raw message delivery | 5 |
 | `jars-insights-events.fifo` | SNS FIFO | insights-worker → subscribers | | 5 |
 | `jars-api-notifications.fifo` | SQS FIFO + DLQ | SNS insights → jars-api | | 5 |
-| Rule `statement-uploaded` | EventBridge (default bus) | S3 `Object Created` (prefix `uploads/`) → `jars-imports` | bucket bật `eventBridgeEnabled` | 3 |
+| Rule `statement-uploaded` | EventBridge (default bus) | S3 `Object Created` (prefix `uploads/`) → `jars-imports` | bucket bật `eventBridgeEnabled` | 3 (chưa tạo) |
 | Schedule `month-close` | EventBridge Scheduler | → `jars-jobs` | `cron(5 0 1 * ? *)`, timezone **Asia/Ho_Chi_Minh**, flexible window off | 3 |
 
 Chi tiết schema và đảm bảo giao nhận: [event-catalog.md](event-catalog.md). Lý do không dùng Kafka/MSK: [ADR-0009](../04-adr/0009-messaging-sns-sqs-eventbridge.md).
@@ -191,9 +189,9 @@ Dùng cho: cache giá cổ phiếu (TTL 60 s), cache dashboard, **rate limit cha
 | Tín hiệu | Phase 3 | Phase 6 |
 |---|---|---|
 | Logs | stdout JSON → CloudWatch Logs (retention 14 ngày) | Thêm `traceId` / `spanId` vào mọi dòng log |
-| Metrics | Container Insights cơ bản + metric mặc định của ALB, Aurora, SQS | Micrometer → OTLP → **ADOT collector sidecar** → CloudWatch (EMF). Cẩn thận cardinality vì mỗi custom metric tốn phí |
+| Metrics | Metric mặc định của ECS, ALB, Aurora, SQS. Container Insights **tắt** (tính phí theo metric; bật được bằng `containerInsightsV2` khi cần) | Micrometer → OTLP → **ADOT collector sidecar** → CloudWatch (EMF). Cẩn thận cardinality vì mỗi custom metric tốn phí |
 | Traces | – | OpenTelemetry (`spring-boot-starter-opentelemetry`) → ADOT → **X-Ray** |
-| Alarm | Budget alarm | 5xx > 1%, p95 > 1 s, DLQ có message, Aurora ACU > 0 liên tục 6 giờ, `jars-jobs` tồn quá 1 giờ |
+| Alarm | Budget alarm; Aurora không pause 6 giờ (trong `JarsApp`); DLQ có message (trong `JarsMessaging`) | 5xx > 1%, p95 > 1 s, DLQ có message, Aurora ACU > 0 liên tục 6 giờ, `jars-jobs` tồn quá 1 giờ |
 
 ## 12. Dịch vụ dùng chung
 

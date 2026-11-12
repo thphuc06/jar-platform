@@ -4,6 +4,38 @@
  */
 
 export interface paths {
+    "/api/v1/anomalies": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["anomalies"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/anomalies/{id}/feedback": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["feedback"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/balances/daily": {
         parameters: {
             query?: never;
@@ -11,7 +43,55 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["getDailyBalances"];
+        get: operations["dailyBalances"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/budget/allocation-suggestions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["suggest"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/budget/allocations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["apply"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/budget/periods/{month}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["period"];
         put?: never;
         post?: never;
         delete?: never;
@@ -27,7 +107,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["listCategories"];
+        get: operations["categories"];
         put?: never;
         post?: never;
         delete?: never;
@@ -43,7 +123,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["getDashboard"];
+        get: operations["dashboard"];
         put?: never;
         post?: never;
         delete?: never;
@@ -75,13 +155,61 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["getGoal"];
+        get?: never;
         put?: never;
         post?: never;
         delete: operations["archiveGoal"];
         options?: never;
         head?: never;
         patch: operations["updateGoal"];
+        trace?: never;
+    };
+    "/api/v1/goals/{id}/feasibility": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["goalFeasibility"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/goals/{id}/roadmap": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["goalRoadmap"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/goals/{id}/scenarios": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["goalScenarios"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/v1/health": {
@@ -91,7 +219,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["getHealth"];
+        get: operations["health"];
         put?: never;
         post?: never;
         delete?: never;
@@ -107,9 +235,9 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["listJars"];
+        get: operations["list_1"];
         put?: never;
-        post?: never;
+        post: operations["create"];
         delete?: never;
         options?: never;
         head?: never;
@@ -125,11 +253,27 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        post: operations["transferBetweenJars"];
+        post: operations["transfer"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/api/v1/jars/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["archive"];
+        options?: never;
+        head?: never;
+        patch: operations["update_1"];
         trace?: never;
     };
     "/api/v1/me": {
@@ -139,13 +283,13 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["getMe"];
+        get: operations["me"];
         put?: never;
         post?: never;
         delete?: never;
         options?: never;
         head?: never;
-        patch?: never;
+        patch: operations["update"];
         trace?: never;
     };
     "/api/v1/me/risk-profile": {
@@ -155,9 +299,57 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["getRiskProfile"];
-        put: operations["assessRiskProfile"];
+        get: operations["riskProfile"];
+        put: operations["submitRiskProfile"];
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/notifications": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["list_2"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/notifications/stream": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["stream"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/notifications/{id}/read": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["read"];
         delete?: never;
         options?: never;
         head?: never;
@@ -171,9 +363,9 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["listTransactions"];
+        get: operations["list"];
         put?: never;
-        post: operations["postTransaction"];
+        post: operations["post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -187,340 +379,638 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["getTransaction"];
+        get?: never;
         put?: never;
         post?: never;
         delete?: never;
         options?: never;
         head?: never;
-        patch: operations["amendTransaction"];
+        patch: operations["recategorize"];
+        trace?: never;
+    };
+    "/dev/token": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["token"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
-        AmendTransactionRequest: {
+        AllocationRequest: {
+            amount: number;
             /** Format: uuid */
-            categoryId?: string | null;
+            categoryId?: string;
+            counterparty?: string;
+            note?: string;
+            /** Format: date-time */
+            occurredAt?: string;
+            skip?: boolean;
+            splits?: components["schemas"]["SplitRequest"][];
+        };
+        AllocationResult: {
+            amount?: components["schemas"]["Money"];
+            decision?: string;
             /** Format: uuid */
-            jarId?: string | null;
-            note?: string | null;
-        };
-        Answers: {
-            /** @enum {string} */
-            experience: "BEGINNER" | "EXPERIENCED" | "VERY_EXPERIENCED";
-            /** @enum {string} */
-            horizon: "UNDER_2_YEARS" | "YEARS_2_TO_5" | "YEARS_5_TO_10" | "OVER_10_YEARS";
-            /** @enum {string} */
-            liquidity: "IMMEDIATE" | "WITHIN_A_MONTH" | "FLEXIBLE";
-            /** @enum {string} */
-            mainGoal: "EMERGENCY_FUND" | "LONG_TERM_GROWTH" | "SPECIFIC_GOAL" | "PASSIVE_INCOME";
-            /** @enum {string} */
-            riskTolerance: "CONSERVATIVE" | "MODERATE" | "AGGRESSIVE";
-        };
-        Balances: {
-            allocated: string;
-            total: string;
-            unallocated: string;
-        };
-        CategoriesResponse: {
-            items: components["schemas"]["CategoryView"][];
-        };
-        CategoryItem: {
-            amount: string;
+            decisionId?: string;
+            month?: string;
+            splits?: components["schemas"]["AppliedSplit"][];
             /** Format: uuid */
-            categoryId: string | null;
-            name: string | null;
+            transactionId?: string;
         };
-        CategoryRef: {
+        AnomalyPage: {
+            items?: components["schemas"]["AnomalyView"][];
+            nextCursor?: string;
+        };
+        AnomalyView: {
+            amount?: components["schemas"]["Money"];
+            /** Format: date-time */
+            detectedAt?: string;
+            detector?: string;
+            direction?: string;
             /** Format: uuid */
-            id: string;
-            name: string;
+            id?: string;
+            /** Format: uuid */
+            jarId?: string;
+            jarName?: string;
+            /** Format: double */
+            score?: number;
+            severity?: string;
+            status?: string;
+            /** Format: double */
+            threshold?: number;
+            /** Format: uuid */
+            transactionId?: string;
+        };
+        AppliedSplit: {
+            amount?: components["schemas"]["Money"];
+            balance?: components["schemas"]["Money"];
+            /** Format: uuid */
+            jarId?: string;
+        };
+        CategorySpend: {
+            /** Format: uuid */
+            categoryId?: string;
+            name?: string;
+            spent?: components["schemas"]["Money"];
+            /** Format: int32 */
+            txnCount?: number;
         };
         CategoryView: {
-            /** @enum {string|null} */
-            defaultJarCode: "NEC" | "FFA" | "LTSS" | "EDU" | "PLAY" | "GIVE" | "POOL" | "CUSTOM" | null;
             /** Format: uuid */
-            id: string;
-            /** @enum {string} */
-            kind: "EXPENSE" | "INCOME";
-            name: string;
-            system: boolean;
+            id?: string;
+            kind?: string;
+            name?: string;
+            /** Format: uuid */
+            parentId?: string;
+            system?: boolean;
         };
         CreateGoalRequest: {
             /** Format: uuid */
-            fundingJarId?: string | null;
+            fundingJarId?: string;
             name: string;
-            /**
-             * @description Positive whole number of VND as a decimal string; "85000.00" is accepted too
-             * @example 85000
-             */
-            targetAmount: string;
+            targetAmount: number;
             /** Format: date */
             targetDate: string;
         };
-        DailyBalanceItem: {
-            balance: string;
+        CreateJarRequest: {
+            name: string;
+            targetPct?: number;
+        };
+        CurrentCapacity: {
+            amount?: number;
+            label?: string;
+        };
+        DailyBalanceView: {
+            balance?: components["schemas"]["Money"];
             /** Format: date */
-            date: string;
+            date?: string;
         };
-        DailyBalancesResponse: {
-            currency: string;
-            items: components["schemas"]["DailyBalanceItem"][];
+        Dashboard: {
+            balance?: components["schemas"]["Money"];
+            expense?: components["schemas"]["Money"];
+            income?: components["schemas"]["Money"];
+            month?: string;
+            net?: components["schemas"]["Money"];
+            /** Format: int64 */
+            openAnomalies?: number;
+            spendByCategory?: components["schemas"]["CategorySpend"][];
+            spendByJar?: components["schemas"]["JarSpend"][];
+            trend?: components["schemas"]["MonthFlow"][];
         };
-        DashboardResponse: {
-            balances: components["schemas"]["Balances"];
-            byCategory: components["schemas"]["CategoryItem"][];
-            byJar: components["schemas"]["JarItem"][];
-            currency: string;
-            expense: string;
-            income: string;
-            month: string;
-            net: string;
-            trend: components["schemas"]["TrendItem"][];
+        Deltas: {
+            income?: components["schemas"]["Money"];
+            monthlySaving?: components["schemas"]["Money"];
+            oneOff?: components["schemas"]["Money"];
+            spending?: components["schemas"]["Money"];
         };
-        FundingJar: {
-            archived: boolean;
-            balance: string;
-            code: string;
+        Explanation: {
+            cautions?: string[];
+            confidenceNote?: string;
+            projectionExplanation?: components["schemas"]["ProjectionExplanation"];
+            summary?: string;
+        };
+        FeasibilityView: {
+            currentAmount?: components["schemas"]["Money"];
+            currentMonthlyPace?: components["schemas"]["Money"];
+            feasibilityHint?: string;
+            fundingJarLinked?: boolean;
+            gap?: components["schemas"]["Money"];
             /** Format: uuid */
-            id: string;
-            name: string;
-        };
-        GoalResponse: {
-            fundingJar: components["schemas"]["FundingJar"] | null;
-            /** Format: uuid */
-            id: string;
-            name: string;
+            goalId?: string;
+            goalName?: string;
+            grade?: string;
+            monthlyShortfall?: components["schemas"]["Money"];
             /** Format: int32 */
-            progressPct: number | null;
-            /** @enum {string} */
-            status: "ACTIVE" | "ACHIEVED" | "ARCHIVED";
-            targetAmount: string;
+            monthsLeft?: number;
+            notes?: string[];
+            pace?: components["schemas"]["Pace"];
+            probabilityOfSuccess?: number;
+            projectedAtDeadline?: components["schemas"]["Money"];
+            remaining?: components["schemas"]["Money"];
+            requiredMonthly?: components["schemas"]["Money"];
+            /** Format: int64 */
+            seed?: number;
+            targetAmount?: components["schemas"]["Money"];
             /** Format: date */
-            targetDate: string;
+            targetDate?: string;
+            verdict?: string;
         };
-        GoalsResponse: {
-            items: components["schemas"]["GoalResponse"][];
+        FeedbackRequest: {
+            label: string;
+        };
+        GoalView: {
+            /** Format: date-time */
+            createdAt?: string;
+            /** Format: uuid */
+            fundingJarId?: string;
+            /** Format: uuid */
+            id?: string;
+            name?: string;
+            status?: string;
+            targetAmount?: components["schemas"]["Money"];
+            /** Format: date */
+            targetDate?: string;
+            /** Format: date-time */
+            updatedAt?: string;
         };
         HealthResponse: {
-            service: string;
-            status: string;
-            version: string;
+            service?: string;
+            status?: string;
+            version?: string;
         };
         JarBalance: {
-            balance: string;
-            /** @enum {string} */
-            code: "NEC" | "FFA" | "LTSS" | "EDU" | "PLAY" | "GIVE" | "POOL" | "CUSTOM";
+            balance?: components["schemas"]["Money"];
             /** Format: uuid */
-            id: string;
+            jarId?: string;
         };
-        JarItem: {
-            balance: string;
-            /** @enum {string} */
-            code: "NEC" | "FFA" | "LTSS" | "EDU" | "PLAY" | "GIVE" | "POOL" | "CUSTOM";
+        JarPeriodView: {
+            /** Format: date-time */
+            closedAt?: string;
+            code?: string;
             /** Format: uuid */
-            jarId: string;
-            name: string;
-            spent: string;
+            jarId?: string;
+            name?: string;
+            planned?: components["schemas"]["Money"];
+            remaining?: components["schemas"]["Money"];
+            spent?: components["schemas"]["Money"];
         };
-        JarRef: {
-            /** @enum {string} */
-            code: "NEC" | "FFA" | "LTSS" | "EDU" | "PLAY" | "GIVE" | "POOL" | "CUSTOM";
+        JarSpend: {
+            balance?: components["schemas"]["Money"];
+            code?: string;
             /** Format: uuid */
-            id: string;
-            name: string;
+            jarId?: string;
+            name?: string;
+            spent?: components["schemas"]["Money"];
+            targetPct?: number;
+            /** Format: int32 */
+            txnCount?: number;
         };
-        JarResponse: {
-            balance: string;
-            /** @enum {string} */
-            code: "NEC" | "FFA" | "LTSS" | "EDU" | "PLAY" | "GIVE" | "POOL" | "CUSTOM";
+        JarView: {
+            balance?: components["schemas"]["Money"];
+            code?: string;
             /** Format: uuid */
-            id: string;
-            name: string;
-            targetPct: number;
+            id?: string;
+            name?: string;
+            targetPct?: number;
         };
-        JarsResponse: {
-            currency: string;
-            jars: components["schemas"]["JarResponse"][];
+        KeyMetrics: {
+            currentMonthlyCapacity?: components["schemas"]["CurrentCapacity"];
+            currentProgressAmount?: number;
+            currentProgressRatio?: number;
+            feasibilityHint?: string;
+            projectedEndAmount?: number;
+            readinessLabel?: string;
+            targetAmount?: number;
+            /** Format: int32 */
+            timelineMonths?: number;
+        };
+        Line: {
+            amount?: components["schemas"]["Money"];
+            code?: string;
             /** Format: uuid */
-            poolJarId: string;
-            total: string;
-            unallocated: string;
+            jarId?: string;
+            name?: string;
+            sharePct?: number;
+            targetPct?: number;
+        };
+        MaturityEvent: {
+            condition?: string;
+            eventType?: string;
+            title?: string;
         };
         MeResponse: {
-            /** Format: date-time */
-            createdAt: string;
-            displayName: string | null;
-            email: string;
+            displayName?: string;
+            email?: string;
             /** Format: uuid */
-            id: string;
-            locale: string;
+            id?: string;
+            locale?: string;
+            onboardingCompleted?: boolean;
+        };
+        MilestoneData: {
+            expectedResult?: string;
+            milestoneId?: string;
+            phaseType?: string;
+            status?: string;
+            title?: string;
+            unlockRule?: string;
+        };
+        Money: {
+            amount?: number;
+            currency?: {
+                currencyCode?: string;
+                /** Format: int32 */
+                defaultFractionDigits?: number;
+                displayName?: string;
+                /** Format: int32 */
+                numericCode?: number;
+                numericCodeAsString?: string;
+                symbol?: string;
+            };
+        };
+        MonthFlow: {
+            expense?: components["schemas"]["Money"];
+            income?: components["schemas"]["Money"];
+            month?: string;
+        };
+        NextActionCard: {
+            expectedOutcome?: string;
+            followOnTransition?: string;
+            successSignal?: string;
+            timeframe?: string;
+            title?: string;
+            why?: string;
+        };
+        NotificationPage: {
+            items?: components["schemas"]["NotificationView"][];
+            nextCursor?: string;
+            /** Format: int64 */
+            unreadCount?: number;
+        };
+        NotificationView: {
+            body?: string;
+            /** Format: date-time */
+            createdAt?: string;
+            /** Format: uuid */
+            id?: string;
+            /** Format: date-time */
+            readAt?: string;
+            /** Format: uuid */
+            refId?: string;
+            refType?: string;
+            severity?: string;
+            title?: string;
+            type?: string;
+        };
+        Pace: {
+            averageExpense?: components["schemas"]["Money"];
+            averageIncome?: components["schemas"]["Money"];
+            averageNet?: components["schemas"]["Money"];
+            currentMonthOnly?: boolean;
+            /** Format: int32 */
+            monthsUsed?: number;
+            netStdDev?: components["schemas"]["Money"];
+        };
+        PatchTransactionRequest: {
+            /** Format: uuid */
+            categoryId?: string;
+            /** Format: uuid */
+            jarId?: string;
+        };
+        PeriodView: {
+            closed?: boolean;
+            jars?: components["schemas"]["JarPeriodView"][];
+            month?: string;
+            planned?: components["schemas"]["Money"];
+            spent?: components["schemas"]["Money"];
+        };
+        PhaseData: {
+            entryConditions?: string[];
+            exitConditions?: string[];
+            expectedResults?: string[];
+            objective?: string;
+            phaseType?: string;
+            serviceIds?: string[];
+            status?: string;
+            title?: string;
+        };
+        PlannerState: {
+            anomalyState?: string;
+            bufferStatus?: string;
+            cashflowStatus?: string;
+            feasibilityHint?: string;
+            goalProgressRatio?: number;
+            liquidityPressure?: string;
+            readinessLabel?: string;
+            riskBand?: string;
+            runwayMonths?: number;
+            savingsCapacity?: components["schemas"]["SavingsCapacity"];
+            source?: string;
+        };
+        PointView: {
+            /** Format: int32 */
+            month?: number;
+            p10?: components["schemas"]["Money"];
+            p50?: components["schemas"]["Money"];
+            p90?: components["schemas"]["Money"];
         };
         PostTransactionRequest: {
-            /**
-             * @description Positive whole number of VND as a decimal string; "85000.00" is accepted too
-             * @example 85000
-             */
-            amount: string;
+            amount: number;
             /** Format: uuid */
-            categoryId?: string | null;
-            counterparty?: string | null;
+            categoryId?: string;
+            counterparty?: string;
             /** Format: uuid */
-            jarId?: string | null;
-            note?: string | null;
+            jarId?: string;
+            note?: string;
             /** Format: date-time */
-            occurredAt?: string | null;
+            occurredAt?: string;
             /** @enum {string} */
             type: "INCOME" | "EXPENSE" | "JAR_TRANSFER";
         };
-        PostingResponse: {
-            jars: components["schemas"]["JarBalance"][];
-            transaction: components["schemas"]["TransactionResponse"];
-        };
-        /** @description RFC 9457 problem details, plus traceId (quote it when reporting an error) */
-        Problem: {
-            detail?: string;
-            /** @description Only for validation-failed: one entry per invalid field */
-            errors?: {
-                field: string;
-                message: string;
-            }[];
-            instance?: string;
+        Projection: {
+            basis?: string;
+            caution?: string;
+            confidenceLabel?: string;
+            projectedEndAmount?: number;
+            series?: components["schemas"]["ProjectionPoint"][];
+            targetAmount?: number;
             /** Format: int32 */
-            status: number;
-            title: string;
-            traceId?: string;
-            /** Format: uri */
-            type: string;
+            targetTimelineMonths?: number;
+        };
+        ProjectionChart: {
+            confidenceLabel?: string;
+            gapToTarget?: number;
+            projectedEndAmount?: number;
+            series?: components["schemas"]["ProjectionPoint"][];
+            targetAmount?: number;
+            trend?: string;
+        };
+        ProjectionExplanation: {
+            basis?: string;
+            paceAssessment?: string;
+            targetGapCommentary?: string;
+            trendCommentary?: string;
+        };
+        ProjectionPoint: {
+            /** Format: int32 */
+            month?: number;
+            projectedAmount?: number;
+        };
+        ProjectionSummary: {
+            p10?: components["schemas"]["Money"];
+            p50?: components["schemas"]["Money"];
+            p90?: components["schemas"]["Money"];
+            path?: components["schemas"]["PointView"][];
+            probabilityOfSuccess?: number;
+            reachesTarget?: boolean;
+            strategy?: string;
+        };
+        Result: {
+            currentPhase?: string;
+            journeyPattern?: string;
+            phaseSequence?: string[];
+            roadmapStatus?: string;
+            summary?: string;
         };
         RiskAnswersRequest: {
-            /** @enum {string} */
-            experience: "BEGINNER" | "EXPERIENCED" | "VERY_EXPERIENCED";
-            /** @enum {string} */
-            horizon: "UNDER_2_YEARS" | "YEARS_2_TO_5" | "YEARS_5_TO_10" | "OVER_10_YEARS";
-            /** @enum {string} */
-            liquidity: "IMMEDIATE" | "WITHIN_A_MONTH" | "FLEXIBLE";
-            /** @enum {string} */
-            mainGoal: "EMERGENCY_FUND" | "LONG_TERM_GROWTH" | "SPECIFIC_GOAL" | "PASSIVE_INCOME";
-            /** @enum {string} */
-            riskTolerance: "CONSERVATIVE" | "MODERATE" | "AGGRESSIVE";
+            answers: number[];
         };
         RiskProfileResponse: {
-            answers: components["schemas"]["Answers"];
             /** Format: date-time */
-            assessedAt: string;
-            capped: boolean;
+            assessedAt?: string;
+            riskLevel?: string;
             /** Format: int32 */
-            maxScore: number;
+            score?: number;
+        };
+        RoadmapContract: {
+            currentPhase?: string;
+            goal?: components["schemas"]["RoadmapGoal"];
+            journeyPattern?: string;
+            maturityEvents?: components["schemas"]["MaturityEvent"][];
+            milestones?: components["schemas"]["MilestoneData"][];
+            missingFields?: string[];
+            nextBestAction?: components["schemas"]["NextActionCard"];
+            phaseSequence?: string[];
+            phases?: components["schemas"]["PhaseData"][];
+            plannerState?: components["schemas"]["PlannerState"];
+            projection?: components["schemas"]["Projection"];
+            schemaVersion?: string;
+            status?: string;
+            visualizationSupport?: components["schemas"]["VisualizationSupport"];
+            warnings?: string[];
+        };
+        RoadmapGoal: {
+            goalType?: string;
+            priority?: string;
+            targetAmount?: number;
             /** Format: int32 */
-            questionnaireVersion: number;
-            /** @enum {string} */
-            riskLevel: "CONSERVATIVE" | "BALANCED" | "GROWTH";
+            targetTimelineMonths?: number;
+        };
+        RoadmapResponse: {
+            agentId?: string;
+            explanation?: components["schemas"]["Explanation"];
+            result?: components["schemas"]["Result"];
+            roadmapContract?: components["schemas"]["RoadmapContract"];
+            schemaVersion?: string;
+            status?: string;
+            uiExplanation?: components["schemas"]["UiExplanation"];
+        };
+        SavingsCapacity: {
+            amountMonthly?: number;
+            label?: string;
+        };
+        ScenarioRequest: {
             /** Format: int32 */
-            score: number;
+            horizonMonths?: number;
+            incomeDelta?: number;
+            monthlySavingDelta?: number;
+            oneOffContribution?: number;
+            /** Format: int64 */
+            seed?: number;
+            spendingDelta?: number;
         };
-        TransactionItem: {
-            amount: string;
-            category: components["schemas"]["CategoryRef"] | null;
-            counterparty: string | null;
-            currency: string;
-            /** Format: uuid */
-            id: string;
-            jar: components["schemas"]["JarRef"];
-            note: string | null;
-            /** Format: date-time */
-            occurredAt: string;
-            toJar: components["schemas"]["JarRef"] | null;
-            /** @enum {string} */
-            type: "INCOME" | "EXPENSE" | "JAR_TRANSFER";
+        ScenarioResult: {
+            deltas?: components["schemas"]["Deltas"];
+            deterministic?: components["schemas"]["ProjectionSummary"];
+            medianVsBase?: components["schemas"]["Money"];
+            monteCarlo?: components["schemas"]["ProjectionSummary"];
+            monthlyNet?: components["schemas"]["Money"];
+            name?: string;
+            probabilityVsBase?: number;
+            stress?: components["schemas"]["ProjectionSummary"];
         };
-        TransactionPageResponse: {
-            items: components["schemas"]["TransactionItem"][];
-            nextCursor: string | null;
+        ScenarioView: {
+            base?: components["schemas"]["ScenarioResult"];
+            /** Format: uuid */
+            goalId?: string;
+            /** Format: int32 */
+            horizonMonths?: number;
+            notes?: string[];
+            pace?: components["schemas"]["Pace"];
+            scenarios?: components["schemas"]["ScenarioResult"][];
+            /** Format: int64 */
+            seed?: number;
+            startingAmount?: components["schemas"]["Money"];
+            targetAmount?: components["schemas"]["Money"];
         };
-        TransactionResponse: {
-            amount: string;
-            /** Format: uuid */
-            categoryId: string | null;
-            counterparty: string | null;
-            currency: string;
-            /** Format: uuid */
-            id: string;
+        SplitRequest: {
+            amount: number;
             /** Format: uuid */
             jarId: string;
-            note: string | null;
-            /** Format: date-time */
-            occurredAt: string;
+        };
+        SseEmitter: {
+            /** Format: int64 */
+            timeout?: number;
+        };
+        StatusBanner: {
+            message?: string;
+            title?: string;
+            tone?: string;
+        };
+        Suggestion: {
+            amount?: components["schemas"]["Money"];
+            historyWeight?: number;
+            lines?: components["schemas"]["Line"][];
+            /** Format: int32 */
+            monthsOfHistory?: number;
+        };
+        SuggestionRequest: {
+            amount: number;
+        };
+        TimelineNode: {
+            objective?: string;
+            phaseType?: string;
+            status?: string;
+            title?: string;
+        };
+        TokenRequest: {
+            sub?: string;
+        };
+        TransactionListItem: {
+            amount?: components["schemas"]["Money"];
             /** Format: uuid */
-            toJarId: string | null;
-            /** @enum {string} */
-            type: "INCOME" | "EXPENSE" | "JAR_TRANSFER";
+            categoryId?: string;
+            categoryName?: string;
+            counterparty?: string;
+            /** Format: uuid */
+            id?: string;
+            /** Format: uuid */
+            jarId?: string;
+            jarName?: string;
+            note?: string;
+            /** Format: date-time */
+            occurredAt?: string;
+            source?: string;
+            /** Format: uuid */
+            toJarId?: string;
+            toJarName?: string;
+            type?: string;
+        };
+        TransactionPage: {
+            items?: components["schemas"]["TransactionListItem"][];
+            nextCursor?: string;
+        };
+        TransactionReceipt: {
+            jarBalances?: components["schemas"]["JarBalance"][];
+            transaction?: components["schemas"]["TransactionView"];
+        };
+        TransactionView: {
+            amount?: components["schemas"]["Money"];
+            /** Format: uuid */
+            categoryId?: string;
+            counterparty?: string;
+            /** Format: uuid */
+            id?: string;
+            /** Format: uuid */
+            jarId?: string;
+            note?: string;
+            /** Format: date-time */
+            occurredAt?: string;
+            source?: string;
+            /** Format: uuid */
+            toJarId?: string;
+            type?: string;
         };
         TransferRequest: {
-            /**
-             * @description Positive whole number of VND as a decimal string; "85000.00" is accepted too
-             * @example 85000
-             */
-            amount: string;
+            amount: number;
             /** Format: uuid */
             fromJarId: string;
-            note?: string | null;
-            /** Format: date-time */
-            occurredAt?: string | null;
+            note?: string;
             /** Format: uuid */
             toJarId: string;
         };
-        TrendItem: {
-            expense: string;
-            income: string;
-            month: string;
+        UiExplanation: {
+            summary?: string;
+            whatHasToChangeNext?: string;
+            whyCurrentPhase?: string;
+            whyThisRoadmap?: string;
+        };
+        UnlockCondition: {
+            conditions?: string[];
+            phaseType?: string;
+            status?: string;
         };
         UpdateGoalRequest: {
             /** Format: uuid */
-            fundingJarId?: string | null;
-            name?: string | null;
-            /** @enum {string|null} */
-            status?: "ACTIVE" | "ACHIEVED" | "ARCHIVED" | null;
-            /**
-             * @description Positive whole number of VND as a decimal string; "85000.00" is accepted too
-             * @example 85000
-             */
-            targetAmount?: string | null;
+            fundingJarId?: string;
+            name?: string;
+            /** @enum {string} */
+            status?: "ACTIVE" | "ACHIEVED" | "ARCHIVED";
+            targetAmount?: number;
             /** Format: date */
-            targetDate?: string | null;
+            targetDate?: string;
+        };
+        UpdateJarRequest: {
+            name?: string;
+            targetPct?: number;
+        };
+        UpdateMeRequest: {
+            displayName?: string;
+            locale?: string;
+        };
+        VisualizationSupport: {
+            keyMetrics?: components["schemas"]["KeyMetrics"];
+            milestoneCards?: components["schemas"]["MilestoneData"][];
+            nextActionCard?: components["schemas"]["NextActionCard"];
+            phaseCards?: components["schemas"]["PhaseData"][];
+            projectionChart?: components["schemas"]["ProjectionChart"];
+            statusBanner?: components["schemas"]["StatusBanner"];
+            timelineNodes?: components["schemas"]["TimelineNode"][];
+            unlockConditions?: components["schemas"]["UnlockCondition"][];
         };
     };
-    responses: {
-        /** @description The access token lacks the required scope */
-        Forbidden: {
-            headers: {
-                [name: string]: unknown;
-            };
-            content: {
-                "application/problem+json": components["schemas"]["Problem"];
-            };
-        };
-        /** @description Any other error. `type` names it: e.g. .../validation-failed (422, with `errors`), .../insufficient-jar-balance (422), .../idempotency-key-reused (422), .../concurrent-modification (409), .../transaction-not-found (404) */
-        Problem: {
-            headers: {
-                [name: string]: unknown;
-            };
-            content: {
-                "application/problem+json": components["schemas"]["Problem"];
-            };
-        };
-        /** @description Missing, expired or invalid access token */
-        Unauthorized: {
-            headers: {
-                [name: string]: unknown;
-            };
-            content: {
-                "application/problem+json": components["schemas"]["Problem"];
-            };
-        };
-    };
+    responses: never;
     parameters: never;
     requestBodies: never;
     headers: never;
@@ -528,7 +1018,57 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
-    getDailyBalances: {
+    anomalies: {
+        parameters: {
+            query?: {
+                status?: "OPEN" | "CONFIRMED" | "EXPECTED" | "FALSE_POSITIVE";
+                limit?: number;
+                cursor?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["AnomalyPage"];
+                };
+            };
+        };
+    };
+    feedback: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FeedbackRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["AnomalyView"];
+                };
+            };
+        };
+    };
+    dailyBalances: {
         parameters: {
             query?: {
                 days?: number;
@@ -545,15 +1085,84 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["DailyBalancesResponse"];
+                    "*/*": components["schemas"]["DailyBalanceView"][];
                 };
             };
-            401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
-            default: components["responses"]["Problem"];
         };
     };
-    listCategories: {
+    suggest: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SuggestionRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["Suggestion"];
+                };
+            };
+        };
+    };
+    apply: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AllocationRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["AllocationResult"];
+                };
+            };
+        };
+    };
+    period: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                month: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["PeriodView"];
+                };
+            };
+        };
+    };
+    categories: {
         parameters: {
             query?: never;
             header?: never;
@@ -568,15 +1177,12 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["CategoriesResponse"];
+                    "*/*": components["schemas"]["CategoryView"][];
                 };
             };
-            401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
-            default: components["responses"]["Problem"];
         };
     };
-    getDashboard: {
+    dashboard: {
         parameters: {
             query?: {
                 month?: string;
@@ -593,12 +1199,9 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["DashboardResponse"];
+                    "*/*": components["schemas"]["Dashboard"];
                 };
             };
-            401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
-            default: components["responses"]["Problem"];
         };
     };
     listGoals: {
@@ -616,12 +1219,9 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["GoalsResponse"];
+                    "*/*": components["schemas"]["GoalView"][];
                 };
             };
-            401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
-            default: components["responses"]["Problem"];
         };
     };
     createGoal: {
@@ -640,42 +1240,12 @@ export interface operations {
             /** @description Created */
             201: {
                 headers: {
-                    /** @description URL of the created resource */
-                    Location: string;
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["GoalResponse"];
+                    "*/*": components["schemas"]["GoalView"];
                 };
             };
-            401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
-            default: components["responses"]["Problem"];
-        };
-    };
-    getGoal: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["GoalResponse"];
-                };
-            };
-            401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
-            default: components["responses"]["Problem"];
         };
     };
     archiveGoal: {
@@ -696,9 +1266,6 @@ export interface operations {
                 };
                 content?: never;
             };
-            401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
-            default: components["responses"]["Problem"];
         };
     };
     updateGoal: {
@@ -722,15 +1289,82 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["GoalResponse"];
+                    "*/*": components["schemas"]["GoalView"];
                 };
             };
-            401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
-            default: components["responses"]["Problem"];
         };
     };
-    getHealth: {
+    goalFeasibility: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["FeasibilityView"];
+                };
+            };
+        };
+    };
+    goalRoadmap: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["RoadmapResponse"];
+                };
+            };
+        };
+    };
+    goalScenarios: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ScenarioRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ScenarioView"];
+                };
+            };
+        };
+    };
+    health: {
         parameters: {
             query?: never;
             header?: never;
@@ -745,13 +1379,12 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HealthResponse"];
+                    "*/*": components["schemas"]["HealthResponse"];
                 };
             };
-            default: components["responses"]["Problem"];
         };
     };
-    listJars: {
+    list_1: {
         parameters: {
             query?: never;
             header?: never;
@@ -766,19 +1399,39 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["JarsResponse"];
+                    "*/*": components["schemas"]["JarView"][];
                 };
             };
-            401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
-            default: components["responses"]["Problem"];
         };
     };
-    transferBetweenJars: {
+    create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateJarRequest"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["JarView"];
+                };
+            };
+        };
+    };
+    transfer: {
         parameters: {
             query?: never;
             header: {
-                /** @description New UUID per user action, kept when the same action is sent again: a repeated request returns the stored result instead of moving the money twice */
                 "Idempotency-Key": string;
             };
             path?: never;
@@ -790,25 +1443,64 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Created */
-            201: {
+            /** @description OK */
+            200: {
                 headers: {
-                    /** @description "true" when this is the stored result of an earlier request with the same key; absent otherwise */
-                    "Idempotent-Replayed"?: "true";
-                    /** @description URL of the created resource */
-                    Location: string;
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["PostingResponse"];
+                    "*/*": components["schemas"]["TransactionReceipt"];
                 };
             };
-            401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
-            default: components["responses"]["Problem"];
         };
     };
-    getMe: {
+    archive: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    update_1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateJarRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["JarView"];
+                };
+            };
+        };
+    };
+    me: {
         parameters: {
             query?: never;
             header?: never;
@@ -823,15 +1515,36 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["MeResponse"];
+                    "*/*": components["schemas"]["MeResponse"];
                 };
             };
-            401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
-            default: components["responses"]["Problem"];
         };
     };
-    getRiskProfile: {
+    update: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateMeRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["MeResponse"];
+                };
+            };
+        };
+    };
+    riskProfile: {
         parameters: {
             query?: never;
             header?: never;
@@ -846,15 +1559,12 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["RiskProfileResponse"];
+                    "*/*": components["schemas"]["RiskProfileResponse"];
                 };
             };
-            401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
-            default: components["responses"]["Problem"];
         };
     };
-    assessRiskProfile: {
+    submitRiskProfile: {
         parameters: {
             query?: never;
             header?: never;
@@ -873,24 +1583,17 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["RiskProfileResponse"];
+                    "*/*": components["schemas"]["RiskProfileResponse"];
                 };
             };
-            401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
-            default: components["responses"]["Problem"];
         };
     };
-    listTransactions: {
+    list_2: {
         parameters: {
             query?: {
+                unreadOnly?: boolean;
                 limit?: number;
                 cursor?: string;
-                jarId?: string;
-                categoryId?: string;
-                type?: "INCOME" | "EXPENSE" | "JAR_TRANSFER";
-                from?: string;
-                to?: string;
             };
             header?: never;
             path?: never;
@@ -904,19 +1607,87 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["TransactionPageResponse"];
+                    "*/*": components["schemas"]["NotificationPage"];
                 };
             };
-            401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
-            default: components["responses"]["Problem"];
         };
     };
-    postTransaction: {
+    stream: {
+        parameters: {
+            query?: never;
+            header?: {
+                "Last-Event-ID"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/event-stream": components["schemas"]["SseEmitter"];
+                };
+            };
+        };
+    };
+    read: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["NotificationView"];
+                };
+            };
+        };
+    };
+    list: {
+        parameters: {
+            query?: {
+                jarId?: string;
+                categoryId?: string;
+                type?: "INCOME" | "EXPENSE" | "JAR_TRANSFER";
+                from?: string;
+                to?: string;
+                limit?: number;
+                cursor?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["TransactionPage"];
+                };
+            };
+        };
+    };
+    post: {
         parameters: {
             query?: never;
             header: {
-                /** @description New UUID per user action, kept when the same action is sent again: a repeated request returns the stored result instead of moving the money twice */
                 "Idempotency-Key": string;
             };
             path?: never;
@@ -928,50 +1699,18 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Created */
-            201: {
-                headers: {
-                    /** @description "true" when this is the stored result of an earlier request with the same key; absent otherwise */
-                    "Idempotent-Replayed"?: "true";
-                    /** @description URL of the created resource */
-                    Location: string;
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PostingResponse"];
-                };
-            };
-            401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
-            default: components["responses"]["Problem"];
-        };
-    };
-    getTransaction: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
             /** @description OK */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["TransactionItem"];
+                    "*/*": components["schemas"]["TransactionReceipt"];
                 };
             };
-            401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
-            default: components["responses"]["Problem"];
         };
     };
-    amendTransaction: {
+    recategorize: {
         parameters: {
             query?: never;
             header?: never;
@@ -982,7 +1721,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["AmendTransactionRequest"];
+                "application/json": components["schemas"]["PatchTransactionRequest"];
             };
         };
         responses: {
@@ -992,12 +1731,35 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["PostingResponse"];
+                    "*/*": components["schemas"]["TransactionView"];
                 };
             };
-            401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
-            default: components["responses"]["Problem"];
+        };
+    };
+    token: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TokenRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
         };
     };
 }

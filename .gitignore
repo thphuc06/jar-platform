@@ -30,7 +30,6 @@ __pycache__/
 
 # --- CDK ---
 cdk.out/
-cdk-outputs.json
 
 # --- build artifacts (không commit gói deploy) ---
 *.zip

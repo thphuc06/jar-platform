@@ -1,34 +1,25 @@
-import type { components } from "@/api";
+import type { Transaction, TransactionType } from "@/api/types";
 
-export type TransactionItem = components["schemas"]["TransactionItem"];
+export const TRANSACTION_TYPE_LABEL: Record<TransactionType, string> = {
+  INCOME: "Thu nhập",
+  EXPENSE: "Chi tiêu",
+  JAR_TRANSFER: "Chuyển hũ",
+};
 
-export interface TransactionLine {
-  title: string;
-  subtitle: string;
-  /** "+" money came in, "-" money went out, "" moved between the user's own jars (total unchanged). */
-  sign: "+" | "-" | "";
+/** The main line of a row: who it was paid to / received from, else the note, else the category. */
+export function transactionTitle(tx: Pick<Transaction, "type" | "counterparty" | "note" | "categoryName" | "jarName" | "toJarName">): string {
+  if (tx.type === "JAR_TRANSFER") return `${tx.jarName ?? "Hũ"} → ${tx.toJarName ?? "Hũ"}`;
+  return tx.counterparty || tx.note || tx.categoryName || TRANSACTION_TYPE_LABEL[tx.type];
 }
 
-/** How one transaction reads in a list; shared by the Dashboard and the Money Inbox so both say the same thing. */
-export function describe(tx: TransactionItem): TransactionLine {
-  switch (tx.type) {
-    case "INCOME":
-      return {
-        title: tx.counterparty ?? tx.category?.name ?? "Income",
-        subtitle: `${tx.category?.name ?? "Uncategorized"} · into ${tx.jar.name}`,
-        sign: "+",
-      };
-    case "EXPENSE":
-      return {
-        title: tx.counterparty ?? tx.category?.name ?? "Expense",
-        subtitle: `${tx.category?.name ?? "Uncategorized"} · from ${tx.jar.name}`,
-        sign: "-",
-      };
-    case "JAR_TRANSFER":
-      return {
-        title: `${tx.jar.name} → ${tx.toJar?.name ?? "?"}`,
-        subtitle: tx.note ?? "Between your jars",
-        sign: "",
-      };
-  }
+/** The second line: category, plus the jar for an expense. */
+export function transactionSubtitle(tx: Pick<Transaction, "type" | "categoryName" | "jarName">): string {
+  if (tx.type === "JAR_TRANSFER") return TRANSACTION_TYPE_LABEL.JAR_TRANSFER;
+  const category = tx.categoryName || "Chưa phân loại";
+  return tx.jarName ? `${category} · ${tx.jarName}` : category;
+}
+
+/** Only an expense can be moved to another category or jar; income changes category only; transfers are fixed. */
+export function canRecategorize(tx: Pick<Transaction, "type">): boolean {
+  return tx.type !== "JAR_TRANSFER";
 }

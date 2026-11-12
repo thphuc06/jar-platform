@@ -1,8 +1,6 @@
 spring:
   application:
     name: jars-api
-  lifecycle:
-    timeout-per-shutdown-phase: 20s
   profiles:
     # running locally without SPRING_PROFILES_ACTIVE means "local"; ECS sets SPRING_PROFILES_ACTIVE=aws
     default: local
@@ -11,58 +9,71 @@ spring:
       # Tomcat request handling, @Async and schedulers run on virtual threads (JDK 21+)
       enabled: true
   datasource:
+    # take a pooled connection only when a statement actually runs (Boot 4.1), so a request that is served
+    # from cache or fails validation never wakes a paused Aurora
+    connection-fetch: lazy
     hikari:
       # every connection uses the "jars" schema; Flyway creates it on first run
       schema: jars
-      # Aurora Serverless v2 pauses (0 ACU, no compute cost) only when NO connection is open for the auto-pause
-      # duration. Hikari's default keeps 10 idle connections forever: the database would never pause (~$73/month).
-      # Measured locally (P3.3): default = 10 connections held while idle; with these settings = 0 after startup.
+      # keep no idle connections: Aurora Serverless v2 can only auto-pause when nothing is connected (ADR-0008)
       minimum-idle: 0
-      idle-timeout: 30000 # milliseconds: HikariConfig takes a long, "30s" does not bind
-      # keepalive pings would only touch connections the pool still holds; disabled to keep the intent obvious
-      keepalive-time: 0
+      idle-timeout: 60000
+      max-lifetime: 300000
+      # a request that arrives while Aurora resumes may wait up to ~15 s
+      connection-timeout: 30000
+  jpa:
+    properties:
+      hibernate:
+        default_schema: jars
+        # write rows in primary-key order, so two transactions that touch the same jars (a transfer A->B and one B->A)
+        # lock them in the same order and cannot deadlock each other
+        order_updates: true
+        order_inserts: true
+        jdbc:
+          time_zone: UTC
+    # the schema belongs to Flyway; Hibernate only checks that entities match it
+    hibernate:
+      ddl-auto: validate
+    # no lazy loading in the web layer: controllers return DTOs
+    open-in-view: false
   flyway:
     default-schema: jars
     schemas: jars
-  jpa:
-    # never keep a DB connection open for the whole HTTP request (anti-pattern, and Aurora could not pause)
-    open-in-view: false
-    hibernate:
-      # Flyway owns the schema; Hibernate only checks that entities match it and fails fast if not
-      ddl-auto: validate
-    properties:
-      # UPDATEs are sent ordered by primary key: two opposite transfers (A→B and B→A) then lock the two jar rows in
-      # the same order and cannot deadlock each other
-      hibernate.order_updates: true
+  lifecycle:
+    timeout-per-shutdown-phase: 20s
+  cloud:
+    aws:
+      # fixed, so startup never depends on a developer's ~/.aws/config or on AWS_REGION being set (ECS sets it anyway)
+      region:
+        static: ${AWS_REGION:ap-southeast-1}
+      sqs:
+        # only the aws profile talks to SQS (it turns this on); local runs and tests never create an SQS client
+        enabled: false
   modulith:
     events:
-      # the outbox is a work queue, not history: a publication row is deleted once its listener succeeded
-      # (failed ones stay, see docs/02-architecture/event-catalog.md §5). Flyway V2 owns the table, so
-      # spring.modulith.events.jdbc.schema-initialization stays at its default (disabled).
+      # a finished listener deletes its row from event_publication; unfinished rows stay as the outbox
       completion-mode: delete
 
 server:
   port: 8080
-  # SIGTERM (ECS stops a task): stop accepting requests, finish the running ones, then exit. The container's
-  # stopTimeout (30 s) must be longer than the shutdown phase below, otherwise ECS sends SIGKILL in the middle.
+  # finish in-flight requests on SIGTERM (ECS stopTimeout is 30 s)
   shutdown: graceful
 
-# OpenAPI description (/v3/api-docs) and Swagger UI are OFF by default, so a deployed API does not publish its map;
-# profile "local" switches them on. The committed contract is contracts/openapi/jars-api.yaml (OpenApiContractTest).
-springdoc:
-  api-docs:
+jars:
+  security:
+    # Cognito user pool issuer, e.g. https://cognito-idp.ap-southeast-1.amazonaws.com/ap-southeast-1_xxxx
+    # blank = no identity provider: every token is rejected
+    issuer-uri: ${JARS_ISSUER_URI:}
+    # comma-separated Cognito app client ids whose access tokens are accepted
+    allowed-client-ids: ${JARS_ALLOWED_CLIENT_IDS:}
+    local-dev-tokens: false
+  seed:
+    # --jars.seed.enabled=true creates demo data for the token subject "demo" (local profile only)
     enabled: false
-  swagger-ui:
-    enabled: false
-  # the controllers do not declare produces=..., without this every response would be documented as */*
-  default-produces-media-type: application/json
-  # stable output: keys sorted, so the committed file only changes when the API changes
-  writer-with-order-by-keys: true
-
-logging:
-  pattern:
-    # every log line carries the request's trace id (TraceIdFilter), e.g. "INFO [4bf92f35...]"
-    level: "%5p [%X{traceId:-}]"
+  jobs:
+    # name of the SQS queue the EventBridge Scheduler sends jobs to (month close). Only used in the aws profile, where
+    # the listener is created; blank everywhere else (nothing connects to AWS locally or in tests)
+    queue-name: ${JARS_JOBS_QUEUE:}
 
 management:
   endpoints:

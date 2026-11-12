@@ -1,21 +1,22 @@
 package io.github.thphuc06.jars.identity;
 
-import java.util.Optional;
+import io.github.thphuc06.jars.shared.UserId;
+import java.util.List;
 import java.util.UUID;
 
-/** Public API of the identity module. */
+/** The identity module as seen by other modules. */
 public interface IdentityApi {
 
-    /**
-     * Returns the user behind the current request's access token, creating the internal user on first use.
-     *
-     * @throws IllegalStateException when called outside an authenticated request
-     */
-    CurrentUser currentUser();
+    /** Largest page {@link #userIdsAfter} will return. */
+    int MAX_PAGE = 1000;
 
     /**
-     * The internal id of the user with this e-mail (case-insensitive), if that user has signed in at least once. For
-     * tooling outside a request, e.g. the local demo-data seeder; request handling always uses {@link #currentUser()}.
+     * One page of user ids in ascending id order, for batch jobs that visit every user (such as the month close).
+     * Keyset pagination: pass the last id of the previous page to get the next one, or {@code null} for the first page.
+     * An empty list means there are no more users. Ids are UUIDv7, so users created while a job runs are visited too.
+     *
+     * @param cursor exclusive lower bound, or null to start from the beginning
+     * @param limit page size, 1 to {@link #MAX_PAGE}
      */
-    Optional<UUID> findUserIdByEmail(String email);
+    List<UserId> userIdsAfter(UUID cursor, int limit);
 }

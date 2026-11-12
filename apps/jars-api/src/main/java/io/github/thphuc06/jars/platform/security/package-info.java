@@ -1,6 +1,6 @@
 /**
- * Exposed to business modules as the "security" named interface: only its public types (e.g.
- * {@link io.github.thphuc06.jars.platform.security.JarsSecurityProperties}) may be used outside platform.
+ * Authentication and "who is calling" support. {@code UserDirectory} is exposed to business modules as the named
+ * interface {@code security} (the {@code identity} module implements it).
  */
 @NamedInterface("security")
 package io.github.thphuc06.jars.platform.security;

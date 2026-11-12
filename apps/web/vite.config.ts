@@ -1,23 +1,22 @@
-/// <reference types="vitest/config" />
-import path from "node:path";
+import { fileURLToPath } from "node:url";
 import react from "@vitejs/plugin-react-swc";
-import { defineConfig } from "vite";
 import { VitePWA } from "vite-plugin-pwa";
+import { defineConfig } from "vitest/config";
 
-// Tests run in UTC, NOT in the developer's zone: on a machine set to Vietnam time, code that forgot
-// timeZone: "Asia/Ho_Chi_Minh" would still pass (found by a mutant). Test workers inherit this variable.
-if (process.env.VITEST) {
-  process.env.TZ = "UTC";
-}
+// jars-api as started by `./mvnw spring-boot:run` (docs/05-operations/local-development.md)
+const BACKEND = "http://localhost:8080";
 
 export default defineConfig({
   server: {
-    // must match the callback URL registered for the Cognito app client (infra/cdk, jars:localWebOrigin)
+    // the Cognito app client allows http://localhost:5173/auth/callback (infra AppStack), so the port is fixed
     port: 5173,
     strictPort: true,
+    // The browser only ever talks to this origin, exactly like CloudFront in production (/api/* -> ALB):
+    // no CORS configuration is needed anywhere. The Host header is kept (changeOrigin: false), so for
+    // the backend a POST from this page is a same-origin request as well.
     proxy: {
-      // same origin for the browser: no CORS, and the API sees requests as they will arrive through CloudFront
-      "/api": "http://localhost:8080",
+      "/api": { target: BACKEND },
+      "/dev": { target: BACKEND },
     },
   },
   plugins: [
@@ -26,14 +25,16 @@ export default defineConfig({
       registerType: "autoUpdate",
       includeAssets: ["favicon.ico", "pwa-192x192.png", "pwa-512x512.png"],
       workbox: {
-        // never serve the cached index.html for the OAuth callback or the API
-        navigateFallbackDenylist: [/^\/auth\//, /^\/api\//],
+        // Only the static shell is precached. API and dev-token calls (and the SSE stream) must never be
+        // answered with index.html by the service worker.
+        navigateFallbackDenylist: [/^\/api\//, /^\/dev\//],
         globPatterns: ["**/*.{js,css,html,ico,png,svg,woff2}"],
       },
       manifest: {
-        name: "Jars - personal finance",
-        short_name: "Jars",
-        description: "Personal finance with the 6-jar method",
+        name: "FinAdvisor - Quản lý tài chính theo 6 chiếc hũ",
+        short_name: "FinAdvisor",
+        description: "Quản lý chi tiêu cá nhân theo phương pháp 6 chiếc hũ",
+        lang: "vi",
         theme_color: "#2563eb",
         background_color: "#f5f6fa",
         display: "standalone",
@@ -49,17 +50,12 @@ export default defineConfig({
     }),
   ],
   resolve: {
-    alias: { "@": path.resolve(import.meta.dirname, "./src") },
+    alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) },
   },
   test: {
     environment: "jsdom",
     globals: true,
     setupFiles: ["./src/test/setup.ts"],
-    // unit tests never talk to Cognito; no .env file needed (.env.* is ignored repo-wide)
-    env: {
-      VITE_COGNITO_AUTHORITY: "https://cognito-idp.ap-southeast-1.amazonaws.com/ap-southeast-1_TEST",
-      VITE_COGNITO_CLIENT_ID: "test-client",
-    },
-    include: ["src/**/*.test.{ts,tsx}"],
+    include: ["src/**/*.{test,spec}.{ts,tsx}"],
   },
 });

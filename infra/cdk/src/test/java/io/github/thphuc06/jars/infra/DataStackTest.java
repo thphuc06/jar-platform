@@ -1,116 +1,117 @@
 package io.github.thphuc06.jars.infra;
 
+import static io.github.thphuc06.jars.infra.T.like;
+import static io.github.thphuc06.jars.infra.T.map;
+import static io.github.thphuc06.jars.infra.T.resources;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatCode;
 
-import io.github.cdklabs.cdknag.AwsSolutionsChecks;
 import java.util.List;
-import java.util.Map;
 import org.junit.jupiter.api.Test;
-import software.amazon.awscdk.App;
-import software.amazon.awscdk.StackProps;
-import software.amazon.awscdk.Validations;
 import software.amazon.awscdk.assertions.Match;
 import software.amazon.awscdk.assertions.Template;
 
 class DataStackTest {
 
-    private static DataStack newStack(App newApp) {
-        StackProps props =
-                StackProps.builder().env(TestConfig.CONFIG.awsEnvironment()).build();
-        FoundationStack foundation = new FoundationStack(newApp, "JarsFoundation", props, TestConfig.CONFIG);
-        NetworkStack network = new NetworkStack(newApp, "JarsNetwork", props, TestConfig.CONFIG);
-        return new DataStack(newApp, "JarsData", props, TestConfig.CONFIG, network, foundation.alarms());
-    }
-
-    private static Template template() {
-        return Template.fromStack(newStack(new App()));
-    }
+    private final Template aurora = InfraFixture.aurora().data();
 
     @Test
-    void cluster_isAuroraPostgres17_scalingToZero_withACapAndA5MinutePause() {
-        Template template = template();
-
-        template.hasResourceProperties(
+    void clusterIsAuroraPostgres17ThatScalesToZeroAndPausesAfterFiveMinutes() {
+        aurora.hasResourceProperties(
                 "AWS::RDS::DBCluster",
-                Map.of(
+                like(
                         "Engine", "aurora-postgresql",
-                        "EngineVersion", "17.9",
-                        "DBClusterIdentifier", "jars-test-db",
+                        "EngineVersion", "17.11",
+                        "DBClusterIdentifier", "jars-dev-db",
                         "DatabaseName", "jars",
                         "ServerlessV2ScalingConfiguration",
-                                Map.of("MinCapacity", 0, "MaxCapacity", 2, "SecondsUntilAutoPause", 300)));
-        template.hasResourceProperties(
-                "AWS::RDS::DBInstance", Map.of("DBInstanceClass", "db.serverless", "PubliclyAccessible", false));
+                                map("MinCapacity", 0, "MaxCapacity", 2, "SecondsUntilAutoPause", 300)));
     }
 
     @Test
-    void data_isEncrypted_protectedFromDeletion_andLeavesASnapshot() {
-        template()
-                .hasResource(
-                        "AWS::RDS::DBCluster",
-                        Map.of(
-                                "DeletionPolicy", "Snapshot",
-                                "UpdateReplacePolicy", "Snapshot",
-                                "Properties",
-                                        Map.of(
-                                                "StorageEncrypted", true,
-                                                "DeletionProtection", true,
-                                                "EnableIAMDatabaseAuthentication", true,
-                                                "EnableHttpEndpoint", true, // RDS Data API
-                                                "BackupRetentionPeriod", 1)));
+    void clusterHasExactlyOneServerlessWriterAndNoReader() {
+        aurora.resourceCountIs("AWS::RDS::DBInstance", 1);
+        aurora.hasResourceProperties(
+                "AWS::RDS::DBInstance",
+                like(
+                        "DBInstanceClass", "db.serverless",
+                        "Engine", "aurora-postgresql",
+                        "PubliclyAccessible", false));
     }
 
     @Test
-    void cluster_livesInTheIsolatedDataSubnets_behindTheDbSecurityGroup() {
-        Template template = template();
-
-        String subnetGroup = template.findResources("AWS::RDS::DBSubnetGroup").toString();
-        assertThat(subnetGroup).contains("dataSubnet1").contains("dataSubnet2").doesNotContain("publicSubnet");
-        String cluster = template.findResources("AWS::RDS::DBCluster").toString();
-        assertThat(cluster).contains("DbSecurityGroup");
+    void clusterIsEncryptedBackedUpForOneDayAndSnapshottedOnDelete() {
+        aurora.hasResourceProperties(
+                "AWS::RDS::DBCluster",
+                like("StorageEncrypted", true, "BackupRetentionPeriod", 1, "DeletionProtection", false));
+        aurora.hasResource(
+                "AWS::RDS::DBCluster", like("DeletionPolicy", "Snapshot", "UpdateReplacePolicy", "Snapshot"));
     }
 
     @Test
-    void password_isGeneratedInSecretsManager_neverInTheTemplate() {
-        Template template = template();
+    void clusterParameterGroupForcesTls() {
+        aurora.hasResourceProperties(
+                "AWS::RDS::DBClusterParameterGroup",
+                like("Family", "aurora-postgresql17", "Parameters", map("rds.force_ssl", "1")));
+    }
 
-        template.hasResourceProperties(
+    @Test
+    void clusterLivesInTheDataSubnetsBehindSgDb() {
+        aurora.hasResourceProperties(
+                "AWS::RDS::DBSubnetGroup",
+                like("SubnetIds", Match.anyValue()));
+        List<Object> subnetIds = subnetIdsOfTheDbSubnetGroup();
+        // two subnets (one per AZ), both imported from the network stack
+        assertThat(subnetIds).hasSize(2);
+        aurora.hasResourceProperties("AWS::RDS::DBCluster", like("VpcSecurityGroupIds", Match.anyValue()));
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<Object> subnetIdsOfTheDbSubnetGroup() {
+        return (List<Object>) ((java.util.Map<String, Object>)
+                        resources(aurora, "AWS::RDS::DBSubnetGroup").values().iterator().next().get("Properties"))
+                .get("SubnetIds");
+    }
+
+    @Test
+    void credentialsAreGeneratedInSecretsManagerWithoutRotation() {
+        aurora.hasResourceProperties(
                 "AWS::SecretsManager::Secret",
-                Map.of(
-                        "Name",
-                        "jars-test-db-credentials",
+                like(
                         "GenerateSecretString",
-                        Match.objectLike(Map.of("SecretStringTemplate", "{\"username\":\"jars_admin\"}"))));
-        // the cluster gets the password by a dynamic reference resolved by CloudFormation at deploy time
-        assertThat(template.findResources("AWS::RDS::DBCluster").toString()).contains("resolve:secretsmanager:");
+                        like("SecretStringTemplate", "{\"username\":\"jarsadmin\"}", "GenerateStringKey", "password")));
+        aurora.resourceCountIs("AWS::SecretsManager::RotationSchedule", 0);
+        aurora.resourceCountIs("AWS::SecretsManager::SecretTargetAttachment", 1);
     }
 
     @Test
-    void neverPausesAlarm_firesAfterSixHoursAboveZero_andNotifiesTheAlarmTopic() {
-        template()
-                .hasResourceProperties(
-                        "AWS::CloudWatch::Alarm",
-                        Map.of(
-                                "AlarmName", "jars-test-db-never-pauses",
-                                "Namespace", "AWS/RDS",
-                                "MetricName", "ServerlessDatabaseCapacity",
-                                "Statistic", "Minimum",
-                                "Period", 3600,
-                                "EvaluationPeriods", 6,
-                                "Threshold", 0,
-                                "ComparisonOperator", "GreaterThanThreshold",
-                                "TreatMissingData", "notBreaching",
-                                "AlarmActions",
-                                        List.of(Match.objectLike(Map.of("Fn::ImportValue", Match.anyValue())))));
+    void outputsExposeTheIdentifierAndTheSecret() {
+        aurora.hasOutput("DbClusterIdentifier", like("Value", "jars-dev-db"));
+        aurora.hasOutput("DbEndpoint", map());
+        aurora.hasOutput("DbSecretArn", map());
     }
 
     @Test
-    void cdkNag_passesWithOnlyTheDocumentedAcknowledgements() {
-        App nagged = new App();
-        newStack(nagged);
-        Validations.of(nagged).addPlugins(new AwsSolutionsChecks(nagged));
-
-        assertThatCode(nagged::synth).doesNotThrowAnyException();
+    void rdsModeBuildsAFixedPriceInstanceInsteadOfACluster() {
+        Template rds = Template.fromStack(InfraFixture.rds().stacks().data());
+        rds.resourceCountIs("AWS::RDS::DBCluster", 0);
+        rds.hasResourceProperties(
+                "AWS::RDS::DBInstance",
+                like(
+                        "Engine", "postgres",
+                        "EngineVersion", "17.11",
+                        "DBInstanceClass", "db.t4g.micro",
+                        "DBInstanceIdentifier", "jars-dev-db",
+                        "DBName", "jars",
+                        "MultiAZ", false,
+                        "StorageEncrypted", true,
+                        "BackupRetentionPeriod", 1,
+                        "DeletionProtection", false,
+                        "PubliclyAccessible", false));
+        rds.hasResourceProperties(
+                "AWS::RDS::DBParameterGroup",
+                like("Family", "postgres17", "Parameters", map("rds.force_ssl", "1")));
+        rds.hasResource("AWS::RDS::DBInstance", like("DeletionPolicy", "Snapshot"));
+        // same outputs as Aurora so that JarsApp and the smoke test need no branching
+        rds.hasOutput("DbClusterIdentifier", like("Value", "jars-dev-db"));
     }
 }

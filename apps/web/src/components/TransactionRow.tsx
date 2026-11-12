@@ -1,44 +1,46 @@
-import { ArrowDownRight, ArrowLeftRight, ArrowUpRight } from "lucide-react";
-import { formatDateTime, formatVND } from "@/lib/format";
-import { describe, type TransactionItem } from "@/lib/transactions";
-import { cn } from "@/lib/utils";
+import type { ReactNode } from "react";
+import { ArrowDownRight, ArrowRightLeft, ArrowUpRight } from "lucide-react";
+import type { Transaction } from "@/api/types";
+import { formatDate } from "@/lib/dates";
+import { formatMoney } from "@/lib/money";
+import { transactionSubtitle, transactionTitle } from "@/lib/transactions";
 
-const ICON = { "+": ArrowDownRight, "-": ArrowUpRight, "": ArrowLeftRight };
-const TONE = {
-  "+": "bg-success/10 text-success",
-  "-": "bg-destructive/10 text-destructive",
-  "": "bg-primary/10 text-primary",
-};
+const ICON = {
+  INCOME: { Icon: ArrowDownRight, box: "bg-success/10", color: "text-success" },
+  EXPENSE: { Icon: ArrowUpRight, box: "bg-destructive/10", color: "text-destructive" },
+  JAR_TRANSFER: { Icon: ArrowRightLeft, box: "bg-info/10", color: "text-info" },
+} as const;
 
-/** One transaction in a list. With onSelect it is a button (opens the edit dialog in the Money Inbox). */
-const TransactionRow = ({ tx, onSelect }: { tx: TransactionItem; onSelect?: (tx: TransactionItem) => void }) => {
-  const line = describe(tx);
-  const Icon = ICON[line.sign];
-  const content = (
-    <>
-      <div className={cn("flex h-10 w-10 shrink-0 items-center justify-center rounded-full", TONE[line.sign])}>
-        <Icon className="h-4 w-4" />
+interface Props {
+  tx: Transaction;
+  /** Shown to the right of the amount, e.g. an edit button */
+  action?: ReactNode;
+  showDate?: boolean;
+}
+
+/** One transaction: direction icon, title, category/jar, signed amount and date. */
+const TransactionRow = ({ tx, action, showDate = true }: Props) => {
+  const { Icon, box, color } = ICON[tx.type];
+  const sign = tx.type === "INCOME" ? "+" : tx.type === "EXPENSE" ? "-" : "";
+
+  return (
+    <div className="flex items-center gap-3 px-4 py-3">
+      <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${box}`}>
+        <Icon className={`h-4 w-4 ${color}`} aria-hidden="true" />
       </div>
       <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-medium">{line.title}</p>
-        <p className="truncate text-xs text-muted-foreground">{line.subtitle}</p>
+        <p className="break-words text-sm font-medium leading-snug">{transactionTitle(tx)}</p>
+        <p className="truncate text-xs text-muted-foreground">{transactionSubtitle(tx)}</p>
       </div>
-      <div className="shrink-0 text-right">
-        <p className={cn("whitespace-nowrap text-sm font-semibold", line.sign === "+" && "text-success")}>
-          {line.sign}
-          {formatVND(tx.amount)}
-        </p>
-        <p className="whitespace-nowrap text-[10px] text-muted-foreground">{formatDateTime(tx.occurredAt)}</p>
+      <div className="flex shrink-0 flex-col items-end gap-0.5 text-right">
+        <span className={`whitespace-nowrap text-sm font-semibold ${tx.type === "INCOME" ? "text-success" : ""}`}>
+          {sign}
+          {formatMoney(tx.amount, { signDisplay: "never" })}
+        </span>
+        {showDate && <span className="whitespace-nowrap text-[10px] text-muted-foreground">{formatDate(tx.occurredAt)}</span>}
       </div>
-    </>
-  );
-  const className = "flex w-full items-center gap-3 px-4 py-3 text-left";
-  return onSelect ? (
-    <button type="button" className={cn(className, "transition-colors hover:bg-muted/40")} onClick={() => onSelect(tx)}>
-      {content}
-    </button>
-  ) : (
-    <div className={className}>{content}</div>
+      {action}
+    </div>
   );
 };
 

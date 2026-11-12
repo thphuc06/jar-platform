@@ -22,7 +22,7 @@ class HealthController {
     }
 
     @GetMapping("/health")
-    HealthResponse getHealth() {
+    HealthResponse health() {
         return new HealthResponse("UP", "jars-api", version);
     }
 

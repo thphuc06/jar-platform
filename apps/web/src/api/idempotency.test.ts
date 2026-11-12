@@ -1,38 +1,72 @@
 import { renderHook } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { ApiError } from "./client";
-import { retryIdempotent, useIdempotencyKey } from "./idempotency";
+import { IntentKey, useIntentKey, uuidv4 } from "./idempotency";
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+const UUID_V4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 
-describe("useIdempotencyKey", () => {
-  it("keeps the key while the same request is retried, and changes it with the request or after a success", () => {
-    const { result } = renderHook(() => useIdempotencyKey());
-    const body = { type: "EXPENSE", amount: "85000" };
+function counter() {
+  let n = 0;
+  return () => `key-${++n}`;
+}
 
-    const first = result.current.keyFor(body);
-    expect(first).toMatch(UUID);
-    expect(result.current.keyFor({ ...body })).toBe(first); // same content, e.g. Save pressed again after an error
+describe("IntentKey", () => {
+  it("returns the same key while the same intent is retried", () => {
+    const intent = new IntentKey(counter());
+    const first = intent.get("expense|85000|jar-1");
+    expect(intent.get("expense|85000|jar-1")).toBe(first);
+    expect(intent.get("expense|85000|jar-1")).toBe(first);
+  });
 
-    const edited = result.current.keyFor({ ...body, amount: "90000" });
-    expect(edited).not.toBe(first); // reusing it would be 422 idempotency-key-reused
+  it("makes a new key when the user changed the request (same key would be 422 idempotency-key-reused)", () => {
+    const intent = new IntentKey(counter());
+    const first = intent.get("expense|85000|jar-1");
+    const second = intent.get("expense|90000|jar-1");
+    expect(second).not.toBe(first);
+    // and the new intent is stable again
+    expect(intent.get("expense|90000|jar-1")).toBe(second);
+  });
 
-    result.current.done();
-    expect(result.current.keyFor({ ...body, amount: "90000" })).not.toBe(edited); // a new action
+  it("makes a new key for the next intent after clear() (the previous one succeeded)", () => {
+    const intent = new IntentKey(counter());
+    const first = intent.get("same form values");
+    intent.clear();
+    expect(intent.get("same form values")).not.toBe(first);
+  });
+
+  it("generates UUID v4 keys by default", () => {
+    expect(new IntentKey().get("x")).toMatch(UUID_V4);
   });
 });
 
-describe("retryIdempotent", () => {
-  const problem = (status: number) => new ApiError(status, { type: "x", title: "t", status });
+describe("useIntentKey", () => {
+  it("keeps one IntentKey (and so one key) across re-renders of a form", () => {
+    const { result, rerender } = renderHook(() => useIntentKey());
+    const key = result.current.get("form");
+    rerender();
+    rerender();
+    expect(result.current.get("form")).toBe(key);
+  });
+});
 
-  it("retries a lost response and a 5xx, twice at most", () => {
-    expect(retryIdempotent(0, new TypeError("Failed to fetch"))).toBe(true);
-    expect(retryIdempotent(1, problem(503))).toBe(true);
-    expect(retryIdempotent(2, new TypeError("Failed to fetch"))).toBe(false);
+describe("uuidv4", () => {
+  it("uses crypto.randomUUID when it exists", () => {
+    expect(uuidv4({ randomUUID: () => "fixed" } as unknown as Crypto)).toBe("fixed");
   });
 
-  it("never retries a 4xx: the same request gets the same answer", () => {
-    expect(retryIdempotent(0, problem(422))).toBe(false);
-    expect(retryIdempotent(0, problem(409))).toBe(false);
+  it("builds a valid v4 UUID from getRandomValues where randomUUID is missing (http, non-secure context)", () => {
+    const fake = {
+      getRandomValues: (bytes: Uint8Array) => {
+        bytes.fill(0xff);
+        return bytes;
+      },
+    } as unknown as Crypto;
+    const id = uuidv4(fake);
+    expect(id).toMatch(UUID_V4);
+    expect(id).toBe("ffffffff-ffff-4fff-bfff-ffffffffffff");
+  });
+
+  it("does not repeat", () => {
+    const ids = new Set(Array.from({ length: 200 }, () => uuidv4()));
+    expect(ids.size).toBe(200);
   });
 });
