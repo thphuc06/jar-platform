@@ -33,9 +33,9 @@
 
 | Profile | Khi nào | DB | Auth | Messaging | AI |
 |---|---|---|---|---|---|
-| `local` (**mặc định** khi không đặt `SPRING_PROFILES_ACTIVE`) | Chạy app trên máy | compose `postgres`, Spring Boot **tự khởi động** `local/compose.yaml` (`spring-boot-docker-compose`, chế độ `start-only`) | JWT thật từ Cognito user pool dev (`JarsAuth` deploy sớm) | in-process (Modulith) | Bedrock thật qua `aws login`, **hoặc** `jars.advisor.stub=true` |
+| `local` (**mặc định** khi không đặt `SPRING_PROFILES_ACTIVE`) | Chạy app trên máy | compose `postgres`, Spring Boot **tự khởi động** `local/compose.yaml` (`spring-boot-docker-compose`, chế độ `start-only`) | App tự phát token: `POST /dev/token` (chỉ có ở profile `local`, khóa RSA sinh ngẫu nhiên mỗi lần chạy), **không cần Cognito** | in-process (Modulith) | chưa có (ngoài phạm vi Phase 1) |
 | (test) | `./mvnw verify` | Testcontainers `postgres:17-alpine` (`@ServiceConnection`, class `TestcontainersConfiguration`) | `spring-security-test` `jwt()` | in-process; LocalStack container cho test tích hợp SQS | Stub `ChatModel` |
-| `aws` | ECS | Aurora (secret từ Secrets Manager) | Cognito | SQS/SNS thật | Bedrock |
+| `aws` | ECS | Aurora (`SPRING_DATASOURCE_*` do task definition cấp, secret từ Secrets Manager) | Cognito (chỉ nhận access token của các app client trong `JARS_ALLOWED_CLIENT_IDS`) | SQS thật cho job khép sổ; log JSON; không có `/dev/token` và không publish OpenAPI | – |
 
 ## 4. Chạy
 
@@ -50,12 +50,27 @@ curl localhost:8080/actuator/health                             # có "db":{"sta
 docker compose -f ../../local/compose.yaml stop
 #    Xóa sạch dữ liệu local:  docker compose -f ../../local/compose.yaml down -v
 
+# 2. Lấy token và gọi API (profile local, không cần Cognito)
+curl -s -X POST localhost:8080/dev/token -H 'Content-Type: application/json' -d '{"sub":"demo"}'   # -> {"accessToken":"..."}
+curl -s localhost:8080/api/v1/jars -H "Authorization: Bearer <accessToken>"
+# Swagger UI: http://localhost:8080/swagger-ui.html (nút Authorize, dán accessToken)
+
+#    Dữ liệu mẫu (3 tháng giao dịch + 2 khoản chi bất thường để thấy cảnh báo) cho subject "demo":
+./mvnw spring-boot:run "-Dspring-boot.run.arguments=--jars.seed.enabled=true"
+#    chạy lại không nhân đôi dữ liệu; mất khoảng 30 giây để các detector học xong, sau đó GET /api/v1/anomalies có 2 cảnh báo
+
 # 3. Frontend (Vite proxy /api -> localhost:8080, nên cùng origin, không cần CORS)
 cd apps/web
 npm ci && npm run dev                                           # http://localhost:5173
 
 # 4. Test toàn bộ backend (cần Docker đang chạy)
-cd apps/jars-api && ./mvnw verify
+cd apps/jars-api && ./mvnw clean verify
+#    Nếu IDE (VS Code Java) vẫn cấu hình JDK cũ, nó có thể ghi class file sai phiên bản vào target/ trong lúc Maven chạy
+#    (lỗi "class file has wrong version 69.0"): reload project Java trong IDE hoặc build từ một bản sao của repo.
+
+# 5. Image Docker như trên Fargate (đã thử: sẵn sàng sau ~30 giây với 0.5 vCPU / 1 GB, dùng ~355 MiB)
+docker build -t jars-api:dev apps/jars-api
+docker run --rm --read-only --tmpfs /tmp -p 8080:8080 -e SPRING_DATASOURCE_URL=jdbc:postgresql://host.docker.internal:5432/jars -e SPRING_DATASOURCE_USERNAME=jars -e SPRING_DATASOURCE_PASSWORD=jars-local jars-api:dev
 ```
 
 ## 5. AWS credentials cho local (không dùng root)

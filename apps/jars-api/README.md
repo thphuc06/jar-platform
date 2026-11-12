@@ -2,7 +2,7 @@
 
 Modular monolith **Java 21 · Spring Boot 4.1 · Spring Modulith 2.1**. Đây là backend chính của Jars Platform.
 
-> Trạng thái (P0.7, 2026-10-23): ranh giới module được kiểm tra bằng Spring Modulith, format bằng Spotless; Spring Boot **4.1.2** / Java 21; `GET /api/v1/health` + actuator probe; PostgreSQL 17 + Flyway (schema `jars`).
+> Trạng thái (2026-11-12): module `identity`, `ledger`, `insights`, `notification` đã chạy (xem [roadmap](../../docs/06-plan/roadmap.md)); ranh giới module kiểm tra bằng Spring Modulith, format bằng Spotless, coverage domain/service ≥ 80% bằng JaCoCo; Spring Boot **4.1.2** / Java 21; PostgreSQL 17 + Flyway (schema `jars`), OpenAPI commit ở `contracts/openapi`, Dockerfile arm64.
 
 ## Chạy nhanh
 
@@ -11,6 +11,9 @@ Modular monolith **Java 21 · Spring Boot 4.1 · Spring Modulith 2.1**. Đây l�
 ./mvnw verify                 # build + test (cần Docker) + Modulith verify + Spotless check
 ./mvnw spotless:apply         # format code trước khi commit
 ./mvnw spring-boot:run        # profile local: tự chạy ../../local/compose.yaml rồi Flyway migrate; http://localhost:8080
+curl -X POST localhost:8080/dev/token -H 'Content-Type: application/json' -d '{"sub":"demo"}'   # token local, không cần Cognito
+./mvnw spring-boot:run "-Dspring-boot.run.arguments=--jars.seed.enabled=true"   # + dữ liệu mẫu cho subject demo
+./mvnw test -Dtest=OpenApiContractTest -Dopenapi.update=true   # sinh lại contracts/openapi/jars-api.yaml sau khi đổi API
 curl localhost:8080/api/v1/health              # {"status":"UP","service":"jars-api","version":"0.0.1-SNAPSHOT"}
 curl localhost:8080/actuator/health/readiness  # {"status":"UP"} (probe cho ALB/ECS)
 ```
