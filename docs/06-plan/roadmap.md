@@ -66,7 +66,7 @@ Ký hiệu: 👤 bạn tự làm (console, quyết định) · 🤖 làm cùng t
 
 - [x] **WP0** (12/11) Java 21, enforcer + JaCoCo, nâng BOM (Spring AI 2.0.2, Spring Cloud AWS 4.2.1, Spotless 3.11.0), ADR-0019, sửa mâu thuẫn tài liệu, viết lại roadmap. `./mvnw verify` xanh trên JDK 21.0.13 (12 test).
 - [x] **WP1** (12/11) Platform + shared: security resource server (validator `token_use`/`client_id`, decoder lazy), `ProblemDetail` + `traceId`/`traceparent`, `Money`, `Clock`, `IdempotencyService` (một transaction, test đồng thời 8 luồng), ArchUnit cấm `double` cho tiền. 58 test xanh.
-- [ ] **WP2** Identity: `GET/PATCH /me` tạo user lazy (`ON CONFLICT`), bỏ unique email, risk profile (port `risk.py`), UUIDv7.
+- [x] **WP2** (12/11) Identity: `GET/PATCH /me` tạo user lazy (`ON CONFLICT`, test 12 luồng), bỏ unique email, risk profile bằng bảng điểm riêng (`risk.py` cũ tính rủi ro từ giao dịch chứ không phải bảng hỏi onboarding nên không port), UUIDv7. 88 test xanh.
 - [ ] **WP3** Ledger: hũ, bút toán, danh mục, `POST /transactions` và chuyển hũ với `@Version` + retry ngoài transaction + idempotency; keyset pagination; test đồng thời, test IDOR, đếm query.
 - [ ] **WP4** Event + insights + notification: outbox Modulith, CUSUM/MAD (golden data từ repo cũ), read model, dashboard, anomaly feedback, SSE.
 - [ ] **WP5** Budgeting + goals + khép sổ tháng: gợi ý phân bổ, kỳ ngân sách, khả thi, what-if (Monte Carlo có seed), roadmap; khép sổ idempotent, trigger bằng `@SqsListener` ở profile `aws`.

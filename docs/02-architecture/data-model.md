@@ -8,6 +8,8 @@
 | Version | File | Nội dung | Bước |
 |---|---|---|---|
 | V1 | `V1__baseline_users.sql` | Bảng `users`: `id` UUID (app sinh), `cognito_sub` UNIQUE, `email` UNIQUE **không phân biệt hoa/thường** (unique index trên `lower(email)`), `locale` mặc định `vi-VN`, `created_at`/`updated_at` | P0.6 |
+| V2 | `V2__idempotency_keys.sql` | Bảng `idempotency_keys` (PK `user_id` + `key`), chủ sở hữu là `platform` | WP1 |
+| V3 | `V3__identity.sql` | Bỏ unique index email và cho phép `email` NULL (danh tính chỉ dựa trên `cognito_sub`; access token Cognito không có claim email); thêm `risk_assessments` (một dòng mỗi lần nộp bảng hỏi, dòng mới nhất là hồ sơ hiện tại) | WP2 |
 
 ## 1. Quy ước
 
@@ -50,7 +52,7 @@ erDiagram
     users {
         uuid id PK
         text cognito_sub UK "JWT sub"
-        text email UK
+        text email "nullable, không unique (V3)"
         text display_name
         text locale "vi-VN"
         timestamptz created_at

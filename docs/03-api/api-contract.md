@@ -48,8 +48,8 @@
 |---|---|---|---|
 | GET | `/me` | Thông tin user (tự tạo lazy ở lần gọi đầu) | 1 |
 | PATCH | `/me` | Đổi `displayName`, `locale` | 1 |
-| PUT | `/me/risk-profile` | Nộp câu trả lời onboarding → `{score, riskLevel}` | 1 |
-| GET | `/me/risk-profile` | Risk profile hiện tại | 1 |
+| PUT | `/me/risk-profile` | Nộp 5 câu trả lời onboarding `{"answers":[2,3,2,2,1]}` (mỗi phần tử là chỉ số lựa chọn, thứ tự câu hỏi như UI) → `{score 0..100, riskLevel, assessedAt}`. Mỗi lần nộp thêm một dòng lịch sử; bảng điểm ở `RiskQuestionnaire` | 1 |
+| GET | `/me/risk-profile` | Risk profile hiện tại (404 nếu chưa làm onboarding) | 1 |
 
 ### Ledger: hũ và giao dịch
 | Method | Path | Mô tả | Phase |

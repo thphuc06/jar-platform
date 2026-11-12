@@ -31,7 +31,7 @@ Mọi domain event ra khỏi process đều có cấu trúc chung (JSON, đặt 
 
 | Event | Phát bởi | Nghe bởi | Payload chính | Externalize (Phase 5) |
 |---|---|---|---|---|
-| `UserRegistered` | identity | ledger (tạo 6 hũ mặc định + danh mục mặc định) | `userId`, `email`, `locale` | Không |
+| `UserRegistered` | identity | ledger (tạo 6 hũ mặc định) | `userId`, `locale` | Không. **Nghe đồng bộ trong cùng transaction** với việc tạo user (`@EventListener`, không phải `@ApplicationModuleListener`), để user không bao giờ tồn tại mà thiếu 6 hũ |
 | `RiskProfileAssessed` | identity | advisor (ngữ cảnh chat) | `riskLevel`, `score` | Không |
 | `TransactionPosted` | ledger | insights (CUSUM/MAD, read model), budgeting (đã chi của kỳ) | `transactionId`, `type`, `amount`, `currency`, `jarId`, `categoryId`, `occurredAt`, `source` | **Có** → `jars-ledger-events.fifo`, group = `userId` |
 | `TransactionRecategorized` | ledger | insights | `transactionId`, `oldCategoryId`, `newCategoryId`, `oldJarId`, `newJarId` | **Có** |

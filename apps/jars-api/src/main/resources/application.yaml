@@ -22,6 +22,11 @@ spring:
       # a request that arrives while Aurora resumes may wait up to ~15 s
       connection-timeout: 30000
   jpa:
+    properties:
+      hibernate:
+        default_schema: jars
+        jdbc:
+          time_zone: UTC
     # the schema belongs to Flyway; Hibernate only checks that entities match it
     hibernate:
       ddl-auto: validate

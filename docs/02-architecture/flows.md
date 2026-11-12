@@ -40,17 +40,19 @@ sequenceDiagram
     API->>API: Xác thực JWT: chữ ký (JWKS cache), iss, exp, token_use=access, client_id
     API->>DB: SELECT users WHERE cognito_sub = ?
     alt chưa có user
-        API->>DB: INSERT users + event_publication(UserRegistered)
-        Note over API,DB: Cùng 1 transaction
-        API--)API: AFTER_COMMIT → ledger tạo 6 hũ + danh mục mặc định
+        API->>DB: BEGIN, INSERT users ... ON CONFLICT (cognito_sub) DO NOTHING
+        API->>API: nếu chèn được: publish UserRegistered, ledger nghe đồng bộ và tạo 6 hũ
+        API->>DB: COMMIT (user và 6 hũ cùng một transaction)
+        Note over API,DB: Không chèn được nghĩa là request khác đã thắng: SELECT lại id
     end
-    API-->>W: 200 {id, email, onboardingCompleted}
+    API-->>W: 200 {id, email, displayName, locale, onboardingCompleted}
 ```
 
 **Điểm cần học:**
 - **PKCE** thay cho client secret, vì SPA không giữ được bí mật.
 - API chỉ nhận **access token**. ID token dùng để hiển thị thông tin user ở frontend, không dùng để gọi API.
-- **Race condition:** 2 request đầu tiên đến cùng lúc thì cả hai cùng thấy "chưa có user". Xử lý bằng `INSERT ... ON CONFLICT (cognito_sub) DO NOTHING` rồi SELECT lại.
+- **Race condition:** 2 request đầu tiên đến cùng lúc thì cả hai cùng thấy "chưa có user". Xử lý bằng `INSERT ... ON CONFLICT (cognito_sub) DO NOTHING` rồi SELECT lại (có test 12 luồng đồng thời).
+- **Email:** access token của Cognito không có claim `email` nên `users.email` hiện để trống; UI đã có email từ ID token. Khi cần gửi mail sẽ lấy qua endpoint `/oauth2/userInfo`.
 - Spring Security xác thực JWT **offline** bằng JWKS được cache, nên không phải gọi Cognito ở mỗi request.
 
 ---
