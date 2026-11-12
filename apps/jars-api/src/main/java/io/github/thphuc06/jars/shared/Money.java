@@ -1,6 +1,7 @@
 package io.github.thphuc06.jars.shared;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.Currency;
@@ -67,14 +68,17 @@ public record Money(
         return new Money(amount.multiply(factor).setScale(SCALE, mode), currency);
     }
 
+    @JsonIgnore
     public boolean isPositive() {
         return amount.signum() > 0;
     }
 
+    @JsonIgnore
     public boolean isNegative() {
         return amount.signum() < 0;
     }
 
+    @JsonIgnore
     public boolean isZero() {
         return amount.signum() == 0;
     }

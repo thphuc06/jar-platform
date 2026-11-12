@@ -1,5 +1,11 @@
 # Profile "local": developer machine. The datasource URL/user/password come from local/compose.yaml
 # through Spring Boot's Docker Compose support, so nothing is hard-coded here.
+jars:
+  security:
+    # the app mints and accepts its own tokens (POST /dev/token), so no Cognito is needed on a developer machine;
+    # this property does nothing outside the "local" profile
+    local-dev-tokens: true
+
 spring:
   docker:
     compose:

@@ -59,6 +59,9 @@ jars:
     # comma-separated Cognito app client ids whose access tokens are accepted
     allowed-client-ids: ${JARS_ALLOWED_CLIENT_IDS:}
     local-dev-tokens: false
+  seed:
+    # --jars.seed.enabled=true creates demo data for the token subject "demo" (local profile only)
+    enabled: false
 
 management:
   endpoints:

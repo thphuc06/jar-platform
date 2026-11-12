@@ -39,6 +39,25 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/RiskProfileResponse"
+  /dev/token:
+    post:
+      tags:
+      - token-controller
+      operationId: token
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TokenRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                type: object
+                additionalProperties: {}
   /api/v1/transactions:
     get:
       tags:
@@ -484,6 +503,11 @@ components:
         assessedAt:
           type: string
           format: date-time
+    TokenRequest:
+      type: object
+      properties:
+        sub:
+          type: string
     PostTransactionRequest:
       type: object
       properties:
@@ -546,12 +570,6 @@ components:
               format: int32
             numericCodeAsString:
               type: string
-        zero:
-          type: boolean
-        negative:
-          type: boolean
-        positive:
-          type: boolean
     TransactionReceipt:
       type: object
       properties:

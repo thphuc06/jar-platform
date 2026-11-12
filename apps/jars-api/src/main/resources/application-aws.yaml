@@ -1,0 +1,31 @@
+# Profile "aws": ECS Fargate (SPRING_PROFILES_ACTIVE=aws replaces the default "local" profile).
+#
+# The task definition provides everything environment-specific, so there are no endpoints or credentials here:
+#   SPRING_DATASOURCE_URL / _USERNAME / _PASSWORD   Aurora (username and password come from Secrets Manager)
+#   JARS_ISSUER_URI, JARS_ALLOWED_CLIENT_IDS        Cognito user pool and the app clients whose tokens are accepted
+#   JARS_JOBS_QUEUE                                 SQS queue that EventBridge Scheduler writes the month-close job to
+# Region and credentials for the AWS SDK come from the task role.
+
+spring:
+  docker:
+    compose:
+      enabled: false
+
+logging:
+  structured:
+    format:
+      # one JSON object per line: CloudWatch Logs can filter on fields, and traceId (MDC) is included in every line
+      console: ecs
+
+# API documentation is for developers; a deployed instance does not publish it
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false
+
+management:
+  endpoint:
+    health:
+      # probes answer with the status only
+      show-components: never

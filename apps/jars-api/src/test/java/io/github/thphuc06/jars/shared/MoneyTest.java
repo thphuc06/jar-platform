@@ -91,6 +91,13 @@ class MoneyTest {
     }
 
     @Test
+    void json_hasOnlyAmountAndCurrency_noDerivedFlags() {
+        String out = JsonMapper.builder().build().writeValueAsString(Money.vnd(5));
+
+        assertThat(out).doesNotContain("positive").doesNotContain("negative").doesNotContain("zero");
+    }
+
+    @Test
     void json_roundTrips() {
         JsonMapper json = JsonMapper.builder().build();
         Money original = Money.vnd("123456.78");
