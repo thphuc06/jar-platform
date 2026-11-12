@@ -1,5 +1,6 @@
 package io.github.thphuc06.jars.platform.security;
 
+import jakarta.servlet.DispatcherType;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.Customizer;
@@ -33,6 +34,13 @@ public class SecurityConfig {
                                 "/v3/api-docs/**",
                                 "/swagger-ui.html",
                                 "/swagger-ui/**")
+                        .permitAll()
+                        // An async dispatch continues a request that was already authorized (SSE: the emitter's
+                        // completion), an error dispatch renders the error of one. The bearer token filter does not run
+                        // on them, so requiring authentication here turned the end of every advisor stream into a 401
+                        // body appended to the finished response, which the next request on the keep-alive connection
+                        // then read as its own answer (found on AWS, Phase 2 WP6).
+                        .dispatcherTypeMatchers(DispatcherType.ASYNC, DispatcherType.ERROR)
                         .permitAll()
                         .anyRequest()
                         .authenticated())

@@ -122,7 +122,7 @@ class SeedDataRunner implements ApplicationRunner {
         awaitEventsProcessed(Duration.ofSeconds(90));
 
         // two purchases far outside what these jars normally see (the detector works per jar, so ordinary spending of
-        // a`n        // similar size, as above, raises no alert)
+        // a similar size, as above, raises no alert)
         expense(demo, jars.get("PLAY"), 3_200_000, SHOPPING, "Mua loa bluetooth", today.minusDays(1), 18, counter);
         expense(demo, jars.get("NEC"), 2_500_000, BILLS, "Sửa xe máy", today.minusDays(1), 9, counter);
         post(

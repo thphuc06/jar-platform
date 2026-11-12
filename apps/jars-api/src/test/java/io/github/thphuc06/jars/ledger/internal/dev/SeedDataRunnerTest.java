@@ -62,11 +62,16 @@ class SeedDataRunnerTest extends ApiTestSupport {
         assertThat(demoTransactionCount()).isEqualTo(before);
     }
 
-    /** Seeded once the shock purchases (the last postings) are visible in the Money Inbox. */
+    /**
+     * Seeded once the very last posting (the bonus, written after the two shock purchases) is visible in the Money
+     * Inbox. Waiting for the first shock purchase let a count run while the last two postings were still being written.
+     */
     private void awaitSeeded() {
         await().atMost(SEEDING).pollInterval(Duration.ofMillis(500)).until(() -> {
-            for (JsonNode t : get(demo, "/api/v1/transactions?limit=5").json().get("items")) {
-                if ("Mua loa bluetooth".equals(t.get("note").asString())) {
+            // the list is ordered by when a posting happened: the bonus (10:00 yesterday) sits below the day's later
+            // spending
+            for (JsonNode t : get(demo, "/api/v1/transactions?limit=50").json().get("items")) {
+                if ("Thưởng dự án".equals(t.get("note").asString())) {
                     return true;
                 }
             }

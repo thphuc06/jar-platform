@@ -11,6 +11,11 @@ spring:
   docker:
     compose:
       enabled: false
+  flyway:
+    # Aurora resumes from 0 ACU in ~15 s: without retries the first task after a pause failed its migration check and
+    # ECS had to start a second one (Phase 2 WP6)
+    connect-retries: 6
+    connect-retries-interval: 10s
   cloud:
     aws:
       sqs:
