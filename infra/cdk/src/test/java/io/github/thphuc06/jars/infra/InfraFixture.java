@@ -159,5 +159,9 @@ final class InfraFixture {
         Template data() {
             return Template.fromStack(stacks.data());
         }
+
+        Template messaging() {
+            return Template.fromStack(stacks.messaging());
+        }
     }
 }
