@@ -15,7 +15,7 @@ import Onboarding from "./Onboarding";
 import Profile from "./Profile";
 
 // Intl puts a no-break space between the number and the currency symbol
-const plain = (text: string | null) => (text ?? "").replace(/[  ]/g, " ");
+const plain = (text: string | null) => (text ?? "").replace(new RegExp("[" + String.fromCharCode(160, 8239) + "]", "g"), " ");
 
 /** What a healthy backend answers, in the wire shape of jars-api. Individual tests override single routes. */
 function backend(overrides: (call: Call) => Response | undefined = () => undefined) {
