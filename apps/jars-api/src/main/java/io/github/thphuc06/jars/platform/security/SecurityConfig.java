@@ -29,6 +29,7 @@ public class SecurityConfig {
                                 "/actuator/info",
                                 "/dev/token",
                                 "/v3/api-docs",
+                                "/v3/api-docs.yaml",
                                 "/v3/api-docs/**",
                                 "/swagger-ui.html",
                                 "/swagger-ui/**")

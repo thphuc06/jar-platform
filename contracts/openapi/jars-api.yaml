@@ -1,0 +1,925 @@
+openapi: 3.1.0
+info:
+  title: Jars Platform API
+  description: Personal finance with the 6-jars method. Money amounts are strings
+    with two decimals; every POST that changes money needs an Idempotency-Key header;
+    errors are RFC 9457 problem+json.
+  version: v1
+servers:
+- url: /
+security:
+- cognito: []
+paths:
+  /api/v1/me/risk-profile:
+    get:
+      tags:
+      - me-controller
+      operationId: riskProfile
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/RiskProfileResponse"
+    put:
+      tags:
+      - me-controller
+      operationId: submitRiskProfile
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RiskAnswersRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/RiskProfileResponse"
+  /api/v1/transactions:
+    get:
+      tags:
+      - transaction-controller
+      operationId: list
+      parameters:
+      - name: jarId
+        in: query
+        required: false
+        schema:
+          type: string
+          format: uuid
+      - name: categoryId
+        in: query
+        required: false
+        schema:
+          type: string
+          format: uuid
+      - name: type
+        in: query
+        required: false
+        schema:
+          type: string
+          enum:
+          - INCOME
+          - EXPENSE
+          - JAR_TRANSFER
+      - name: from
+        in: query
+        required: false
+        schema:
+          type: string
+          format: date-time
+      - name: to
+        in: query
+        required: false
+        schema:
+          type: string
+          format: date-time
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          format: int32
+      - name: cursor
+        in: query
+        required: false
+        schema:
+          type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/TransactionPage"
+    post:
+      tags:
+      - transaction-controller
+      operationId: post
+      parameters:
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PostTransactionRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/TransactionReceipt"
+  /api/v1/notifications/{id}/read:
+    post:
+      tags:
+      - notification-controller
+      operationId: read
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/NotificationView"
+  /api/v1/jars:
+    get:
+      tags:
+      - jar-controller
+      operationId: list_1
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/JarView"
+    post:
+      tags:
+      - jar-controller
+      operationId: create
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateJarRequest"
+        required: true
+      responses:
+        "201":
+          description: Created
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/JarView"
+  /api/v1/jars/transfers:
+    post:
+      tags:
+      - jar-controller
+      operationId: transfer
+      parameters:
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TransferRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/TransactionReceipt"
+  /api/v1/anomalies/{id}/feedback:
+    post:
+      tags:
+      - insights-controller
+      operationId: feedback
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FeedbackRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/AnomalyView"
+  /api/v1/transactions/{id}:
+    patch:
+      tags:
+      - transaction-controller
+      operationId: recategorize
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PatchTransactionRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/TransactionView"
+  /api/v1/me:
+    get:
+      tags:
+      - me-controller
+      operationId: me
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/MeResponse"
+    patch:
+      tags:
+      - me-controller
+      operationId: update
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateMeRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/MeResponse"
+  /api/v1/jars/{id}:
+    delete:
+      tags:
+      - jar-controller
+      operationId: archive
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "204":
+          description: No Content
+    patch:
+      tags:
+      - jar-controller
+      operationId: update_1
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateJarRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/JarView"
+  /api/v1/notifications:
+    get:
+      tags:
+      - notification-controller
+      operationId: list_2
+      parameters:
+      - name: unreadOnly
+        in: query
+        required: false
+        schema:
+          type: boolean
+          default: false
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          format: int32
+      - name: cursor
+        in: query
+        required: false
+        schema:
+          type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/NotificationPage"
+  /api/v1/notifications/stream:
+    get:
+      tags:
+      - notification-controller
+      operationId: stream
+      parameters:
+      - name: Last-Event-ID
+        in: header
+        required: false
+        schema:
+          type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            text/event-stream:
+              schema:
+                $ref: "#/components/schemas/SseEmitter"
+  /api/v1/health:
+    get:
+      tags:
+      - health-controller
+      operationId: health
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+  /api/v1/dashboard:
+    get:
+      tags:
+      - insights-controller
+      operationId: dashboard
+      parameters:
+      - name: month
+        in: query
+        required: false
+        schema:
+          type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/Dashboard"
+  /api/v1/categories:
+    get:
+      tags:
+      - transaction-controller
+      operationId: categories
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CategoryView"
+  /api/v1/balances/daily:
+    get:
+      tags:
+      - transaction-controller
+      operationId: dailyBalances
+      parameters:
+      - name: days
+        in: query
+        required: false
+        schema:
+          type: integer
+          format: int32
+          default: 30
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/DailyBalanceView"
+  /api/v1/anomalies:
+    get:
+      tags:
+      - insights-controller
+      operationId: anomalies
+      parameters:
+      - name: status
+        in: query
+        required: false
+        schema:
+          type: string
+          enum:
+          - OPEN
+          - CONFIRMED
+          - EXPECTED
+          - FALSE_POSITIVE
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          format: int32
+      - name: cursor
+        in: query
+        required: false
+        schema:
+          type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/AnomalyPage"
+components:
+  schemas:
+    RiskAnswersRequest:
+      type: object
+      properties:
+        answers:
+          type: array
+          items:
+            type: integer
+            format: int32
+          maxItems: 5
+          minItems: 5
+      required:
+      - answers
+    RiskProfileResponse:
+      type: object
+      properties:
+        score:
+          type: integer
+          format: int32
+        riskLevel:
+          type: string
+        assessedAt:
+          type: string
+          format: date-time
+    PostTransactionRequest:
+      type: object
+      properties:
+        type:
+          type: string
+          enum:
+          - INCOME
+          - EXPENSE
+          - JAR_TRANSFER
+        amount:
+          type: number
+          exclusiveMinimum: 0
+        jarId:
+          type: string
+          format: uuid
+        categoryId:
+          type: string
+          format: uuid
+        counterparty:
+          type: string
+          maxLength: 120
+          minLength: 0
+        note:
+          type: string
+          maxLength: 500
+          minLength: 0
+        occurredAt:
+          type: string
+          format: date-time
+      required:
+      - amount
+      - type
+    JarBalance:
+      type: object
+      properties:
+        jarId:
+          type: string
+          format: uuid
+        balance:
+          $ref: "#/components/schemas/Money"
+    Money:
+      type: object
+      properties:
+        amount:
+          type: number
+        currency:
+          type: object
+          properties:
+            currencyCode:
+              type: string
+            displayName:
+              type: string
+            symbol:
+              type: string
+            defaultFractionDigits:
+              type: integer
+              format: int32
+            numericCode:
+              type: integer
+              format: int32
+            numericCodeAsString:
+              type: string
+        zero:
+          type: boolean
+        negative:
+          type: boolean
+        positive:
+          type: boolean
+    TransactionReceipt:
+      type: object
+      properties:
+        transaction:
+          $ref: "#/components/schemas/TransactionView"
+        jarBalances:
+          type: array
+          items:
+            $ref: "#/components/schemas/JarBalance"
+    TransactionView:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        type:
+          type: string
+        amount:
+          $ref: "#/components/schemas/Money"
+        jarId:
+          type: string
+          format: uuid
+        toJarId:
+          type: string
+          format: uuid
+        categoryId:
+          type: string
+          format: uuid
+        counterparty:
+          type: string
+        note:
+          type: string
+        occurredAt:
+          type: string
+          format: date-time
+        source:
+          type: string
+    NotificationView:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        type:
+          type: string
+        severity:
+          type: string
+        title:
+          type: string
+        body:
+          type: string
+        refType:
+          type: string
+        refId:
+          type: string
+          format: uuid
+        readAt:
+          type: string
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+    CreateJarRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          maxLength: 40
+          minLength: 0
+        targetPct:
+          type: number
+          maximum: 100
+          minimum: 0
+      required:
+      - name
+    JarView:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        code:
+          type: string
+        name:
+          type: string
+        targetPct:
+          type: number
+        balance:
+          $ref: "#/components/schemas/Money"
+    TransferRequest:
+      type: object
+      properties:
+        fromJarId:
+          type: string
+          format: uuid
+        toJarId:
+          type: string
+          format: uuid
+        amount:
+          type: number
+          exclusiveMinimum: 0
+        note:
+          type: string
+          maxLength: 500
+          minLength: 0
+      required:
+      - amount
+      - fromJarId
+      - toJarId
+    FeedbackRequest:
+      type: object
+      properties:
+        label:
+          type: string
+          minLength: 1
+      required:
+      - label
+    AnomalyView:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        jarId:
+          type: string
+          format: uuid
+        jarName:
+          type: string
+        transactionId:
+          type: string
+          format: uuid
+        detector:
+          type: string
+        direction:
+          type: string
+        severity:
+          type: string
+        score:
+          type: number
+          format: double
+        threshold:
+          type: number
+          format: double
+        amount:
+          $ref: "#/components/schemas/Money"
+        status:
+          type: string
+        detectedAt:
+          type: string
+          format: date-time
+    PatchTransactionRequest:
+      type: object
+      properties:
+        categoryId:
+          type: string
+          format: uuid
+        jarId:
+          type: string
+          format: uuid
+    UpdateMeRequest:
+      type: object
+      properties:
+        displayName:
+          type: string
+          maxLength: 80
+          minLength: 0
+        locale:
+          type: string
+          pattern: vi-VN|en-US
+    MeResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+        displayName:
+          type: string
+        locale:
+          type: string
+        onboardingCompleted:
+          type: boolean
+    UpdateJarRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          maxLength: 40
+          minLength: 1
+        targetPct:
+          type: number
+          maximum: 100
+          minimum: 0
+    TransactionListItem:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        type:
+          type: string
+        amount:
+          $ref: "#/components/schemas/Money"
+        jarId:
+          type: string
+          format: uuid
+        jarName:
+          type: string
+        toJarId:
+          type: string
+          format: uuid
+        toJarName:
+          type: string
+        categoryId:
+          type: string
+          format: uuid
+        categoryName:
+          type: string
+        counterparty:
+          type: string
+        note:
+          type: string
+        occurredAt:
+          type: string
+          format: date-time
+        source:
+          type: string
+    TransactionPage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/TransactionListItem"
+        nextCursor:
+          type: string
+    NotificationPage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/NotificationView"
+        nextCursor:
+          type: string
+        unreadCount:
+          type: integer
+          format: int64
+    SseEmitter:
+      type: object
+      properties:
+        timeout:
+          type: integer
+          format: int64
+    HealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+        service:
+          type: string
+        version:
+          type: string
+    CategorySpend:
+      type: object
+      properties:
+        categoryId:
+          type: string
+          format: uuid
+        name:
+          type: string
+        spent:
+          $ref: "#/components/schemas/Money"
+        txnCount:
+          type: integer
+          format: int32
+    Dashboard:
+      type: object
+      properties:
+        month:
+          type: string
+        balance:
+          $ref: "#/components/schemas/Money"
+        income:
+          $ref: "#/components/schemas/Money"
+        expense:
+          $ref: "#/components/schemas/Money"
+        net:
+          $ref: "#/components/schemas/Money"
+        spendByJar:
+          type: array
+          items:
+            $ref: "#/components/schemas/JarSpend"
+        spendByCategory:
+          type: array
+          items:
+            $ref: "#/components/schemas/CategorySpend"
+        trend:
+          type: array
+          items:
+            $ref: "#/components/schemas/MonthFlow"
+        openAnomalies:
+          type: integer
+          format: int64
+    JarSpend:
+      type: object
+      properties:
+        jarId:
+          type: string
+          format: uuid
+        code:
+          type: string
+        name:
+          type: string
+        targetPct:
+          type: number
+        balance:
+          $ref: "#/components/schemas/Money"
+        spent:
+          $ref: "#/components/schemas/Money"
+        txnCount:
+          type: integer
+          format: int32
+    MonthFlow:
+      type: object
+      properties:
+        month:
+          type: string
+        income:
+          $ref: "#/components/schemas/Money"
+        expense:
+          $ref: "#/components/schemas/Money"
+    CategoryView:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        kind:
+          type: string
+        parentId:
+          type: string
+          format: uuid
+        system:
+          type: boolean
+    DailyBalanceView:
+      type: object
+      properties:
+        date:
+          type: string
+          format: date
+        balance:
+          $ref: "#/components/schemas/Money"
+    AnomalyPage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/AnomalyView"
+        nextCursor:
+          type: string
+  securitySchemes:
+    cognito:
+      type: http
+      description: Cognito access token (not the ID token)
+      scheme: bearer
+      bearerFormat: JWT
