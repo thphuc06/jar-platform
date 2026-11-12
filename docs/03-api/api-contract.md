@@ -83,7 +83,7 @@
 | PATCH / DELETE | `/goals/{id}` | Sửa / archive | 1 |
 | GET | `/goals/{id}/feasibility` | Khả thi? Cần tiết kiệm bao nhiêu mỗi tháng? | 2 |
 | POST | `/goals/{id}/scenarios` | What-if `{monthlySavingDelta, incomeDelta, ...}` | 2 |
-| GET | `/goals/{id}/roadmap` | Lộ trình theo giai đoạn (khớp type `RoadmapResponse` của UI) | 2 |
+| GET | `/goals/{id}/roadmap` | Lộ trình theo giai đoạn. Cùng cấu trúc với `RoadmapResponse` của prototype hackathon nhưng tên field là **camelCase** (`roadmapContract`, không phải `roadmap_contract`), số tiền là số JSON thuần; kiểu của UI sinh từ OpenAPI | 2 |
 
 ### Insights và notification
 | Method | Path | Mô tả | Phase |

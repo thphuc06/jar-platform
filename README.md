@@ -18,6 +18,9 @@ This is a personal portfolio project, rewritten from scratch from a hackathon pr
 - **Spending alerts.** Each expense is checked against that jar's history with two complementary detectors (a robust outlier test for single large expenses, CUSUM for sustained drift). Alerts become notifications and arrive over **Server-Sent Events** within a second.
 - **Dashboard.** One request returns balance, income, expense, spending by jar and category, and a six-month trend, served from a read model that is kept up to date by events.
 - **Money Inbox.** Keyset-paginated transaction list with filters; expenses can be re-categorised or moved to another jar with a reversing ledger entry.
+- **Budgeting and month close.** Suggests how to split an income across jars, applies the split as one atomic ledger posting, tracks planned vs. spent per jar and month, and closes each month once (a scheduled SQS job, safe to run twice).
+- **Goals.** Savings goals with a feasibility check, what-if scenarios (seeded Monte Carlo, so results are reproducible) and a month-by-month roadmap.
+- **Web client.** React PWA (Amplify Auth with PKCE, TypeScript client generated from the OpenAPI file, TanStack Query, live alerts over SSE) served from S3 behind the same CloudFront distribution as the API.
 
 ## Engineering highlights
 
@@ -29,7 +32,7 @@ Every row links to the code and to the test that proves it.
 | **Deadlock found and fixed** | Transfers A→B and B→A updated two rows in opposite order and PostgreSQL reported `deadlock detected`. Fixed with `hibernate.order_updates` (rows are always written in primary-key order) and by treating a deadlock victim as a retryable conflict | `concurrentTransfersBetweenTwoJars_keepBothLedgersConsistent` |
 | **Idempotent POSTs** | `Idempotency-Key` row is inserted *in the business transaction*, so concurrent duplicates queue on the unique index and the second one replays the first response | `IdempotencyServiceTest` and `LedgerPostingTest`: 8 threads, one posting |
 | **Money is exact** | `BigDecimal` / `NUMERIC(19,2)`, amounts serialised as strings, an ArchUnit rule forbids `double`/`float` in domain code | `MoneyTest`, `MoneyArchitectureTest`, [ADR-0014](docs/04-adr/0014-money-and-ledger-model.md) |
-| **Modular monolith** | Spring Modulith modules (`identity`, `ledger`, `insights`, `notification`); module boundaries and cycles are verified on every build | `ModularityTests` (it also tests itself with a deliberately violating fixture), [ADR-0003](docs/04-adr/0003-modular-monolith-spring-modulith.md) |
+| **Modular monolith** | Spring Modulith modules (`identity`, `ledger`, `insights`, `notification`, `budgeting`, `goals`); module boundaries and cycles are verified on every build | `ModularityTests` (it also tests itself with a deliberately violating fixture), [ADR-0003](docs/04-adr/0003-modular-monolith-spring-modulith.md) |
 | **Reliable events** | In-process events go through the Modulith outbox (`event_publication`), consumers are idempotent (`processed_messages`), listeners run after commit | `InsightsFlowTest` (a redelivered event is counted once), `InsightsModuleTest` (Modulith `Scenario`) |
 | **Authorization** | Stateless OAuth2 resource server for Cognito; only *access* tokens from our own app clients are accepted (fails closed); every query is scoped to the caller and someone else's resource is a `404`, not a `403` | `AccessTokenValidatorsTest`, the IDOR matrix in `LedgerReadAndSecurityTest` |
 | **Realtime** | SSE with a 15 s heartbeat, replay of missed notifications from `Last-Event-ID` (UUIDv7 ids sort by time), push only after the transaction commits | `NotificationStreamTest`, over a real HTTP connection |
@@ -38,7 +41,7 @@ Every row links to the code and to the test that proves it.
 | **Infrastructure as code** | AWS CDK in Java: six stacks, guardrail tests (no NAT gateway, ARM64 tasks, no `0.0.0.0/0` ingress, log retention) and `cdk-nag` | `infra/cdk` (95 tests), [ADR-0012](docs/04-adr/0012-iac-aws-cdk-java.md) |
 | **Cost engineering** | Aurora Serverless v2 scales to zero and auto-pauses, no NAT gateway, Graviton, teardown-by-default; the app is configured so nothing keeps a database connection open | [ADR-0008](docs/04-adr/0008-database-aurora-serverless-v2.md), [ADR-0013](docs/04-adr/0013-networking-no-nat.md), [cost doc](docs/05-operations/cost-and-budget.md) |
 
-**Backend: 188 tests, 95% line coverage** (96% on domain and service code, which the build enforces at 80%), Spotless formatting and a secret scan (gitleaks) on every pull request.
+**Backend: 578 tests, 96.7% line coverage** (the build enforces 80% on domain and service code), Spotless formatting and a secret scan (gitleaks) on every pull request. The web client has its own unit and component tests (`apps/web`).
 
 Decisions are recorded as 22 [ADRs](docs/04-adr/README.md), including the ones where the design had to change because reality disagreed (Java 21 instead of 25, no IAM Identity Center, a CloudFront Function instead of error pages for the SPA fallback).
 

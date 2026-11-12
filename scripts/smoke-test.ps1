@@ -65,7 +65,8 @@ $tokens = @{}
 try {
     foreach ($u in $users) {
         aws cognito-idp admin-create-user --user-pool-id $poolId --username $u --region $Region `
-            --user-attributes Name=email,Value=$u Name=email_verified,Value=true --message-action SUPPRESS | Out-Null
+            --user-attributes "Name=email,Value=$u" "Name=email_verified,Value=true" --message-action SUPPRESS | Out-Null
+        # (the quotes matter: unquoted, PowerShell reads the comma as its array operator and splits each attribute in two)
         aws cognito-idp admin-set-user-password --user-pool-id $poolId --username $u --password $password --permanent --region $Region | Out-Null
         $auth = aws cognito-idp admin-initiate-auth --user-pool-id $poolId --client-id $clientId --region $Region `
             --auth-flow ADMIN_USER_PASSWORD_AUTH --auth-parameters "USERNAME=$u,PASSWORD=$password" | ConvertFrom-Json
@@ -129,7 +130,8 @@ try {
     Check "an unusual expense raises an anomaly, a notification and a live SSE event through CloudFront" {
         $sseFile = Join-Path ([IO.Path]::GetTempPath()) "sse-$suffix.txt"
         $curl = Start-Process -FilePath "curl.exe" -PassThru -NoNewWindow -RedirectStandardOutput $sseFile `
-            -ArgumentList @("-sN", "--max-time", [string]($AsyncTimeoutSeconds + 40), "-H", "Authorization: Bearer $alice", "https://$script:Domain/api/v1/notifications/stream")
+            -ArgumentList @("-sN", "--max-time", [string]($AsyncTimeoutSeconds + 40), "-H", ('"Authorization: Bearer {0}"' -f $alice), "https://$script:Domain/api/v1/notifications/stream")
+        # (Start-Process joins the list with spaces and does not quote for us: without the inner quotes curl sees three arguments)
         Start-Sleep -Seconds 3
         $steady = 95000, 105000, 98000, 102000, 100000, 97000, 103000, 99000, 101000, 100000, 96000, 104000
         foreach ($a in $steady) {

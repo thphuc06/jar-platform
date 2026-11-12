@@ -11,7 +11,7 @@
 - Hạ tầng **AWS-native**: ECS Fargate, Aurora Serverless v2, Cognito, SNS/SQS, EventBridge, Bedrock, Lambda; tất cả dựng bằng **AWS CDK (Java)**.
 - Python chỉ dùng ở chỗ nó thật sự có lợi thế: `quant-fn` (vnstock + PyPortfolioOpt).
 
-> **Trạng thái (2026-11-12):** ✅ Backend lõi chạy được và đã deploy thử lên AWS bằng CDK (Cognito, VPC không NAT, Aurora Serverless v2 scale-to-zero, ECS Fargate ARM64, CloudFront). 188 test backend, coverage dòng 95%. Chi tiết tiến độ và những gì chưa làm: [docs/06-plan/roadmap.md](docs/06-plan/roadmap.md).
+> **Trạng thái (2026-11-12):** ✅ Backend lõi chạy được và đã deploy thử lên AWS bằng CDK (Cognito, VPC không NAT, Aurora Serverless v2 scale-to-zero, ECS Fargate ARM64, CloudFront). Có thêm ngân sách, khép sổ tháng, mục tiêu và web client React. 578 test backend, coverage dòng 96,7%. Chi tiết tiến độ và những gì chưa làm: [docs/06-plan/roadmap.md](docs/06-plan/roadmap.md).
 
 ![AWS target architecture](docs/diagrams/aws-architecture.png)
 

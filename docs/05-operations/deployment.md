@@ -53,6 +53,22 @@ Ba stack `jars-dev-foundation`, `jars-dev-network`, `jars-dev-auth` được dep
 
 Sau đó: `cdk deploy JarsFoundation JarsNetwork JarsAuth JarsData JarsMessaging -c alertEmail=<địa chỉ>`, bấm xác nhận email SNS, rồi push image và `cdk deploy JarsApp -c imageTag=<sha>`. Các giá trị script smoke test cần nằm trong CloudFormation outputs: `CloudFrontDomain`, `SpaClientId` (JarsApp), `UserPoolId`, `SmokeClientId` (JarsAuth), `EcrRepositoryUri` (JarsFoundation), `DbClusterIdentifier` (JarsData).
 
+### Lần đầu deploy `JarsApp`: hai lượt
+
+Web cần `SpaClientId`, mà client đó do chính `JarsApp` tạo ra, nên lần đầu phải deploy hai lượt (từ lần sau chỉ cần lượt 2, vì Client ID không đổi). Trình tự đã chạy thật ngày 2026-11-12, trong `infra/cdk` trừ khi ghi khác:
+
+| Bước | Lệnh | Thời gian đo được |
+|---|---|---|
+| 1 | `pwsh scripts/push-image.ps1` (build `linux/arm64`, tag = 12 ký tự đầu của git SHA, từ chối chạy khi working tree bẩn) | đẩy layer lên ECR mất 80 giây (thời gian build không đo riêng) |
+| 2 | `cdk deploy JarsApp -c imageTag=<sha> --outputs-file cdk-outputs.json` (chưa có web) | **18 phút** (ALB 2, VPC origin 9, distribution 3, ECS 3,4) |
+| 3 | Đọc `SpaClientId` và `CloudFrontDomain` từ outputs; trong `apps/web` đặt `VITE_COGNITO_USER_POOL_ID`, `VITE_COGNITO_CLIENT_ID`, `VITE_COGNITO_DOMAIN` rồi `npm run build` | 12 giây |
+| 4 | `cdk deploy JarsApp -c imageTag=<sha> -c deployWeb=true -c webDistDir=<đường dẫn tuyệt đối tới apps/web/dist> --exclusively` | 4 phút (upload S3 + invalidate CloudFront) |
+| 5 | `pwsh scripts/smoke-test.ps1` | 50 giây, 11 kiểm tra |
+
+`imageTag` phải truyền ở **cả hai** lượt (để trống thì synth báo lỗi cho `JarsApp`). Callback URL của Cognito client (`https://<CloudFrontDomain>/auth/callback` và `http://localhost:5173/auth/callback`) do CDK ghi vào, không phải sửa tay.
+
+Một điều chưa giải thích được: lượt 2 cũng đăng ký task definition revision 2 và thay task một lần (2 phút), dù nội dung khác revision 1 chỉ ở thứ tự của mục `compatibilities`. Vô hại, nhưng nếu muốn lượt web không đụng tới service thì cần tìm ra thay đổi nào trong template làm CloudFormation thay task definition (`cdk diff` trước lượt 2 sẽ cho biết).
+
 ## 3. Cấu hình theo môi trường (`infra/cdk/cdk.json` → `context`)
 
 | Key | Mặc định | Ý nghĩa |
@@ -119,9 +135,12 @@ permissions: id-token: write, contents: read
 
 ## 6. Checklist sau deploy
 
-- [ ] `GET /api/v1/health` trả 200 qua CloudFront.
-- [ ] Đăng nhập bằng managed login → `GET /api/v1/me` trả 200.
-- [ ] Gọi thẳng DNS của ALB từ internet → **không kết nối được** (ALB internal).
-- [ ] CloudWatch Logs có log JSON của task mới.
-- [ ] Sau 10 phút không dùng, Aurora về trạng thái paused (`ServerlessDatabaseCapacity = 0`).
+Kết quả lần deploy đầu (2026-11-12): các mục đã tick là đã kiểm bằng `scripts/smoke-test.ps1` hoặc lệnh AWS CLI; mục chưa tick là chưa kiểm.
+
+- [x] `GET /api/v1/health` trả 200 qua CloudFront.
+- [x] Token Cognito thật (lấy bằng `admin-initiate-auth`) → `GET /api/v1/me` trả 200 và tạo user cùng 6 hũ. Đăng nhập bằng **trình duyệt qua managed login** thì chưa kiểm tay: mới xác nhận bundle web chứa đúng pool/client/domain và callback URL của client khớp domain CloudFront.
+- [x] Idempotency, user khác nhận 404, anomaly → notification → SSE qua CloudFront (smoke test: 11/11).
+- [x] Gọi thẳng DNS của ALB từ internet → **không kết nối được** (ALB `scheme=internal`; smoke test kiểm bằng `describe-load-balancers`, chưa thử kết nối từ ngoài).
+- [x] CloudWatch Logs có log JSON của task mới (`/jars/dev/api`, retention 14 ngày, định dạng ECS). Dòng khởi động: `Started JarsApplication in 53.275 seconds`, đo trên Fargate 0,5 vCPU khi Aurora vừa resume từ trạng thái paused (so với khoảng 31 giây khi chạy image với Postgres local).
+- [x] Aurora tự pause khi không dùng: connection cuối lúc 18:59 (giờ VN), sự kiện RDS `Initiated pause` lúc 19:05:02, tức khoảng 6 phút sau (`SecondsUntilAutoPause = 300` cộng độ trễ metric); `ServerlessDatabaseCapacity` về 0 từ 19:06. Lúc app khởi động, `Initiated resume ... due to user activity` đến `Successfully resumed` mất 15 giây.
 - [ ] Cập nhật [roadmap](../06-plan/roadmap.md) và [nhật ký chi phí](cost-and-budget.md#6-nhật-ký-chi-phí-thực-tế).
