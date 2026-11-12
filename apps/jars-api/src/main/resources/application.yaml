@@ -59,6 +59,10 @@ jars:
     # comma-separated Cognito app client ids whose access tokens are accepted
     allowed-client-ids: ${JARS_ALLOWED_CLIENT_IDS:}
     local-dev-tokens: false
+  jobs:
+    # name of the SQS queue the EventBridge Scheduler sends jobs to (month close). Only used in the aws profile, where
+    # the listener is created; blank everywhere else (nothing connects to AWS locally or in tests)
+    queue-name: ${JARS_JOBS_QUEUE:}
 
 management:
   endpoints:

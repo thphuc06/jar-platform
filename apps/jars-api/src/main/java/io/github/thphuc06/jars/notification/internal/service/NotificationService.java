@@ -1,5 +1,6 @@
 package io.github.thphuc06.jars.notification.internal.service;
 
+import io.github.thphuc06.jars.budgeting.MonthClosed;
 import io.github.thphuc06.jars.insights.AnomalyDetected;
 import io.github.thphuc06.jars.notification.internal.model.Notification;
 import io.github.thphuc06.jars.notification.internal.persistence.NotificationRepository;
@@ -28,6 +29,7 @@ public class NotificationService {
     public record NotificationPage(List<NotificationView> items, String nextCursor, long unreadCount) {}
 
     static final String CONSUMER = "notification.anomaly-detected";
+    static final String MONTH_CLOSED_CONSUMER = "notification.month-closed";
     static final int DEFAULT_PAGE_SIZE = 20;
     static final int MAX_PAGE_SIZE = 100;
     static final int MAX_REPLAY = 100;
@@ -50,21 +52,60 @@ public class NotificationService {
         if (!inbox.firstTime(CONSUMER, event.eventId().toString())) {
             return;
         }
+        saveAndPush(
+                event.userId(), "ANOMALY", event.severity(), title(event), body(event), "ANOMALY", event.anomalyId());
+    }
+
+    /**
+     * Tells the user their month was closed, once per event. A month in which nothing was planned or spent is closed
+     * silently: there is nothing to report, and a dormant account should not get a message every month.
+     */
+    @Transactional
+    void createFromMonthClosed(MonthClosed event) {
+        if (!inbox.firstTime(MONTH_CLOSED_CONSUMER, event.eventId().toString())) {
+            return;
+        }
+        if (event.totalPlanned().isZero() && event.totalSpent().isZero()) {
+            return;
+        }
+        List<String> overspent = event.summary().stream()
+                .filter(j -> j.planned().isPositive() && j.spent().isGreaterThan(j.planned()))
+                .map(MonthClosed.JarPeriodSummary::jarName)
+                .toList();
+        String month = String.format(
+                "%02d/%d", event.month().getMonthValue(), event.month().getYear());
+        String body = "Bạn đã chi " + vnd(event.totalSpent())
+                + (event.totalPlanned().isPositive() ? " trên kế hoạch " + vnd(event.totalPlanned()) : "")
+                + " trong tháng."
+                + (overspent.isEmpty() ? "" : " Hũ " + String.join(", ", overspent) + " đã chi vượt kế hoạch.");
+        saveAndPush(
+                event.userId(),
+                "MONTH_CLOSED",
+                overspent.isEmpty() ? "LOW" : "MEDIUM",
+                "Đã khép sổ tháng " + month,
+                body,
+                "BUDGET_MONTH",
+                null);
+    }
+
+    /** Stores the notification and pushes it to open SSE connections only once it is durable (after the commit). */
+    private void saveAndPush(
+            UserId userId, String type, String severity, String title, String body, String refType, UUID refId) {
         Notification saved = notifications.save(new Notification(
-                event.userId().value(),
-                "ANOMALY",
-                event.severity(),
-                title(event),
-                body(event),
-                "ANOMALY",
-                event.anomalyId(),
+                userId.value(),
+                type,
+                severity,
+                title,
+                body,
+                refType,
+                refId,
                 clock.instant().truncatedTo(ChronoUnit.MICROS)));
         NotificationView view = NotificationView.of(saved);
         // push only once the notification is durable, so a client that reacts by calling the API finds it
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
             @Override
             public void afterCommit() {
-                sse.publish(event.userId(), view);
+                sse.publish(userId, view);
             }
         });
     }
