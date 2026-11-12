@@ -1,0 +1,185 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 220 20% 97%;
+    --foreground: 220 40% 8%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 220 40% 8%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 220 40% 8%;
+
+    --primary: 215 80% 48%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 220 15% 93%;
+    --secondary-foreground: 220 30% 15%;
+
+    --muted: 220 15% 93%;
+    --muted-foreground: 220 10% 45%;
+
+    --accent: 160 55% 38%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 72% 50%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 220 15% 90%;
+    --input: 220 15% 88%;
+    --ring: 215 80% 48%;
+
+    --radius: 0.75rem;
+
+    /* Premium gold accent */
+    --gold: 40 75% 52%;
+    --gold-foreground: 40 75% 10%;
+
+    /* Budget Jar Colors */
+    --jar-necessities: 215 80% 48%;
+    --jar-savings: 160 55% 38%;
+    --jar-investment: 270 55% 50%;
+    --jar-education: 40 85% 52%;
+    --jar-play: 340 68% 50%;
+    --jar-giving: 190 65% 42%;
+
+    /* Semantic */
+    --success: 155 65% 38%;
+    --success-foreground: 0 0% 100%;
+    --warning: 40 85% 52%;
+    --warning-foreground: 40 85% 10%;
+    --info: 210 80% 52%;
+    --info-foreground: 0 0% 100%;
+
+    --sidebar-background: 218 35% 10%;
+    --sidebar-foreground: 220 10% 85%;
+    --sidebar-primary: 215 80% 55%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 218 30% 16%;
+    --sidebar-accent-foreground: 220 10% 85%;
+    --sidebar-border: 218 30% 16%;
+    --sidebar-ring: 215 80% 55%;
+
+    --nav-height: 4rem;
+  }
+
+  .dark {
+    --background: 220 30% 6%;
+    --foreground: 220 10% 93%;
+
+    --card: 220 28% 10%;
+    --card-foreground: 220 10% 93%;
+
+    --popover: 220 28% 10%;
+    --popover-foreground: 220 10% 93%;
+
+    --primary: 215 75% 55%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 220 22% 15%;
+    --secondary-foreground: 220 10% 85%;
+
+    --muted: 220 22% 15%;
+    --muted-foreground: 220 10% 50%;
+
+    --accent: 160 50% 42%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 62% 42%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 220 22% 15%;
+    --input: 220 22% 15%;
+    --ring: 215 75% 55%;
+
+    --gold: 40 70% 55%;
+    --gold-foreground: 0 0% 100%;
+
+    --success: 155 55% 42%;
+    --success-foreground: 0 0% 100%;
+    --warning: 40 80% 52%;
+    --warning-foreground: 40 80% 8%;
+    --info: 210 70% 52%;
+    --info-foreground: 0 0% 100%;
+
+    --sidebar-background: 220 35% 5%;
+    --sidebar-foreground: 220 10% 85%;
+    --sidebar-primary: 215 75% 55%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 220 28% 10%;
+    --sidebar-accent-foreground: 220 10% 85%;
+    --sidebar-border: 220 28% 10%;
+    --sidebar-ring: 215 75% 55%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    font-family: 'Plus Jakarta Sans Variable', system-ui, sans-serif;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Space Grotesk Variable', system-ui, sans-serif;
+  }
+}
+
+@layer utilities {
+  .glass {
+    @apply bg-card/80 backdrop-blur-xl border border-border/50;
+  }
+
+  .glass-premium {
+    @apply bg-card/60 backdrop-blur-2xl border border-border/30 shadow-lg;
+  }
+
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .gradient-premium {
+    background: linear-gradient(135deg, hsl(var(--primary)), hsl(215 85% 38%));
+  }
+
+  .gradient-gold {
+    background: linear-gradient(135deg, hsl(var(--gold)), hsl(30 70% 45%));
+  }
+
+  .shimmer {
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      hsl(0 0% 100% / 0.08) 50%,
+      transparent 100%
+    );
+    background-size: 200% 100%;
+    animation: shimmer 2s infinite;
+  }
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+/* Smooth theme transition */
+html.dark,
+html.light {
+  color-scheme: light dark;
+}
+
+* {
+  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.15s ease;
+}
