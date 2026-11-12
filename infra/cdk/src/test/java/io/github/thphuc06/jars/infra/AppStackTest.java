@@ -88,7 +88,11 @@ class AppStackTest {
                         "JARS_JOBS_QUEUE",
                         "JARS_IMPORTS_BUCKET",
                         "JARS_IMPORTS_QUEUE",
+                        "JARS_GUARDRAIL_ID",
+                        "JARS_GUARDRAIL_VERSION",
                         "JAVA_TOOL_OPTIONS");
+        assertThat(environment.get("JARS_GUARDRAIL_ID")).contains("AdvisorGuardrail").contains("GuardrailId");
+        assertThat(environment.get("JARS_GUARDRAIL_VERSION")).contains("AdvisorGuardrailVersion");
         assertThat(environment).containsEntry("JARS_IMPORTS_BUCKET", "jars-dev-statements-626212071763");
         assertThat(environment).containsEntry("JARS_IMPORTS_QUEUE", "jars-imports");
         assertThat(environment).containsEntry("SPRING_PROFILES_ACTIVE", "aws");

@@ -107,9 +107,10 @@
 ### Advisor (AI)
 | Method | Path | Mô tả | Phase |
 |---|---|---|---|
-| POST | `/chat/sessions` | Tạo phiên chat | 4 |
-| GET | `/chat/sessions/{id}/messages` | Lịch sử chat | 4 |
-| POST | `/chat/sessions/{id}/messages` | Gửi tin nhắn → **SSE** stream | 4 |
+| POST | `/chat/sessions` | `{title?}` → 201 phiên chat | 2 ✅ |
+| GET | `/chat/sessions` | 30 phiên gần nhất, mới dùng trước | 2 ✅ |
+| GET | `/chat/sessions/{id}/messages` | 100 tin nhắn gần nhất (`role` `USER`/`ASSISTANT`) | 2 ✅ |
+| POST | `/chat/sessions/{id}/messages` | `{content}` (1–2000 ký tự) → **SSE** stream. Lỗi trả **trước** khi stream bắt đầu, dạng problem+json thường: 404 phiên không phải của user, 422 tin nhắn rỗng/quá dài, 429 `advisor-rate-limited` kèm `Retry-After` (mặc định 20 tin/giờ, 60 tin/ngày), 503 `advisor-unavailable` khi môi trường không có model (local) | 2 ✅ |
 
 ### Market (giáo dục)
 | Method | Path | Mô tả | Phase |
@@ -137,14 +138,14 @@ data: {"text":"Tháng 10 bạn chi "}
 event: token
 data: {"text":"nhiều nhất cho hũ PLAY..."}
 
-event: roadmap
-data: { ...RoadmapResponse JSON... }
+event: replace
+data: {"text":"Tôi không đưa ra khuyến nghị mua bán chứng khoán cụ thể..."}
 
 event: done
 data: {"messageId":"0193...","usage":{"inputTokens":812,"outputTokens":164},"disclaimer":"Thông tin mang tính tham khảo..."}
 ```
 
-Nếu có lỗi giữa chừng: `event: error` với `data` là ProblemDetail, sau đó đóng stream.
+`tool` báo model đang tra dữ liệu (`getJars`, `getMonthlyCashflow`, `getGoals`, `getOpenAnomalyCount`; chỉ đọc, user lấy từ JWT). `replace` chỉ xuất hiện khi guardrail đầu ra can thiệp: client thay toàn bộ phần đã hiện bằng `text` ([ADR-0023](../04-adr/0023-advisor-guardrail-and-rate-limit.md)). Event `roadmap` của thiết kế ban đầu chưa cài. Nếu có lỗi giữa chừng: `event: error` với `data` là ProblemDetail, sau đó đóng stream. Client không tự kết nối lại (một lượt chat không idempotent).
 
 ### Thông báo: `GET /notifications/stream`
 

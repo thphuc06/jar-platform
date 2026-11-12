@@ -32,8 +32,11 @@ class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
     @ExceptionHandler(DomainException.class)
-    ProblemDetail handleDomain(DomainException ex, HttpServletRequest request) {
-        return ProblemDetails.of(ex.type(), ex.getMessage(), request.getRequestURI());
+    ResponseEntity<ProblemDetail> handleDomain(DomainException ex, HttpServletRequest request) {
+        ProblemDetail problem = ProblemDetails.of(ex.type(), ex.getMessage(), request.getRequestURI());
+        ResponseEntity.BodyBuilder response = ResponseEntity.status(problem.getStatus());
+        ex.retryAfterSeconds().ifPresent(seconds -> response.header(HttpHeaders.RETRY_AFTER, Long.toString(seconds)));
+        return response.body(problem);
     }
 
     @ExceptionHandler(ConcurrencyFailureException.class)

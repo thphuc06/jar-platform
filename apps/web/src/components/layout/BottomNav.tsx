@@ -6,7 +6,7 @@ import UnreadBadge from "./UnreadBadge";
 const BottomNav = () => (
   <nav aria-label="Điều hướng chính" className="fixed bottom-0 left-0 right-0 z-50 glass border-t md:hidden">
     <div className="flex h-16 items-center justify-around pb-[env(safe-area-inset-bottom)]">
-      {NAV_ITEMS.map(({ to, icon: Icon, short, badge }) => (
+      {NAV_ITEMS.filter((item) => !item.desktopOnly).map(({ to, icon: Icon, short, badge }) => (
         <NavLink
           key={to}
           to={to}

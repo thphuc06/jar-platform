@@ -164,10 +164,10 @@ Chi tiết schema và đảm bảo giao nhận: [event-catalog.md](event-catalog
 | Model chat | `global.anthropic.claude-haiku-4-5-20251001-v1:0` (mặc định; Haiku 5.5 bị AccessDenied ở account này, theo P0.5); `global.anthropic.claude-sonnet-4-6` (tùy chọn, cho lộ trình phức tạp) |
 | Loại endpoint | **Global cross-region inference profile**: request có thể được xử lý ở region khác. Chấp nhận được cho dev; nếu có yêu cầu lưu trữ dữ liệu trong nước thì đây là điểm cần xem lại |
 | API | `ConverseStream` qua Spring AI `spring-ai-starter-model-bedrock-converse` |
-| Guardrails | Một guardrail: denied topic "khuyến nghị mua/bán chứng khoán cụ thể", lọc PII (số tài khoản, CCCD), content filter mức medium, **prompt attack filter** (chống prompt injection, theo khuyến nghị trong AWS Prescriptive Guidance). Gắn vào request Converse; **Phase 4 cần kiểm tra Spring AI có truyền `guardrailConfig` không**, nếu không thì gọi `ApplyGuardrail` bằng AWS SDK |
+| Guardrails | Guardrail `jars-dev-advisor` tạo bằng CDK trong `JarsApp` (Phase 2 WP4): denied topic "khuyến nghị mua/bán chứng khoán cụ thể", PII (số thẻ, CCCD 12 số; **không** lọc số tài khoản vì sẽ che luôn số tiền), content filter, prompt attack filter `HIGH` (chỉ đầu vào). Spring AI 2.0 không gắn được guardrail vào Converse nên app gọi `ApplyGuardrail` trước model và sau khi stream xong ([ADR-0023](../04-adr/0023-advisor-guardrail-and-rate-limit.md)). Chất lượng nhận diện tiếng Việt của tầng guardrail mặc định cần kiểm ở WP6 |
 | RAG (tùy chọn) | Bedrock Knowledge Base + **S3 Vectors** (GA 12/2025, có ở Singapore) với `cohere.embed-multilingual-v3`, nguồn là các file `kb/*.md` về sản phẩm ngân hàng |
-| Quyền IAM | `bedrock:InvokeModel*` trên đúng ARN của inference profile và foundation model; `bedrock:ApplyGuardrail` trên guardrail ARN |
-| Kiểm soát chi phí | Rate limit theo user (Bucket4j + Valkey), `max-tokens` giới hạn, metric token in/out qua Micrometer |
+| Quyền IAM | Policy `ApiAdvisorPolicy` theo mẫu 3 phần của AWS cho global cross-region inference: `InvokeModel` và `InvokeModelWithResponseStream` trên inference profile ở `ap-southeast-1`, foundation model ở `ap-southeast-1` và foundation model không region (`aws:RequestedRegion = unspecified`), đều có điều kiện `bedrock:InferenceProfileArn`; `bedrock:ApplyGuardrail` trên đúng guardrail |
+| Kiểm soát chi phí | Rate limit theo user trong PostgreSQL (20 tin/giờ, 60 tin/ngày), `max-tokens` 800, metric `jars.advisor.messages`, `jars.advisor.tokens`, `jars.advisor.ungrounded`. Đo thật ngày 2026-11-13 (Haiku 4.5, dữ liệu demo): một lượt có gọi tool tốn khoảng 3.600–3.900 token vào, 150–250 token ra; byte đầu tiên sau 1,3–2,1 giây |
 
 ## 9. Quant: Lambda `quant-fn`
 

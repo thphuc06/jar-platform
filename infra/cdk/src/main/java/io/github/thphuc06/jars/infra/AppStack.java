@@ -568,6 +568,13 @@ public final class AppStack extends Stack {
         // Tomcat needs a writable /tmp while the root file system is read-only
         taskDefinition.addVolume(Volume.builder().name("tmp").build());
 
+        // AI advisor (Phase 2 WP4): the guardrail the API applies, and its permission to call the model
+        AdvisorResources.Guardrail guardrail = AdvisorResources.guardrail(this, cfg);
+        AdvisorResources.allowModelAndGuardrail(
+                this,
+                taskRole,
+                "arn:" + getPartition() + ":bedrock:" + getRegion() + ":" + getAccount() + ":guardrail/" + guardrail.id());
+
         ContainerDefinition container = taskDefinition.addContainer(
                 CONTAINER_NAME,
                 ContainerDefinitionOptions.builder()
@@ -582,27 +589,27 @@ public final class AppStack extends Stack {
                                 .protocol(Protocol.TCP)
                                 .build()))
                         // not secrets: names, URLs and ids. The DB credentials come from `secrets` below.
-                        .environment(Map.of(
-                                "SPRING_PROFILES_ACTIVE",
-                                "aws",
-                                "SPRING_DATASOURCE_URL",
-                                "jdbc:postgresql://" + data.endpointHostname() + ":" + NetworkStack.DB_PORT + "/"
-                                        + DataStack.DATABASE_NAME + "?sslmode=require",
-                                "JARS_ISSUER_URI",
-                                "https://cognito-idp." + getRegion() + ".amazonaws.com/"
-                                        + auth.userPool().getUserPoolId(),
-                                "JARS_ALLOWED_CLIENT_IDS",
-                                spaClient.getUserPoolClientId() + ","
-                                        + auth.smokeClient().getUserPoolClientId(),
-                                "JARS_JOBS_QUEUE",
-                                MessagingStack.JOBS_QUEUE_NAME,
-                                "JARS_IMPORTS_BUCKET",
-                                DataStack.statementsBucketName(cfg, getAccount()),
-                                "JARS_IMPORTS_QUEUE",
-                                MessagingStack.IMPORTS_QUEUE_NAME,
-                                // the JVM sizes its heap from the 1 GB task limit (aws-infrastructure.md section 4)
-                                "JAVA_TOOL_OPTIONS",
-                                "-XX:MaxRAMPercentage=75"))
+                        .environment(Map.ofEntries(
+                                Map.entry("SPRING_PROFILES_ACTIVE", "aws"),
+                                Map.entry(
+                                        "SPRING_DATASOURCE_URL",
+                                        "jdbc:postgresql://" + data.endpointHostname() + ":" + NetworkStack.DB_PORT + "/"
+                                                + DataStack.DATABASE_NAME + "?sslmode=require"),
+                                Map.entry(
+                                        "JARS_ISSUER_URI",
+                                        "https://cognito-idp." + getRegion() + ".amazonaws.com/"
+                                                + auth.userPool().getUserPoolId()),
+                                Map.entry(
+                                        "JARS_ALLOWED_CLIENT_IDS",
+                                        spaClient.getUserPoolClientId() + ","
+                                                + auth.smokeClient().getUserPoolClientId()),
+                                Map.entry("JARS_JOBS_QUEUE", MessagingStack.JOBS_QUEUE_NAME),
+                                Map.entry("JARS_IMPORTS_BUCKET", DataStack.statementsBucketName(cfg, getAccount())),
+                                Map.entry("JARS_IMPORTS_QUEUE", MessagingStack.IMPORTS_QUEUE_NAME),
+                                Map.entry("JARS_GUARDRAIL_ID", guardrail.id()),
+                                Map.entry("JARS_GUARDRAIL_VERSION", guardrail.version()),
+                                // the JVM sizes its heap from the container limit (aws-infrastructure.md section 4)
+                                Map.entry("JAVA_TOOL_OPTIONS", "-XX:MaxRAMPercentage=75")))
                         .secrets(Map.of(
                                 "SPRING_DATASOURCE_USERNAME",
                                 Secret.fromSecretsManager(data.secret(), "username"),

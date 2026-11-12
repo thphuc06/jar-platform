@@ -19,6 +19,11 @@ public class DomainException extends RuntimeException {
         return type;
     }
 
+    /** Seconds a client should wait before trying again (sent as {@code Retry-After}); empty for most problems. */
+    public java.util.OptionalLong retryAfterSeconds() {
+        return java.util.OptionalLong.empty();
+    }
+
     /** 404 for a resource that does not exist <em>or does not belong to the caller</em> (anti-IDOR, see security.md). */
     public static DomainException notFound(String what) {
         return new DomainException(ProblemTypes.NOT_FOUND, what + " không tồn tại");

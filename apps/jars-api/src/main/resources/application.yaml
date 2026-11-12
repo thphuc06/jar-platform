@@ -52,6 +52,10 @@ spring:
       s3:
         # same for S3 (statement uploads): locally the files go to a folder (jars.imports.storage=local)
         enabled: false
+  ai:
+    model:
+      # no chat model locally and in tests (the advisor answers 503); the aws profile selects Bedrock Converse
+      chat: none
   batch:
     job:
       # jobs run when a statement arrives (ImportLauncher), never at startup

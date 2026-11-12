@@ -1,4 +1,4 @@
-import { ArrowDownRight, ArrowLeftRight, ArrowRight, ArrowUpRight, Bell, Inbox, Loader2, PiggyBank, Shield, Target, TrendingUp } from "lucide-react";
+import { ArrowDownRight, ArrowLeftRight, ArrowRight, ArrowUpRight, Bell, Bot, Inbox, Loader2, PiggyBank, Shield, Target, TrendingUp } from "lucide-react";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
@@ -59,12 +59,18 @@ const Index = () => {
 
   return (
     <motion.div variants={container} initial="hidden" animate="show" className="space-y-6">
-      <motion.div variants={item}>
-        <h1 className="text-2xl font-display font-bold">
-          {greeting(new Date().getHours())}
-          {displayName ? `, ${displayName}` : ""}
-        </h1>
-        <p className="text-sm text-muted-foreground">Tổng quan tài chính của bạn</p>
+      <motion.div variants={item} className="flex items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-display font-bold">
+            {greeting(new Date().getHours())}
+            {displayName ? `, ${displayName}` : ""}
+          </h1>
+          <p className="text-sm text-muted-foreground">Tổng quan tài chính của bạn</p>
+        </div>
+        {/* the bottom bar has no room for the advisor: this is its entry on a phone */}
+        <Button variant="outline" size="sm" className="gap-2 md:hidden" onClick={() => navigate("/advisor")}>
+          <Bot className="h-4 w-4" aria-hidden="true" /> Hỏi trợ lý
+        </Button>
       </motion.div>
 
       {dashboard.isError && (

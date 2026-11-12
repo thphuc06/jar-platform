@@ -20,8 +20,25 @@ spring:
         observation-enabled: true
       s3:
         enabled: true
+  ai:
+    model:
+      chat: bedrock-converse
+    bedrock:
+      aws:
+        region: ${AWS_REGION:ap-southeast-1}
+      converse:
+        chat:
+          options:
+            # global cross-region inference profile (ADR-0011); Haiku 5.5 is not enabled for this account
+            model: global.anthropic.claude-haiku-4-5-20251001-v1:0
+            max-tokens: ${jars.advisor.max-tokens:800}
+            temperature: 0.3
 
 jars:
+  advisor:
+    # the Bedrock guardrail of JarsApp (ADR-0023); blank = none
+    guardrail-id: ${JARS_GUARDRAIL_ID:}
+    guardrail-version: ${JARS_GUARDRAIL_VERSION:DRAFT}
   imports:
     storage: s3
     # set by the task definition (JarsApp): the statements bucket of JarsData and the queue of JarsMessaging

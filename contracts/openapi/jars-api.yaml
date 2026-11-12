@@ -165,6 +165,81 @@ paths:
           description: OK
       tags:
       - transaction-controller
+  /api/v1/chat/sessions:
+    get:
+      operationId: sessions
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/SessionView"
+          description: OK
+      tags:
+      - advisor-controller
+    post:
+      operationId: create_2
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateSessionRequest"
+      responses:
+        "201":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/SessionView"
+          description: Created
+      tags:
+      - advisor-controller
+  /api/v1/chat/sessions/{sessionId}/messages:
+    get:
+      operationId: messages
+      parameters:
+      - in: path
+        name: sessionId
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/MessageView"
+          description: OK
+      tags:
+      - advisor-controller
+    post:
+      operationId: send
+      parameters:
+      - in: path
+        name: sessionId
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SendMessageRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            text/event-stream:
+              schema:
+                $ref: "#/components/schemas/SseEmitter"
+          description: OK
+      tags:
+      - advisor-controller
   /api/v1/dashboard:
     get:
       operationId: dashboard
@@ -894,6 +969,13 @@ components:
           minimum: 0
       required:
       - name
+    CreateSessionRequest:
+      type: object
+      properties:
+        title:
+          type: string
+          maxLength: 80
+          minLength: 0
     CreatedImport:
       type: object
       properties:
@@ -1211,6 +1293,19 @@ components:
           type: string
         onboardingCompleted:
           type: boolean
+    MessageView:
+      type: object
+      properties:
+        content:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        id:
+          type: string
+          format: uuid
+        role:
+          type: string
     MilestoneData:
       type: object
       properties:
@@ -1713,6 +1808,25 @@ components:
           $ref: "#/components/schemas/Money"
         targetAmount:
           $ref: "#/components/schemas/Money"
+    SendMessageRequest:
+      type: object
+      properties:
+        content:
+          type: string
+    SessionView:
+      type: object
+      properties:
+        createdAt:
+          type: string
+          format: date-time
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        updatedAt:
+          type: string
+          format: date-time
     SplitRequest:
       type: object
       properties:
