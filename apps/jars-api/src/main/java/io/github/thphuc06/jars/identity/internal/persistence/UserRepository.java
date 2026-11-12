@@ -2,8 +2,10 @@ package io.github.thphuc06.jars.identity.internal.persistence;
 
 import io.github.thphuc06.jars.identity.internal.domain.User;
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import org.springframework.data.domain.Limit;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -13,6 +15,10 @@ public interface UserRepository extends JpaRepository<User, UUID> {
 
     @Query("select u.id from User u where u.cognitoSub = :sub")
     Optional<UUID> findIdByCognitoSub(@Param("sub") String cognitoSub);
+
+    /** Keyset page of user ids in ascending order, strictly after {@code after}. */
+    @Query("select u.id from User u where u.id > :after order by u.id")
+    List<UUID> findIdsAfter(@Param("after") UUID after, Limit limit);
 
     /**
      * Race-free create: when two first requests arrive together exactly one insert wins and the other returns 0, with

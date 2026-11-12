@@ -21,6 +21,18 @@ public class ProcessedMessages {
     }
 
     /**
+     * Whether {@code consumer} already handled {@code messageId}. For work that is idempotent on its own and only wants
+     * to skip a repeat early; a consumer that must not do the work twice still uses {@link #firstTime}.
+     */
+    @Transactional(readOnly = true, propagation = Propagation.SUPPORTS)
+    public boolean contains(String consumer, String messageId) {
+        return jdbc.sql("SELECT EXISTS (SELECT 1 FROM processed_messages WHERE consumer = ? AND message_id = ?)")
+                .params(consumer, messageId)
+                .query(Boolean.class)
+                .single();
+    }
+
+    /**
      * Records that {@code consumer} handles {@code messageId}. Returns true the first time and false for a repeat;
      * a concurrent duplicate waits for the first transaction and then gets false.
      */

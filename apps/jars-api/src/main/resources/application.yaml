@@ -70,6 +70,10 @@ jars:
   seed:
     # --jars.seed.enabled=true creates demo data for the token subject "demo" (local profile only)
     enabled: false
+  jobs:
+    # name of the SQS queue the EventBridge Scheduler sends jobs to (month close). Only used in the aws profile, where
+    # the listener is created; blank everywhere else (nothing connects to AWS locally or in tests)
+    queue-name: ${JARS_JOBS_QUEUE:}
 
 management:
   endpoints:

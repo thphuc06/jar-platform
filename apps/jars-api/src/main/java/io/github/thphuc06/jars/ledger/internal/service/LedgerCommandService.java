@@ -1,5 +1,7 @@
 package io.github.thphuc06.jars.ledger.internal.service;
 
+import io.github.thphuc06.jars.ledger.AllocationReceipt;
+import io.github.thphuc06.jars.ledger.IncomeAllocation;
 import io.github.thphuc06.jars.ledger.JarCreated;
 import io.github.thphuc06.jars.ledger.TransactionPosted;
 import io.github.thphuc06.jars.ledger.TransactionRecategorized;
@@ -31,7 +33,10 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
@@ -111,6 +116,21 @@ public class LedgerCommandService {
                 userId, idempotencyKey, requestHash, TransactionReceipt.class, 201, () -> doTransfer(userId, cmd))));
     }
 
+    /**
+     * One income divided over several jars: an INCOME transaction without a jar plus one ALLOCATE entry per split, in a
+     * single transaction (all of it or nothing), with the same retry, idempotency and event behaviour as {@link #post}.
+     */
+    public Result<AllocationReceipt> allocateIncome(
+            UserId userId, String idempotencyKey, String requestHash, IncomeAllocation cmd) {
+        return retry.run(() -> tx.execute(status -> idempotency.execute(
+                userId,
+                idempotencyKey,
+                requestHash,
+                AllocationReceipt.class,
+                201,
+                () -> doAllocateIncome(userId, cmd))));
+    }
+
     /** Changes the category and/or jar of an existing transaction; a null argument keeps the current value. */
     public TransactionView recategorize(UserId userId, UUID transactionId, UUID categoryId, UUID jarId) {
         return retry.run(() -> tx.execute(status -> doRecategorize(userId, transactionId, categoryId, jarId)));
@@ -173,6 +193,68 @@ public class LedgerCommandService {
         }
         publishPosted(userId, t);
         return new TransactionReceipt(TransactionView.of(t), balances);
+    }
+
+    private AllocationReceipt doAllocateIncome(UserId userId, IncomeAllocation cmd) {
+        Instant now = now();
+        Instant occurredAt = cmd.occurredAt() == null ? now : cmd.occurredAt().truncatedTo(ChronoUnit.MICROS);
+        if (occurredAt.isAfter(now.plus(MAX_FUTURE))) {
+            throw invalid("Ngày giao dịch không được ở tương lai quá 1 ngày.");
+        }
+        requirePositive(cmd.amount());
+        List<IncomeAllocation.Split> splits = validSplits(cmd);
+        requireCategory(userId, cmd.categoryId(), CategoryKind.INCOME);
+
+        // lock order: every writer touches the jars in the same order, so two allocations cannot deadlock each other
+        List<IncomeAllocation.Split> ordered = new ArrayList<>(splits);
+        ordered.sort(Comparator.comparing(IncomeAllocation.Split::jarId));
+        List<Jar> targets = new ArrayList<>();
+        for (IncomeAllocation.Split split : ordered) {
+            targets.add(requireJar(userId, split.jarId()));
+        }
+
+        LedgerTransaction t = transactions.save(LedgerTransaction.income(
+                userId.value(), cmd.amount(), null, cmd.categoryId(), cmd.counterparty(), cmd.note(), occurredAt, now));
+        List<AllocationReceipt.Credit> credits = new ArrayList<>();
+        for (int i = 0; i < ordered.size(); i++) {
+            Jar jar = targets.get(i);
+            Money share = ordered.get(i).amount();
+            entries.save(jar.post(EntryType.ALLOCATE, share, t.getId(), occurredAt, now));
+            credits.add(new AllocationReceipt.Credit(jar.getId(), share, jar.balance()));
+        }
+        publishPosted(userId, t);
+        return new AllocationReceipt(t.getId(), t.money(), occurredAt, credits);
+    }
+
+    /** The splits of an allocation, after checking that each is positive, no jar repeats and they add up to the amount. */
+    private static List<IncomeAllocation.Split> validSplits(IncomeAllocation cmd) {
+        List<IncomeAllocation.Split> splits = cmd.splits();
+        if (splits == null || splits.isEmpty()) {
+            throw invalid("Cần chọn ít nhất một hũ để phân bổ.");
+        }
+        Set<UUID> seen = new HashSet<>();
+        Money total = Money.zero(cmd.amount().currency());
+        for (IncomeAllocation.Split split : splits) {
+            if (split.jarId() == null) {
+                throw invalid("Thiếu hũ nhận tiền.");
+            }
+            if (!split.amount().currency().equals(cmd.amount().currency())) {
+                throw invalid("Mọi phần phân bổ phải cùng loại tiền với khoản thu.");
+            }
+            if (!split.amount().isPositive()) {
+                throw invalid("Số tiền phân bổ cho mỗi hũ phải lớn hơn 0.");
+            }
+            if (!seen.add(split.jarId())) {
+                throw invalid("Mỗi hũ chỉ xuất hiện một lần trong phân bổ.");
+            }
+            total = total.plus(split.amount());
+        }
+        if (total.compareTo(cmd.amount()) != 0) {
+            throw new DomainException(
+                    LedgerProblems.ALLOCATION_SUM_MISMATCH,
+                    "Các phần phân bổ cộng lại " + total + ", khác số tiền " + cmd.amount() + ".");
+        }
+        return splits;
     }
 
     private TransactionReceipt doTransfer(UserId userId, TransferCommand cmd) {

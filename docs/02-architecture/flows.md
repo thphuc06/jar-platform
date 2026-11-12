@@ -256,18 +256,43 @@ sequenceDiagram
     autonumber
     participant SCH as EventBridge Scheduler
     participant Q as SQS jars-jobs
-    participant API as jars-api (budgeting)
+    participant L as MonthCloseQueueListener (chỉ profile aws)
+    participant J as MonthCloseJob
+    participant S as MonthCloseService (budgeting)
+    participant ID as IdentityApi
     participant DB as Aurora
+    participant N as notification
 
-    SCH->>Q: 00:05 ngày 1 hằng tháng (Asia/Ho_Chi_Minh): {job: MONTH_CLOSE, month: 2026-10}
-    API->>Q: @SqsListener
-    API->>DB: processed_messages check (job + month là khóa idempotency)
-    loop từng user (theo trang 500 user, mỗi user 1 transaction)
-        API->>DB: Tổng kết jar_periods tháng cũ, tạo jar_periods tháng mới
-        API->>DB: event_publication(MonthClosed)
+    SCH->>Q: 00:05 ngày 1 hằng tháng (Asia/Ho_Chi_Minh): {"job":"MONTH_CLOSE"}
+    L->>Q: @SqsListener(${jars.jobs.queue-name})
+    L->>J: handle(payload)
+    J->>J: tháng cần khép = tháng trước tháng hiện tại, tính theo giờ VN (hoặc "month" trong payload)
+    J->>S: closeAll(month)
+    S->>DB: processed_messages có (budgeting.month-close.batch, month)? có thì dừng
+    loop từng trang 500 user (IdentityApi.userIdsAfter, keyset theo id)
+        loop từng user, mỗi user MỘT transaction riêng
+            S->>DB: INSERT processed_messages (budgeting.month-close, userId:month), có rồi thì bỏ qua user
+            S->>DB: INSERT jar_periods tháng cũ và tháng mới cho mọi hũ đang dùng (ON CONFLICT DO NOTHING)
+            S->>DB: UPDATE jar_periods SET closed_at WHERE closed_at IS NULL
+            S->>DB: event_publication(MonthClosed)
+        end
     end
-    API->>Q: DeleteMessage
+    S->>DB: tất cả user xong thì ghi processed_messages (budgeting.month-close.batch, month)
+    J->>DB: dọn idempotency_keys hết hạn (IdempotencyService.purgeExpired)
+    L->>Q: DeleteMessage (khi handle không ném lỗi)
+    DB-->>N: sau commit, MonthClosedNotifier tạo notification "Đã khép sổ tháng MM/YYYY"
 ```
+
+**Idempotent ở hai tầng (đã cài đặt):**
+
+- **Từng user:** marker `(budgeting.month-close, userId:month)` được ghi trong **cùng transaction** với việc khép sổ, nên một tháng của một user chỉ được khép một lần; chạy lại thì thấy marker và không làm gì (không đổi `closed_at`, không phát event thứ hai). Ngoài marker, `closed_at` chỉ được đặt khi còn null và không bao giờ dời. Hai task nhận trùng message cùng lúc thì task sau chờ trên unique index rồi thấy marker.
+- **Cả đợt:** marker `(budgeting.month-close.batch, month)` được ghi **sau khi mọi user thành công**. Message giao trùng sau khi đợt đã xong thì trả về ngay, không duyệt user nào. Đợt chết giữa chừng thì chưa có marker, lần giao lại sẽ duyệt tiếp và bỏ qua user đã khép. Nếu có user lỗi, `closeAll` vẫn xử lý hết các user còn lại rồi `MonthCloseJob` ném lỗi, message quay lại hàng đợi và sau `maxReceiveCount=5` lần vào DLQ (có alarm); marker của đợt chỉ ghi khi không user nào lỗi.
+
+**Quy tắc khép sổ một user:** mọi hũ đang dùng có một dòng `jar_periods` tháng cũ (dù chưa dùng) để bản tóm tắt đầy đủ; hũ đã archive nhưng có dòng của tháng đó vẫn có trong bản tóm tắt (tên "Hũ đã lưu trữ"). Chi tiêu đến muộn sau khi khép sổ vẫn cộng vào `spent_amount` của tháng cũ nhưng `closed_at` giữ nguyên và không phát lại `MonthClosed`. Tháng chưa kết thúc (theo giờ VN) không khép được (`IllegalArgumentException`), để một message sai không khép tháng đang chạy. `MonthClosed` luôn được phát (kể cả tháng không có gì); module `notification` bỏ qua tháng có kế hoạch và chi đều bằng 0 để tài khoản không dùng không nhận thông báo mỗi tháng.
+
+**Payload:** lịch gửi `{"job":"MONTH_CLOSE"}` (không có tháng); job tự tính tháng trước theo giờ VN, đúng cả lúc 00:05 ngày 1 khi UTC vẫn là ngày cuối tháng. Có thể gửi tay `{"job":"MONTH_CLOSE","month":"2026-10"}` để chạy lại một tháng. Job lạ bị bỏ qua (và xác nhận message), payload không phải JSON hoặc tháng sai định dạng thì ném lỗi để vào DLQ.
+
+**Chỉ ở profile `aws`:** listener SQS là `@Profile("aws")` với tên hàng đợi từ `jars.jobs.queue-name` (biến môi trường `JARS_JOBS_QUEUE`); local và test không bao giờ kết nối AWS, logic nằm trong `MonthCloseJob` / `MonthCloseService` và được test gọi trực tiếp.
 
 **Vì sao không dùng `@Scheduled`:** khi có 2 task, cả hai sẽ cùng chạy job (khi đó cần ShedLock). Đưa lịch ra EventBridge Scheduler thì chỉ có **một message**, và chỉ một task nhận được nó. Ngoài ra Scheduler hỗ trợ timezone, có retry và DLQ.
 
