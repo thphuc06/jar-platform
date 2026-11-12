@@ -46,3 +46,6 @@ Thumbs.db
 
 # --- tools ---
 .codegraph/
+
+# --- stray tool output at the repo root (Spring Modulith javadoc metadata from an IDE build) ---
+/build/

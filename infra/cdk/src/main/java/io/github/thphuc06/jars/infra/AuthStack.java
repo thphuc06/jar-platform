@@ -33,6 +33,10 @@ import software.amazon.awscdk.services.cognito.UserPoolResourceServer;
 import software.amazon.awscdk.services.cognito.UserPoolResourceServerOptions;
 import software.amazon.awscdk.services.cognito.UserVerificationConfig;
 import software.amazon.awscdk.services.cognito.VerificationEmailStyle;
+import software.amazon.awscdk.services.iam.Effect;
+import software.amazon.awscdk.services.iam.Policy;
+import software.amazon.awscdk.services.iam.PolicyStatement;
+import software.amazon.awscdk.services.iam.Role;
 import software.constructs.Construct;
 
 /**
@@ -132,6 +136,24 @@ public final class AuthStack extends Stack {
                         .supportedIdentityProviders(List.of(UserPoolClientIdentityProvider.COGNITO))
                         .build());
         smokeClient.getNode().addDependency(resourceServer);
+
+        // deploy-dev.yml runs scripts/smoke-test.ps1 as the GitHub deploy role (JarsFoundation), and the
+        // script creates and deletes two throw-away users. The role is looked up by its fixed name rather
+        // than passed in: a cross-stack export would pin the role in JarsFoundation for as long as this
+        // stack exists. JarsInfraApp makes this stack depend on JarsFoundation so the role exists first.
+        Policy.Builder.create(this, "SmokeTestUsersPolicy")
+                .statements(List.of(PolicyStatement.Builder.create()
+                        .sid("SmokeTestUsers")
+                        .effect(Effect.ALLOW)
+                        .actions(List.of(
+                                "cognito-idp:AdminCreateUser",
+                                "cognito-idp:AdminSetUserPassword",
+                                "cognito-idp:AdminInitiateAuth",
+                                "cognito-idp:AdminDeleteUser"))
+                        .resources(List.of(userPool.getUserPoolArn()))
+                        .build()))
+                .roles(List.of(Role.fromRoleName(this, "GitHubDeployRole", cfg.name("github-deploy"))))
+                .build();
 
         Validations.of(userPool)
                 .acknowledge(

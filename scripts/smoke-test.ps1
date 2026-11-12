@@ -11,7 +11,8 @@
     - one user cannot see or change another user's data (404, not 403)
     - an unusual expense raises an anomaly, a notification, and a live Server-Sent Event through CloudFront
     - the ALB is internal (not reachable from the internet)
-  Deletes the two users at the end. Needs the AWS CLI (credentials for the account) and curl.exe.
+  Deletes the two users at the end. Needs PowerShell 7, the AWS CLI (credentials for the account) and curl.
+  Runs on a developer machine and in .github/workflows/deploy-dev.yml (Linux runner, GitHub deploy role).
 
 .EXAMPLE
   pwsh scripts/smoke-test.ps1
@@ -136,7 +137,9 @@ try {
     }
     Check "an unusual expense raises an anomaly, a notification and a live SSE event through CloudFront" {
         $sseFile = Join-Path ([IO.Path]::GetTempPath()) "sse-$suffix.txt"
-        $curl = Start-Process -FilePath "curl.exe" -PassThru -NoNewWindow -RedirectStandardOutput $sseFile `
+        # curl.exe on Windows (plain "curl" is an alias of Invoke-WebRequest in Windows PowerShell), curl elsewhere
+        $curlExe = if ($IsWindows) { "curl.exe" } else { "curl" }
+        $curl = Start-Process -FilePath $curlExe -PassThru -NoNewWindow -RedirectStandardOutput $sseFile `
             -ArgumentList @("-sN", "--max-time", [string]($AsyncTimeoutSeconds + 40), "-H", ('"Authorization: Bearer {0}"' -f $alice), "https://$script:Domain/api/v1/notifications/stream")
         # (Start-Process joins the list with spaces and does not quote for us: without the inner quotes curl sees three arguments)
         Start-Sleep -Seconds 3

@@ -100,6 +100,29 @@ class FoundationStackTest {
                                 List.of(like("Action", "sts:AssumeRole", "Effect", "Allow", "Resource", bootstrapRoles)))));
     }
 
+    @Test
+    void githubDeployRoleMayPushOnlyTheApiImageAndReadOnlyJarsStacks() {
+        template.hasResourceProperties(
+                "AWS::IAM::Policy",
+                like(
+                        "PolicyDocument",
+                        like(
+                                "Statement",
+                                Match.arrayWith(List.of(
+                                        like(
+                                                "Sid", "PushApiImage",
+                                                "Resource", map("Fn::GetAtt", List.of(Match.anyValue(), "Arn"))),
+                                        like(
+                                                "Sid", "ReadJarsStackOutputs",
+                                                "Action", "cloudformation:DescribeStacks",
+                                                "Resource",
+                                                        "arn:aws:cloudformation:ap-southeast-1:626212071763:stack/Jars*/*")))),
+                        "Roles", List.of(map("Ref", Match.stringLikeRegexp("GitHubDeployRole.*")))));
+        // no statement grants write access beyond the ECR repository
+        assertThat(template.toJSON().toString())
+                .doesNotContain("\"ecr:*\"", "\"cloudformation:*\"", "\"iam:*\"", "\"s3:*\"");
+    }
+
     private static String role(String kind, String suffix) {
         return "arn:aws:iam::626212071763:role/cdk-hnb659fds-" + kind + suffix;
     }

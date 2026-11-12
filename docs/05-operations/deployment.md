@@ -65,6 +65,8 @@ Web cần `SpaClientId`, mà client đó do chính `JarsApp` tạo ra, nên lầ
 | 4 | `cdk deploy JarsApp -c imageTag=<sha> -c deployWeb=true -c webDistDir=<đường dẫn tuyệt đối tới apps/web/dist> --exclusively` | 4 phút (upload S3 + invalidate CloudFront) |
 | 5 | `pwsh scripts/smoke-test.ps1` | 50 giây, 11 kiểm tra |
 
+Từ Phase 2 có thể thay cả bảng trên bằng một lần chạy workflow [`deploy-dev.yml`](#deploy-devyml-chỉ-chạy-tay-actions--deploy-dev--run-workflow-từ-nhánh-main).
+
 `imageTag` phải truyền ở **cả hai** lượt (để trống thì synth báo lỗi cho `JarsApp`). Callback URL của Cognito client (`https://<CloudFrontDomain>/auth/callback` và `http://localhost:5173/auth/callback`) do CDK ghi vào, không phải sửa tay.
 
 Một điều chưa giải thích được: lượt 2 cũng đăng ký task definition revision 2 và thay task một lần (2 phút), dù nội dung khác revision 1 chỉ ở thứ tự của mục `compatibilities`. Vô hại, nhưng nếu muốn lượt web không đụng tới service thì cần tìm ra thay đổi nào trong template làm CloudFormation thay task definition (`cdk diff` trước lượt 2 sẽ cho biết).
@@ -108,20 +110,26 @@ paths: infra/cdk/**          → ./mvnw test (CDK assertions + cdk-nag) → cdk 
 
 Kiểm tra workflow ở local trước khi push: `docker run --rm -v "$PWD:/repo" -w /repo rhysd/actionlint:1.7.12`. Quét secret ở local: `docker run --rm -v "$PWD:/repo" ghcr.io/gitleaks/gitleaks:v8.30.1 git /repo --redact`.
 
-### `deploy-dev.yml` (merge `main` hoặc `workflow_dispatch`)
+### `deploy-dev.yml` (chỉ chạy tay: Actions → deploy-dev → Run workflow, từ nhánh `main`)
 
-```
-permissions: id-token: write, contents: read
-1. aws-actions/configure-aws-credentials (role-to-assume: jars-github-deploy, region ap-southeast-1)
-2. docker buildx build --platform linux/arm64 -t <ecr>/jars/jars-api:${GITHUB_SHA} --push
-3. cd infra/cdk && npx aws-cdk@2 deploy JarsApp JarsQuant -c imageTag=${GITHUB_SHA} --require-approval never
-4. (BucketDeployment trong JarsApp upload apps/web/dist và invalidate CloudFront)
-5. Smoke test: curl https://<cf-domain>/api/v1/health → 200
-```
+**Đang có (Phase 2 WP1):** [`.github/workflows/deploy-dev.yml`](../../.github/workflows/deploy-dev.yml). Không chạy khi push, vì môi trường mặc định là TEARDOWN.
 
-> ⚠️ **Quyền ECR của role deploy:** `jars-dev-github-deploy` chỉ được assume các role bootstrap của CDK ([security.md §3](../02-architecture/security.md#3-iam)). Bước 2 (`docker push` vào `jars/jars-api`) cần thêm quyền push ECR trên đúng repo đó (stack cũ có statement này). Việc thêm quyền là quyết định bảo mật riêng, chưa làm trong `JarsFoundation`.
+| Input | Mặc định | Ý nghĩa |
+|---|---|---|
+| `action` | `deploy` | `deploy` dựng hoặc cập nhật `JarsApp`; `destroy` xóa `JarsApp` (về TEARDOWN) |
+| `web` | `true` | Build `apps/web` với output của `JarsAuth`/`JarsApp` và upload cùng stack |
+| `smoke` | `true` | Chạy `scripts/smoke-test.ps1` (PowerShell 7 trên runner Linux) sau khi deploy |
 
-> Workflow deploy **không tự chạy khi đang TEARDOWN**. Dùng biến repo `DEPLOY_ENABLED=false` để bỏ qua bước deploy, tránh vô tình dựng lại stack tốn tiền.
+Các bước của `deploy` (runner `ubuntu-24.04-arm`, build image không cần giả lập):
+
+1. Assume `jars-dev-github-deploy` qua OIDC (role ARN lấy từ biến repo `AWS_DEPLOY_ROLE_ARN`).
+2. Image `jars/jars-api:<12 ký tự đầu của commit>`: có rồi thì dùng lại (tag immutable), chưa có thì `docker buildx build --platform linux/arm64 --push`.
+3. `cdk deploy JarsApp --exclusively -c imageTag=<tag>`. Nếu `JarsApp` đã tồn tại: build web từ output hiện có rồi deploy một lượt. Nếu chưa: deploy không có web, đọc output, build web, deploy lượt hai (như [§2](#lần-đầu-deploy-jarsapp-hai-lượt)).
+4. Smoke test; job summary ghi tag image và URL CloudFront.
+
+`--exclusively` là cố ý: không có cờ này, `cdk deploy JarsApp` deploy luôn các stack phụ thuộc, tức CI có thể sửa `JarsFoundation`, nơi chứa chính role của nó. Các stack nền vẫn deploy từ máy dev.
+
+**Cài đặt một lần:** biến repo `AWS_DEPLOY_ROLE_ARN` = output `GitHubDeployRoleArn` của `JarsFoundation` (Settings → Secrets and variables → Actions → Variables). Quyền của role: [security.md §3](../02-architecture/security.md#3-iam).
 
 ## 5. Chiến lược release và rollback
 
