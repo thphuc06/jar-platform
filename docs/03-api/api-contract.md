@@ -36,7 +36,7 @@
 | 401 | Thiếu hoặc sai token |
 | 403 | Thiếu scope |
 | 404 | Không tồn tại **hoặc không thuộc user** (chống IDOR) |
-| 409 | Xung đột version (sau khi đã retry vẫn thất bại) |
+| 409 | Xung đột đồng thời (version hoặc deadlock) còn lại sau khi đã retry tối đa 5 lần |
 | 422 | Sai quy tắc nghiệp vụ (validation, số dư, Idempotency-Key bị dùng lại với request khác) |
 | 429 | Vượt rate limit (có header `Retry-After`) |
 | 503 | Phụ thuộc bên ngoài lỗi (quant-fn, Bedrock); circuit đang mở |
@@ -56,13 +56,13 @@
 |---|---|---|---|
 | GET | `/jars` | Danh sách hũ + số dư | 1 |
 | POST | `/jars` | Tạo hũ tùy chỉnh | 1 |
-| PATCH | `/jars/{id}` | Đổi tên, `targetPct` (tổng các hũ phải = 100) | 1 |
+| PATCH | `/jars/{id}` | Đổi tên, `targetPct`. Tổng tỷ lệ các hũ đang dùng phải **≤ 100** (422 `allocation-exceeds-100`); phải bằng đúng 100 khi áp dụng một lần phân bổ thu nhập | 1 |
 | DELETE | `/jars/{id}` | Archive (chỉ khi số dư = 0) | 1 |
-| POST | `/jars/transfers` | Chuyển tiền giữa 2 hũ (**Idempotency-Key**) | 1 |
+| POST | `/jars/transfers` | Chuyển tiền giữa 2 hũ (**Idempotency-Key**); hũ nguồn phải đủ tiền | 1 |
 | GET | `/categories` | Danh mục (mặc định của hệ thống + của user) | 1 |
 | GET | `/transactions?limit&cursor&jarId&categoryId&type&from&to` | Money Inbox | 1 |
-| POST | `/transactions` | Ghi thu/chi (**Idempotency-Key**) | 1 |
-| PATCH | `/transactions/{id}` | Đổi danh mục / hũ, sinh bút toán điều chỉnh | 1 |
+| POST | `/transactions` | Ghi thu/chi (**Idempotency-Key**). Chi bắt buộc có `jarId`; thu có thể không có `jarId` (chỉ ghi nhận thu nhập, chưa vào hũ). Trả `201 {transaction, jarBalances[]}` và header `Idempotency-Replayed: true` khi là bản phát lại | 1 |
+| PATCH | `/transactions/{id}` | Đổi danh mục và/hoặc hũ của một khoản **chi** (đổi hũ sinh bút toán `ADJUST` trả tiền về hũ cũ và `SPEND` trừ hũ mới). Thu nhập chỉ đổi được danh mục; giao dịch chuyển hũ không sửa được | 1 |
 | GET | `/balances/daily?days=30` | Chuỗi số dư theo ngày (biểu đồ) | 1 |
 
 ### Budgeting

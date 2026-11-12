@@ -25,6 +25,10 @@ spring:
     properties:
       hibernate:
         default_schema: jars
+        # write rows in primary-key order, so two transactions that touch the same jars (a transfer A->B and one B->A)
+        # lock them in the same order and cannot deadlock each other
+        order_updates: true
+        order_inserts: true
         jdbc:
           time_zone: UTC
     # the schema belongs to Flyway; Hibernate only checks that entities match it

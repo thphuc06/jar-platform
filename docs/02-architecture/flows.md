@@ -97,6 +97,12 @@ sequenceDiagram
 
 **Vì sao retry phải nằm ngoài transaction:** transaction đã gặp `OptimisticLockException` bị đánh dấu rollback-only và entity trong persistence context đã cũ. Thử lại trong cùng transaction vẫn dùng dữ liệu cũ. Vòng retry phải gọi một method `@Transactional` từ bên ngoài proxy (bean khác), để mỗi lần có transaction và persistence context mới.
 
+**Thử lại tối đa 5 lần với backoff ngẫu nhiên** (`jars.ledger.max-attempts`, nâng từ 3 sau khi test đồng thời 12 luồng trên một hũ). Vòng retry bắt `ConcurrencyFailureException`, tức cả xung đột `@Version` lẫn nạn nhân của deadlock; hết lượt thì trả 409 `version-conflict`.
+
+**Deadlock khi chuyển hũ hai chiều (đã gặp thật khi viết test):** chuyển A→B và B→A cùng lúc làm hai transaction `UPDATE` hai dòng `jars` theo thứ tự ngược nhau, PostgreSQL báo `deadlock detected` (SQLSTATE 40P01). Cách xử lý: bật `hibernate.order_updates` để mọi transaction ghi các dòng theo thứ tự khóa chính (nguyên nhân gốc), và coi nạn nhân deadlock như xung đột đồng thời (retry, rồi 409). Test `concurrentTransfersBetweenTwoJars_keepBothLedgersConsistent` giữ cho lỗi này không quay lại.
+
+**Chi tiêu vượt số dư:** mặc định vẫn ghi (tiền đã tiêu rồi, số dư âm cho thấy tiêu lố); đặt `jars.ledger.block-overspend=true` để từ chối với 422 `insufficient-jar-balance`. Chuyển hũ luôn cần đủ tiền ở hũ nguồn.
+
 **Vì sao INSERT key nằm trong cùng transaction:** hai request cùng key chạy đồng thời sẽ va vào unique index. Request sau chờ cho tới khi request đầu commit, rồi thấy key đã tồn tại và trả response đã lưu. Nếu request đầu rollback thì dòng key cũng biến mất và request sau được chạy bình thường. Không cần trạng thái `IN_PROGRESS` riêng.
 
 ---

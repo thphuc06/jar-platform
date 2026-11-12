@@ -9,7 +9,7 @@ import java.util.List;
 import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.dao.OptimisticLockingFailureException;
+import org.springframework.dao.ConcurrencyFailureException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ProblemDetail;
@@ -36,8 +36,8 @@ class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         return ProblemDetails.of(ex.type(), ex.getMessage(), request.getRequestURI());
     }
 
-    @ExceptionHandler(OptimisticLockingFailureException.class)
-    ProblemDetail handleOptimisticLock(OptimisticLockingFailureException ex, HttpServletRequest request) {
+    @ExceptionHandler(ConcurrencyFailureException.class)
+    ProblemDetail handleConcurrencyFailure(ConcurrencyFailureException ex, HttpServletRequest request) {
         return ProblemDetails.of(
                 ProblemTypes.VERSION_CONFLICT,
                 "Dữ liệu vừa được cập nhật bởi một yêu cầu khác, vui lòng thử lại.",

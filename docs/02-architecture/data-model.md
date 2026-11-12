@@ -9,6 +9,7 @@
 |---|---|---|---|
 | V1 | `V1__baseline_users.sql` | Bảng `users`: `id` UUID (app sinh), `cognito_sub` UNIQUE, `email` UNIQUE **không phân biệt hoa/thường** (unique index trên `lower(email)`), `locale` mặc định `vi-VN`, `created_at`/`updated_at` | P0.6 |
 | V2 | `V2__idempotency_keys.sql` | Bảng `idempotency_keys` (PK `user_id` + `key`), chủ sở hữu là `platform` | WP1 |
+| V4 | `V4__ledger.sql` | `jars` (có `version`, `balance` cache, index unique `(user_id, code)` cho 6 hũ mặc định), `categories` (+ 19 danh mục hệ thống, id cố định), `transactions` (có `to_jar_id` cho chuyển hũ và các CHECK ràng buộc loại giao dịch), `jar_entries` (chỉ ghi thêm). `currency` là `VARCHAR(3)` thay vì `CHAR(3)` để Hibernate `validate` khớp kiểu. `jar_entries.created_at` là thời điểm **phát sinh** của giao dịch (để vẽ số dư theo ngày), còn `balance_after` là số dư chạy theo **thứ tự ghi sổ** | WP3 |
 | V3 | `V3__identity.sql` | Bỏ unique index email và cho phép `email` NULL (danh tính chỉ dựa trên `cognito_sub`; access token Cognito không có claim email); thêm `risk_assessments` (một dòng mỗi lần nộp bảng hỏi, dòng mới nhất là hồ sơ hiện tại) | WP2 |
 
 ## 1. Quy ước
@@ -106,7 +107,8 @@ erDiagram
         text type "INCOME|EXPENSE|JAR_TRANSFER"
         numeric amount ">0"
         char currency
-        uuid jar_id FK "nullable for INCOME"
+        uuid jar_id FK "nullable for INCOME; nguồn của JAR_TRANSFER"
+        uuid to_jar_id FK "chỉ cho JAR_TRANSFER"
         uuid category_id FK
         text counterparty
         text note
