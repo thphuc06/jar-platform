@@ -1,5 +1,6 @@
 package io.github.thphuc06.jars.infra;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.thphuc06.jars.infra.JarsInfraApp.JarsStacks;
 import java.io.IOException;
@@ -72,15 +73,43 @@ final class InfraFixture {
         return new Synthesized(app, stacks);
     }
 
+    /**
+     * Condensed validation report of an app: one line per unacknowledged finding with the rule id and
+     * the construct paths, so a failing test names exactly what to fix or acknowledge.
+     */
     static String validationReport(App app) {
         Path report = Path.of(app.getOutdir(), "validation-report.json");
+        if (!Files.exists(report)) {
+            return "(no validation report in " + app.getOutdir() + ")";
+        }
         try {
-            return Files.exists(report)
-                    ? Files.readString(report)
-                    : "(no validation report in " + app.getOutdir() + ")";
+            StringBuilder summary = new StringBuilder("Unacknowledged findings:").append(System.lineSeparator());
+            for (JsonNode pluginReport : JSON.readTree(report.toFile()).path("pluginReports")) {
+                for (JsonNode violation : pluginReport.path("violations")) {
+                    summary.append("  [")
+                            .append(pluginReport.path("pluginName").asText())
+                            .append("] ")
+                            .append(violation.path("severity").asText())
+                            .append(' ')
+                            .append(violation.path("ruleName").asText())
+                            .append(": ")
+                            .append(abbreviate(violation.path("description").asText()))
+                            .append(System.lineSeparator());
+                    for (JsonNode construct : violation.path("violatingConstructs")) {
+                        summary.append("      at ")
+                                .append(construct.path("constructPath").asText())
+                                .append(System.lineSeparator());
+                    }
+                }
+            }
+            return summary.toString();
         } catch (IOException e) {
             return "(could not read " + report + ": " + e.getMessage() + ")";
         }
+    }
+
+    private static String abbreviate(String text) {
+        return text.length() <= 140 ? text : text.substring(0, 140) + "...";
     }
 
     @SuppressWarnings("unchecked")
@@ -102,6 +131,10 @@ final class InfraFixture {
 
         Template network() {
             return Template.fromStack(stacks.network());
+        }
+
+        Template auth() {
+            return Template.fromStack(stacks.auth());
         }
     }
 }
