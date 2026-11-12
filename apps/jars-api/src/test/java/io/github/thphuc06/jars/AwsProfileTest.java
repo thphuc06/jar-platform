@@ -18,7 +18,10 @@ import org.springframework.test.web.servlet.assertj.MockMvcTester;
  * profile, so without this a bean that is only valid locally (or a missing one) would first fail in production.
  * The Docker image once crashed at startup for exactly that reason.
  */
-@SpringBootTest
+// the queue name is mandatory in the aws profile (the listener refuses to start without it); the polling itself is off,
+// nothing connects to AWS from a test
+@SpringBootTest(
+        properties = {"jars.jobs.queue-name=jars-jobs-test", "spring.cloud.aws.sqs.listener.auto-startup=false"})
 @AutoConfigureMockMvc
 @ActiveProfiles("aws")
 @Import(TestcontainersConfiguration.class)
@@ -43,6 +46,11 @@ class AwsProfileTest {
                 .hasStatus(HttpStatus.NOT_FOUND);
         assertThat(context.containsBean("localDevJwtDecoder")).isFalse();
         assertThat(context.containsBean("localDevKey")).isFalse();
+    }
+
+    @Test
+    void theMonthCloseQueueListenerExistsOnlyHere() {
+        assertThat(context.containsBean("monthCloseQueueListener")).isTrue();
     }
 
     @Test
