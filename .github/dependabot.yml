@@ -11,6 +11,22 @@ updates:
       spring:
         patterns: ["org.springframework*", "io.awspring.cloud*"]
 
+  - package-ecosystem: maven
+    directory: /infra/cdk
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      # aws-cdk-lib and constructs must move together
+      cdk:
+        patterns: ["software.amazon.awscdk*", "software.constructs*", "io.github.cdklabs*"]
+
+  - package-ecosystem: npm
+    directory: /apps/web
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+
   - package-ecosystem: github-actions
     directory: /
     schedule:
