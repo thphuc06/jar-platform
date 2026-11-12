@@ -29,3 +29,5 @@ ADR ghi lại **vì sao** một quyết định kiến trúc được đưa ra, 
 | [0018](0018-human-access-iam-user-aws-login.md) | Truy cập của người: IAM user + MFA + `aws login` (không dùng Identity Center) | Accepted | 2026-10-23 |
 | [0019](0019-java-21-lts.md) | Java 21 LTS thay cho Java 25 (Boot 4.1 giữ nguyên) | Accepted | 2026-11-12 |
 | [0020](0020-spa-fallback-cloudfront-function.md) | SPA fallback bằng CloudFront Function, không dùng custom error response (bổ sung ADR-0007) | Accepted | 2026-11-12 |
+| [0021](0021-anomaly-detection-mad-cusum.md) | Phát hiện chi tiêu bất thường theo hũ bằng MAD + CUSUM | Accepted | 2026-11-12 |
+| [0022](0022-idempotency-key-in-business-transaction.md) | Idempotency-Key ghi trong cùng transaction với nghiệp vụ | Accepted | 2026-11-12 |
