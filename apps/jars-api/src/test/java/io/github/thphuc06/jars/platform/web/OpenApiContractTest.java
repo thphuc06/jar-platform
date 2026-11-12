@@ -8,6 +8,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import org.junit.jupiter.api.Test;
+import org.springframework.test.context.TestPropertySource;
 
 /**
  * The OpenAPI document generated from the controllers must equal the committed copy in {@code contracts/openapi}, the
@@ -15,7 +16,12 @@ import org.junit.jupiter.api.Test;
  * silently breaking the UI.
  *
  * <p>After changing the API run {@code ./mvnw test -Dtest=OpenApiContractTest -Dopenapi.update=true} and commit the file.
+ *
+ * <p>Keys are written in alphabetical order: springdoc lists the properties of a reflected class (here
+ * {@code java.util.Currency}) in the order the JVM returns its methods, which differs between operating systems, and the
+ * same code produced a different file on a Linux CI runner than on a developer machine.
  */
+@TestPropertySource(properties = "springdoc.writer-with-order-by-keys=true")
 class OpenApiContractTest extends ApiTestSupport {
 
     private static final Path CONTRACT = Path.of("../../contracts/openapi/jars-api.yaml");

@@ -1,323 +1,55 @@
 openapi: 3.1.0
 info:
-  title: Jars Platform API
   description: Personal finance with the 6-jars method. Money amounts are strings
     with two decimals; every POST that changes money needs an Idempotency-Key header;
     errors are RFC 9457 problem+json.
+  title: Jars Platform API
   version: v1
 servers:
 - url: /
 security:
 - cognito: []
 paths:
-  /api/v1/me/risk-profile:
+  /api/v1/anomalies:
     get:
-      tags:
-      - me-controller
-      operationId: riskProfile
-      responses:
-        "200":
-          description: OK
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/RiskProfileResponse"
-    put:
-      tags:
-      - me-controller
-      operationId: submitRiskProfile
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/RiskAnswersRequest"
-        required: true
-      responses:
-        "200":
-          description: OK
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/RiskProfileResponse"
-  /dev/token:
-    post:
-      tags:
-      - token-controller
-      operationId: token
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/TokenRequest"
-        required: true
-      responses:
-        "200":
-          description: OK
-          content:
-            '*/*':
-              schema:
-                type: object
-                additionalProperties: {}
-  /api/v1/transactions:
-    get:
-      tags:
-      - transaction-controller
-      operationId: list
+      operationId: anomalies
       parameters:
-      - name: jarId
-        in: query
-        required: false
-        schema:
-          type: string
-          format: uuid
-      - name: categoryId
-        in: query
-        required: false
-        schema:
-          type: string
-          format: uuid
-      - name: type
-        in: query
+      - in: query
+        name: status
         required: false
         schema:
           type: string
           enum:
-          - INCOME
-          - EXPENSE
-          - JAR_TRANSFER
-      - name: from
-        in: query
-        required: false
-        schema:
-          type: string
-          format: date-time
-      - name: to
-        in: query
-        required: false
-        schema:
-          type: string
-          format: date-time
-      - name: limit
-        in: query
+          - OPEN
+          - CONFIRMED
+          - EXPECTED
+          - FALSE_POSITIVE
+      - in: query
+        name: limit
         required: false
         schema:
           type: integer
           format: int32
-      - name: cursor
-        in: query
+      - in: query
+        name: cursor
         required: false
         schema:
           type: string
       responses:
         "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/AnomalyPage"
           description: OK
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/TransactionPage"
-    post:
-      tags:
-      - transaction-controller
-      operationId: post
-      parameters:
-      - name: Idempotency-Key
-        in: header
-        required: true
-        schema:
-          type: string
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/PostTransactionRequest"
-        required: true
-      responses:
-        "200":
-          description: OK
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/TransactionReceipt"
-  /api/v1/notifications/{id}/read:
-    post:
-      tags:
-      - notification-controller
-      operationId: read
-      parameters:
-      - name: id
-        in: path
-        required: true
-        schema:
-          type: string
-          format: uuid
-      responses:
-        "200":
-          description: OK
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/NotificationView"
-  /api/v1/jars:
-    get:
-      tags:
-      - jar-controller
-      operationId: list_1
-      responses:
-        "200":
-          description: OK
-          content:
-            '*/*':
-              schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/JarView"
-    post:
-      tags:
-      - jar-controller
-      operationId: create
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/CreateJarRequest"
-        required: true
-      responses:
-        "201":
-          description: Created
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/JarView"
-  /api/v1/jars/transfers:
-    post:
-      tags:
-      - jar-controller
-      operationId: transfer
-      parameters:
-      - name: Idempotency-Key
-        in: header
-        required: true
-        schema:
-          type: string
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/TransferRequest"
-        required: true
-      responses:
-        "200":
-          description: OK
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/TransactionReceipt"
-  /api/v1/goals:
-    get:
-      tags:
-      - goal-controller
-      operationId: listGoals
-      responses:
-        "200":
-          description: OK
-          content:
-            '*/*':
-              schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/GoalView"
-    post:
-      tags:
-      - goal-controller
-      operationId: createGoal
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/CreateGoalRequest"
-        required: true
-      responses:
-        "201":
-          description: Created
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/GoalView"
-  /api/v1/goals/{id}/scenarios:
-    post:
-      tags:
-      - goal-controller
-      operationId: goalScenarios
-      parameters:
-      - name: id
-        in: path
-        required: true
-        schema:
-          type: string
-          format: uuid
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/ScenarioRequest"
-        required: true
-      responses:
-        "200":
-          description: OK
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/ScenarioView"
-  /api/v1/budget/allocations:
-    post:
-      tags:
-      - budget-controller
-      operationId: apply
-      parameters:
-      - name: Idempotency-Key
-        in: header
-        required: true
-        schema:
-          type: string
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/AllocationRequest"
-        required: true
-      responses:
-        "200":
-          description: OK
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/AllocationResult"
-  /api/v1/budget/allocation-suggestions:
-    post:
-      tags:
-      - budget-controller
-      operationId: suggest
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/SuggestionRequest"
-        required: true
-      responses:
-        "200":
-          description: OK
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/Suggestion"
-  /api/v1/anomalies/{id}/feedback:
-    post:
       tags:
       - insights-controller
+  /api/v1/anomalies/{id}/feedback:
+    post:
       operationId: feedback
       parameters:
-      - name: id
-        in: path
+      - in: path
+        name: id
         required: true
         schema:
           type: string
@@ -330,112 +62,164 @@ paths:
         required: true
       responses:
         "200":
-          description: OK
           content:
             '*/*':
               schema:
                 $ref: "#/components/schemas/AnomalyView"
-  /api/v1/transactions/{id}:
-    patch:
+          description: OK
+      tags:
+      - insights-controller
+  /api/v1/balances/daily:
+    get:
+      operationId: dailyBalances
+      parameters:
+      - in: query
+        name: days
+        required: false
+        schema:
+          type: integer
+          format: int32
+          default: 30
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/DailyBalanceView"
+          description: OK
       tags:
       - transaction-controller
-      operationId: recategorize
-      parameters:
-      - name: id
-        in: path
-        required: true
-        schema:
-          type: string
-          format: uuid
+  /api/v1/budget/allocation-suggestions:
+    post:
+      operationId: suggest
       requestBody:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/PatchTransactionRequest"
+              $ref: "#/components/schemas/SuggestionRequest"
         required: true
       responses:
         "200":
-          description: OK
           content:
             '*/*':
               schema:
-                $ref: "#/components/schemas/TransactionView"
-  /api/v1/me:
+                $ref: "#/components/schemas/Suggestion"
+          description: OK
+      tags:
+      - budget-controller
+  /api/v1/budget/allocations:
+    post:
+      operationId: apply
+      parameters:
+      - in: header
+        name: Idempotency-Key
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AllocationRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/AllocationResult"
+          description: OK
+      tags:
+      - budget-controller
+  /api/v1/budget/periods/{month}:
     get:
-      tags:
-      - me-controller
-      operationId: me
+      operationId: period
+      parameters:
+      - in: path
+        name: month
+        required: true
+        schema:
+          type: string
       responses:
         "200":
-          description: OK
           content:
             '*/*':
               schema:
-                $ref: "#/components/schemas/MeResponse"
-    patch:
+                $ref: "#/components/schemas/PeriodView"
+          description: OK
       tags:
-      - me-controller
-      operationId: update
+      - budget-controller
+  /api/v1/categories:
+    get:
+      operationId: categories
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CategoryView"
+          description: OK
+      tags:
+      - transaction-controller
+  /api/v1/dashboard:
+    get:
+      operationId: dashboard
+      parameters:
+      - in: query
+        name: month
+        required: false
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/Dashboard"
+          description: OK
+      tags:
+      - insights-controller
+  /api/v1/goals:
+    get:
+      operationId: listGoals
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/GoalView"
+          description: OK
+      tags:
+      - goal-controller
+    post:
+      operationId: createGoal
       requestBody:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/UpdateMeRequest"
+              $ref: "#/components/schemas/CreateGoalRequest"
         required: true
       responses:
-        "200":
-          description: OK
+        "201":
           content:
             '*/*':
               schema:
-                $ref: "#/components/schemas/MeResponse"
-  /api/v1/jars/{id}:
-    delete:
+                $ref: "#/components/schemas/GoalView"
+          description: Created
       tags:
-      - jar-controller
-      operationId: archive
-      parameters:
-      - name: id
-        in: path
-        required: true
-        schema:
-          type: string
-          format: uuid
-      responses:
-        "204":
-          description: No Content
-    patch:
-      tags:
-      - jar-controller
-      operationId: update_1
-      parameters:
-      - name: id
-        in: path
-        required: true
-        schema:
-          type: string
-          format: uuid
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/UpdateJarRequest"
-        required: true
-      responses:
-        "200":
-          description: OK
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/JarView"
+      - goal-controller
   /api/v1/goals/{id}:
     delete:
-      tags:
-      - goal-controller
       operationId: archiveGoal
       parameters:
-      - name: id
-        in: path
+      - in: path
+        name: id
         required: true
         schema:
           type: string
@@ -443,13 +227,13 @@ paths:
       responses:
         "204":
           description: No Content
-    patch:
       tags:
       - goal-controller
+    patch:
       operationId: updateGoal
       parameters:
-      - name: id
-        in: path
+      - in: path
+        name: id
         required: true
         schema:
           type: string
@@ -462,596 +246,439 @@ paths:
         required: true
       responses:
         "200":
-          description: OK
           content:
             '*/*':
               schema:
                 $ref: "#/components/schemas/GoalView"
-  /api/v1/notifications:
-    get:
-      tags:
-      - notification-controller
-      operationId: list_2
-      parameters:
-      - name: unreadOnly
-        in: query
-        required: false
-        schema:
-          type: boolean
-          default: false
-      - name: limit
-        in: query
-        required: false
-        schema:
-          type: integer
-          format: int32
-      - name: cursor
-        in: query
-        required: false
-        schema:
-          type: string
-      responses:
-        "200":
           description: OK
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/NotificationPage"
-  /api/v1/notifications/stream:
-    get:
-      tags:
-      - notification-controller
-      operationId: stream
-      parameters:
-      - name: Last-Event-ID
-        in: header
-        required: false
-        schema:
-          type: string
-      responses:
-        "200":
-          description: OK
-          content:
-            text/event-stream:
-              schema:
-                $ref: "#/components/schemas/SseEmitter"
-  /api/v1/health:
-    get:
-      tags:
-      - health-controller
-      operationId: health
-      responses:
-        "200":
-          description: OK
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/HealthResponse"
-  /api/v1/goals/{id}/roadmap:
-    get:
       tags:
       - goal-controller
-      operationId: goalRoadmap
-      parameters:
-      - name: id
-        in: path
-        required: true
-        schema:
-          type: string
-          format: uuid
-      responses:
-        "200":
-          description: OK
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/RoadmapResponse"
   /api/v1/goals/{id}/feasibility:
     get:
-      tags:
-      - goal-controller
       operationId: goalFeasibility
       parameters:
-      - name: id
-        in: path
+      - in: path
+        name: id
         required: true
         schema:
           type: string
           format: uuid
       responses:
         "200":
-          description: OK
           content:
             '*/*':
               schema:
                 $ref: "#/components/schemas/FeasibilityView"
-  /api/v1/dashboard:
-    get:
-      tags:
-      - insights-controller
-      operationId: dashboard
-      parameters:
-      - name: month
-        in: query
-        required: false
-        schema:
-          type: string
-      responses:
-        "200":
           description: OK
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/Dashboard"
-  /api/v1/categories:
-    get:
       tags:
-      - transaction-controller
-      operationId: categories
-      responses:
-        "200":
-          description: OK
-          content:
-            '*/*':
-              schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/CategoryView"
-  /api/v1/budget/periods/{month}:
+      - goal-controller
+  /api/v1/goals/{id}/roadmap:
     get:
-      tags:
-      - budget-controller
-      operationId: period
+      operationId: goalRoadmap
       parameters:
-      - name: month
-        in: path
+      - in: path
+        name: id
         required: true
         schema:
           type: string
+          format: uuid
       responses:
         "200":
-          description: OK
           content:
             '*/*':
               schema:
-                $ref: "#/components/schemas/PeriodView"
-  /api/v1/balances/daily:
-    get:
+                $ref: "#/components/schemas/RoadmapResponse"
+          description: OK
       tags:
-      - transaction-controller
-      operationId: dailyBalances
+      - goal-controller
+  /api/v1/goals/{id}/scenarios:
+    post:
+      operationId: goalScenarios
       parameters:
-      - name: days
-        in: query
-        required: false
+      - in: path
+        name: id
+        required: true
         schema:
-          type: integer
-          format: int32
-          default: 30
+          type: string
+          format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ScenarioRequest"
+        required: true
       responses:
         "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ScenarioView"
           description: OK
+      tags:
+      - goal-controller
+  /api/v1/health:
+    get:
+      operationId: health
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+          description: OK
+      tags:
+      - health-controller
+  /api/v1/jars:
+    get:
+      operationId: list_1
+      responses:
+        "200":
           content:
             '*/*':
               schema:
                 type: array
                 items:
-                  $ref: "#/components/schemas/DailyBalanceView"
-  /api/v1/anomalies:
-    get:
+                  $ref: "#/components/schemas/JarView"
+          description: OK
       tags:
-      - insights-controller
-      operationId: anomalies
+      - jar-controller
+    post:
+      operationId: create
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateJarRequest"
+        required: true
+      responses:
+        "201":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/JarView"
+          description: Created
+      tags:
+      - jar-controller
+  /api/v1/jars/transfers:
+    post:
+      operationId: transfer
       parameters:
-      - name: status
-        in: query
-        required: false
+      - in: header
+        name: Idempotency-Key
+        required: true
         schema:
           type: string
-          enum:
-          - OPEN
-          - CONFIRMED
-          - EXPECTED
-          - FALSE_POSITIVE
-      - name: limit
-        in: query
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TransferRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/TransactionReceipt"
+          description: OK
+      tags:
+      - jar-controller
+  /api/v1/jars/{id}:
+    delete:
+      operationId: archive
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "204":
+          description: No Content
+      tags:
+      - jar-controller
+    patch:
+      operationId: update_1
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateJarRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/JarView"
+          description: OK
+      tags:
+      - jar-controller
+  /api/v1/me:
+    get:
+      operationId: me
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/MeResponse"
+          description: OK
+      tags:
+      - me-controller
+    patch:
+      operationId: update
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateMeRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/MeResponse"
+          description: OK
+      tags:
+      - me-controller
+  /api/v1/me/risk-profile:
+    get:
+      operationId: riskProfile
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/RiskProfileResponse"
+          description: OK
+      tags:
+      - me-controller
+    put:
+      operationId: submitRiskProfile
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RiskAnswersRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/RiskProfileResponse"
+          description: OK
+      tags:
+      - me-controller
+  /api/v1/notifications:
+    get:
+      operationId: list_2
+      parameters:
+      - in: query
+        name: unreadOnly
+        required: false
+        schema:
+          type: boolean
+          default: false
+      - in: query
+        name: limit
         required: false
         schema:
           type: integer
           format: int32
-      - name: cursor
-        in: query
+      - in: query
+        name: cursor
         required: false
         schema:
           type: string
       responses:
         "200":
-          description: OK
           content:
             '*/*':
               schema:
-                $ref: "#/components/schemas/AnomalyPage"
-components:
-  schemas:
-    RiskAnswersRequest:
-      type: object
-      properties:
-        answers:
-          type: array
-          items:
-            type: integer
-            format: int32
-          maxItems: 5
-          minItems: 5
-      required:
-      - answers
-    RiskProfileResponse:
-      type: object
-      properties:
-        score:
-          type: integer
-          format: int32
-        riskLevel:
+                $ref: "#/components/schemas/NotificationPage"
+          description: OK
+      tags:
+      - notification-controller
+  /api/v1/notifications/stream:
+    get:
+      operationId: stream
+      parameters:
+      - in: header
+        name: Last-Event-ID
+        required: false
+        schema:
           type: string
-        assessedAt:
+      responses:
+        "200":
+          content:
+            text/event-stream:
+              schema:
+                $ref: "#/components/schemas/SseEmitter"
+          description: OK
+      tags:
+      - notification-controller
+  /api/v1/notifications/{id}/read:
+    post:
+      operationId: read
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
           type: string
-          format: date-time
-    TokenRequest:
-      type: object
-      properties:
-        sub:
+          format: uuid
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/NotificationView"
+          description: OK
+      tags:
+      - notification-controller
+  /api/v1/transactions:
+    get:
+      operationId: list
+      parameters:
+      - in: query
+        name: jarId
+        required: false
+        schema:
           type: string
-    PostTransactionRequest:
-      type: object
-      properties:
-        type:
+          format: uuid
+      - in: query
+        name: categoryId
+        required: false
+        schema:
+          type: string
+          format: uuid
+      - in: query
+        name: type
+        required: false
+        schema:
           type: string
           enum:
           - INCOME
           - EXPENSE
           - JAR_TRANSFER
-        amount:
-          type: number
-          exclusiveMinimum: 0
-        jarId:
-          type: string
-          format: uuid
-        categoryId:
-          type: string
-          format: uuid
-        counterparty:
-          type: string
-          maxLength: 120
-          minLength: 0
-        note:
-          type: string
-          maxLength: 500
-          minLength: 0
-        occurredAt:
+      - in: query
+        name: from
+        required: false
+        schema:
           type: string
           format: date-time
-      required:
-      - amount
-      - type
-    JarBalance:
-      type: object
-      properties:
-        jarId:
-          type: string
-          format: uuid
-        balance:
-          $ref: "#/components/schemas/Money"
-    Money:
-      type: object
-      properties:
-        amount:
-          type: number
-        currency:
-          type: object
-          properties:
-            currencyCode:
-              type: string
-            displayName:
-              type: string
-            symbol:
-              type: string
-            defaultFractionDigits:
-              type: integer
-              format: int32
-            numericCode:
-              type: integer
-              format: int32
-            numericCodeAsString:
-              type: string
-    TransactionReceipt:
-      type: object
-      properties:
-        transaction:
-          $ref: "#/components/schemas/TransactionView"
-        jarBalances:
-          type: array
-          items:
-            $ref: "#/components/schemas/JarBalance"
-    TransactionView:
-      type: object
-      properties:
-        id:
-          type: string
-          format: uuid
-        type:
-          type: string
-        amount:
-          $ref: "#/components/schemas/Money"
-        jarId:
-          type: string
-          format: uuid
-        toJarId:
-          type: string
-          format: uuid
-        categoryId:
-          type: string
-          format: uuid
-        counterparty:
-          type: string
-        note:
-          type: string
-        occurredAt:
+      - in: query
+        name: to
+        required: false
+        schema:
           type: string
           format: date-time
-        source:
-          type: string
-    NotificationView:
-      type: object
-      properties:
-        id:
-          type: string
-          format: uuid
-        type:
-          type: string
-        severity:
-          type: string
-        title:
-          type: string
-        body:
-          type: string
-        refType:
-          type: string
-        refId:
-          type: string
-          format: uuid
-        readAt:
-          type: string
-          format: date-time
-        createdAt:
-          type: string
-          format: date-time
-    CreateJarRequest:
-      type: object
-      properties:
-        name:
-          type: string
-          maxLength: 40
-          minLength: 0
-        targetPct:
-          type: number
-          maximum: 100
-          minimum: 0
-      required:
-      - name
-    JarView:
-      type: object
-      properties:
-        id:
-          type: string
-          format: uuid
-        code:
-          type: string
-        name:
-          type: string
-        targetPct:
-          type: number
-        balance:
-          $ref: "#/components/schemas/Money"
-    TransferRequest:
-      type: object
-      properties:
-        fromJarId:
-          type: string
-          format: uuid
-        toJarId:
-          type: string
-          format: uuid
-        amount:
-          type: number
-          exclusiveMinimum: 0
-        note:
-          type: string
-          maxLength: 500
-          minLength: 0
-      required:
-      - amount
-      - fromJarId
-      - toJarId
-    CreateGoalRequest:
-      type: object
-      properties:
-        name:
-          type: string
-          maxLength: 80
-          minLength: 0
-        targetAmount:
-          type: number
-          exclusiveMinimum: 0
-        targetDate:
-          type: string
-          format: date
-        fundingJarId:
-          type: string
-          format: uuid
-      required:
-      - name
-      - targetAmount
-      - targetDate
-    GoalView:
-      type: object
-      properties:
-        id:
-          type: string
-          format: uuid
-        name:
-          type: string
-        targetAmount:
-          $ref: "#/components/schemas/Money"
-        targetDate:
-          type: string
-          format: date
-        fundingJarId:
-          type: string
-          format: uuid
-        status:
-          type: string
-        createdAt:
-          type: string
-          format: date-time
-        updatedAt:
-          type: string
-          format: date-time
-    ScenarioRequest:
-      type: object
-      properties:
-        monthlySavingDelta:
-          type: number
-        incomeDelta:
-          type: number
-        spendingDelta:
-          type: number
-        oneOffContribution:
-          type: number
-        horizonMonths:
+      - in: query
+        name: limit
+        required: false
+        schema:
           type: integer
           format: int32
-          maximum: 120
-          minimum: 1
-        seed:
-          type: integer
-          format: int64
-    Deltas:
-      type: object
-      properties:
-        monthlySaving:
-          $ref: "#/components/schemas/Money"
-        income:
-          $ref: "#/components/schemas/Money"
-        spending:
-          $ref: "#/components/schemas/Money"
-        oneOff:
-          $ref: "#/components/schemas/Money"
-    Pace:
-      type: object
-      properties:
-        monthsUsed:
-          type: integer
-          format: int32
-        currentMonthOnly:
-          type: boolean
-        averageIncome:
-          $ref: "#/components/schemas/Money"
-        averageExpense:
-          $ref: "#/components/schemas/Money"
-        averageNet:
-          $ref: "#/components/schemas/Money"
-        netStdDev:
-          $ref: "#/components/schemas/Money"
-    PointView:
-      type: object
-      properties:
-        month:
-          type: integer
-          format: int32
-        p10:
-          $ref: "#/components/schemas/Money"
-        p50:
-          $ref: "#/components/schemas/Money"
-        p90:
-          $ref: "#/components/schemas/Money"
-    ProjectionSummary:
-      type: object
-      properties:
-        strategy:
+      - in: query
+        name: cursor
+        required: false
+        schema:
           type: string
-        p10:
-          $ref: "#/components/schemas/Money"
-        p50:
-          $ref: "#/components/schemas/Money"
-        p90:
-          $ref: "#/components/schemas/Money"
-        probabilityOfSuccess:
-          type: number
-        reachesTarget:
-          type: boolean
-        path:
-          type: array
-          items:
-            $ref: "#/components/schemas/PointView"
-    ScenarioResult:
-      type: object
-      properties:
-        name:
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/TransactionPage"
+          description: OK
+      tags:
+      - transaction-controller
+    post:
+      operationId: post
+      parameters:
+      - in: header
+        name: Idempotency-Key
+        required: true
+        schema:
           type: string
-        deltas:
-          $ref: "#/components/schemas/Deltas"
-        monthlyNet:
-          $ref: "#/components/schemas/Money"
-        deterministic:
-          $ref: "#/components/schemas/ProjectionSummary"
-        stress:
-          $ref: "#/components/schemas/ProjectionSummary"
-        monteCarlo:
-          $ref: "#/components/schemas/ProjectionSummary"
-        medianVsBase:
-          $ref: "#/components/schemas/Money"
-        probabilityVsBase:
-          type: number
-    ScenarioView:
-      type: object
-      properties:
-        goalId:
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PostTransactionRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/TransactionReceipt"
+          description: OK
+      tags:
+      - transaction-controller
+  /api/v1/transactions/{id}:
+    patch:
+      operationId: recategorize
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
           type: string
           format: uuid
-        seed:
-          type: integer
-          format: int64
-        horizonMonths:
-          type: integer
-          format: int32
-        startingAmount:
-          $ref: "#/components/schemas/Money"
-        targetAmount:
-          $ref: "#/components/schemas/Money"
-        pace:
-          $ref: "#/components/schemas/Pace"
-        base:
-          $ref: "#/components/schemas/ScenarioResult"
-        scenarios:
-          type: array
-          items:
-            $ref: "#/components/schemas/ScenarioResult"
-        notes:
-          type: array
-          items:
-            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PatchTransactionRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/TransactionView"
+          description: OK
+      tags:
+      - transaction-controller
+  /dev/token:
+    post:
+      operationId: token
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TokenRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                type: object
+                additionalProperties: {}
+          description: OK
+      tags:
+      - token-controller
+components:
+  schemas:
     AllocationRequest:
       type: object
       properties:
         amount:
           type: number
           exclusiveMinimum: 0
-        splits:
-          type: array
-          items:
-            $ref: "#/components/schemas/SplitRequest"
-          maxItems: 50
-          minItems: 0
         categoryId:
           type: string
           format: uuid
@@ -1068,87 +695,262 @@ components:
           format: date-time
         skip:
           type: boolean
+        splits:
+          type: array
+          items:
+            $ref: "#/components/schemas/SplitRequest"
+          maxItems: 50
+          minItems: 0
       required:
       - amount
-    SplitRequest:
-      type: object
-      properties:
-        jarId:
-          type: string
-          format: uuid
-        amount:
-          type: number
-          exclusiveMinimum: 0
-      required:
-      - amount
-      - jarId
     AllocationResult:
       type: object
       properties:
+        amount:
+          $ref: "#/components/schemas/Money"
+        decision:
+          type: string
         decisionId:
           type: string
           format: uuid
-        decision:
-          type: string
-        transactionId:
-          type: string
-          format: uuid
-        amount:
-          $ref: "#/components/schemas/Money"
         month:
           type: string
         splits:
           type: array
           items:
             $ref: "#/components/schemas/AppliedSplit"
-    AppliedSplit:
+        transactionId:
+          type: string
+          format: uuid
+    AnomalyPage:
       type: object
       properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/AnomalyView"
+        nextCursor:
+          type: string
+    AnomalyView:
+      type: object
+      properties:
+        amount:
+          $ref: "#/components/schemas/Money"
+        detectedAt:
+          type: string
+          format: date-time
+        detector:
+          type: string
+        direction:
+          type: string
+        id:
+          type: string
+          format: uuid
         jarId:
           type: string
           format: uuid
+        jarName:
+          type: string
+        score:
+          type: number
+          format: double
+        severity:
+          type: string
+        status:
+          type: string
+        threshold:
+          type: number
+          format: double
+        transactionId:
+          type: string
+          format: uuid
+    AppliedSplit:
+      type: object
+      properties:
         amount:
           $ref: "#/components/schemas/Money"
         balance:
           $ref: "#/components/schemas/Money"
-    SuggestionRequest:
-      type: object
-      properties:
-        amount:
-          type: number
-          exclusiveMinimum: 0
-      required:
-      - amount
-    Line:
-      type: object
-      properties:
         jarId:
           type: string
           format: uuid
-        code:
+    CategorySpend:
+      type: object
+      properties:
+        categoryId:
+          type: string
+          format: uuid
+        name:
+          type: string
+        spent:
+          $ref: "#/components/schemas/Money"
+        txnCount:
+          type: integer
+          format: int32
+    CategoryView:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        kind:
           type: string
         name:
           type: string
+        parentId:
+          type: string
+          format: uuid
+        system:
+          type: boolean
+    CreateGoalRequest:
+      type: object
+      properties:
+        fundingJarId:
+          type: string
+          format: uuid
+        name:
+          type: string
+          maxLength: 80
+          minLength: 0
+        targetAmount:
+          type: number
+          exclusiveMinimum: 0
+        targetDate:
+          type: string
+          format: date
+      required:
+      - name
+      - targetAmount
+      - targetDate
+    CreateJarRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          maxLength: 40
+          minLength: 0
         targetPct:
           type: number
-        sharePct:
-          type: number
-        amount:
-          $ref: "#/components/schemas/Money"
-    Suggestion:
+          maximum: 100
+          minimum: 0
+      required:
+      - name
+    CurrentCapacity:
       type: object
       properties:
         amount:
+          type: number
+        label:
+          type: string
+    DailyBalanceView:
+      type: object
+      properties:
+        balance:
           $ref: "#/components/schemas/Money"
-        lines:
+        date:
+          type: string
+          format: date
+    Dashboard:
+      type: object
+      properties:
+        balance:
+          $ref: "#/components/schemas/Money"
+        expense:
+          $ref: "#/components/schemas/Money"
+        income:
+          $ref: "#/components/schemas/Money"
+        month:
+          type: string
+        net:
+          $ref: "#/components/schemas/Money"
+        openAnomalies:
+          type: integer
+          format: int64
+        spendByCategory:
           type: array
           items:
-            $ref: "#/components/schemas/Line"
-        monthsOfHistory:
+            $ref: "#/components/schemas/CategorySpend"
+        spendByJar:
+          type: array
+          items:
+            $ref: "#/components/schemas/JarSpend"
+        trend:
+          type: array
+          items:
+            $ref: "#/components/schemas/MonthFlow"
+    Deltas:
+      type: object
+      properties:
+        income:
+          $ref: "#/components/schemas/Money"
+        monthlySaving:
+          $ref: "#/components/schemas/Money"
+        oneOff:
+          $ref: "#/components/schemas/Money"
+        spending:
+          $ref: "#/components/schemas/Money"
+    Explanation:
+      type: object
+      properties:
+        cautions:
+          type: array
+          items:
+            type: string
+        confidenceNote:
+          type: string
+        projectionExplanation:
+          $ref: "#/components/schemas/ProjectionExplanation"
+        summary:
+          type: string
+    FeasibilityView:
+      type: object
+      properties:
+        currentAmount:
+          $ref: "#/components/schemas/Money"
+        currentMonthlyPace:
+          $ref: "#/components/schemas/Money"
+        feasibilityHint:
+          type: string
+        fundingJarLinked:
+          type: boolean
+        gap:
+          $ref: "#/components/schemas/Money"
+        goalId:
+          type: string
+          format: uuid
+        goalName:
+          type: string
+        grade:
+          type: string
+        monthlyShortfall:
+          $ref: "#/components/schemas/Money"
+        monthsLeft:
           type: integer
           format: int32
-        historyWeight:
+        notes:
+          type: array
+          items:
+            type: string
+        pace:
+          $ref: "#/components/schemas/Pace"
+        probabilityOfSuccess:
           type: number
+        projectedAtDeadline:
+          $ref: "#/components/schemas/Money"
+        remaining:
+          $ref: "#/components/schemas/Money"
+        requiredMonthly:
+          $ref: "#/components/schemas/Money"
+        seed:
+          type: integer
+          format: int64
+        targetAmount:
+          $ref: "#/components/schemas/Money"
+        targetDate:
+          type: string
+          format: date
+        verdict:
+          type: string
     FeedbackRequest:
       type: object
       properties:
@@ -1157,147 +959,218 @@ components:
           minLength: 1
       required:
       - label
-    AnomalyView:
+    GoalView:
       type: object
       properties:
+        createdAt:
+          type: string
+          format: date-time
+        fundingJarId:
+          type: string
+          format: uuid
         id:
           type: string
           format: uuid
-        jarId:
+        name:
           type: string
-          format: uuid
-        jarName:
-          type: string
-        transactionId:
-          type: string
-          format: uuid
-        detector:
-          type: string
-        direction:
-          type: string
-        severity:
-          type: string
-        score:
-          type: number
-          format: double
-        threshold:
-          type: number
-          format: double
-        amount:
-          $ref: "#/components/schemas/Money"
         status:
           type: string
-        detectedAt:
+        targetAmount:
+          $ref: "#/components/schemas/Money"
+        targetDate:
+          type: string
+          format: date
+        updatedAt:
           type: string
           format: date-time
-    PatchTransactionRequest:
+    HealthResponse:
       type: object
       properties:
-        categoryId:
+        service:
           type: string
-          format: uuid
+        status:
+          type: string
+        version:
+          type: string
+    JarBalance:
+      type: object
+      properties:
+        balance:
+          $ref: "#/components/schemas/Money"
         jarId:
           type: string
           format: uuid
-    UpdateMeRequest:
+    JarPeriodView:
       type: object
       properties:
-        displayName:
+        closedAt:
           type: string
-          maxLength: 80
-          minLength: 0
-        locale:
+          format: date-time
+        code:
           type: string
-          pattern: vi-VN|en-US
+        jarId:
+          type: string
+          format: uuid
+        name:
+          type: string
+        planned:
+          $ref: "#/components/schemas/Money"
+        remaining:
+          $ref: "#/components/schemas/Money"
+        spent:
+          $ref: "#/components/schemas/Money"
+    JarSpend:
+      type: object
+      properties:
+        balance:
+          $ref: "#/components/schemas/Money"
+        code:
+          type: string
+        jarId:
+          type: string
+          format: uuid
+        name:
+          type: string
+        spent:
+          $ref: "#/components/schemas/Money"
+        targetPct:
+          type: number
+        txnCount:
+          type: integer
+          format: int32
+    JarView:
+      type: object
+      properties:
+        balance:
+          $ref: "#/components/schemas/Money"
+        code:
+          type: string
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        targetPct:
+          type: number
+    KeyMetrics:
+      type: object
+      properties:
+        currentMonthlyCapacity:
+          $ref: "#/components/schemas/CurrentCapacity"
+        currentProgressAmount:
+          type: number
+        currentProgressRatio:
+          type: number
+        feasibilityHint:
+          type: string
+        projectedEndAmount:
+          type: number
+        readinessLabel:
+          type: string
+        targetAmount:
+          type: number
+        timelineMonths:
+          type: integer
+          format: int32
+    Line:
+      type: object
+      properties:
+        amount:
+          $ref: "#/components/schemas/Money"
+        code:
+          type: string
+        jarId:
+          type: string
+          format: uuid
+        name:
+          type: string
+        sharePct:
+          type: number
+        targetPct:
+          type: number
+    MaturityEvent:
+      type: object
+      properties:
+        condition:
+          type: string
+        eventType:
+          type: string
+        title:
+          type: string
     MeResponse:
       type: object
       properties:
+        displayName:
+          type: string
+        email:
+          type: string
         id:
           type: string
           format: uuid
-        email:
-          type: string
-        displayName:
-          type: string
         locale:
           type: string
         onboardingCompleted:
           type: boolean
-    UpdateJarRequest:
+    MilestoneData:
       type: object
       properties:
-        name:
+        expectedResult:
           type: string
-          maxLength: 40
-          minLength: 1
-        targetPct:
-          type: number
-          maximum: 100
-          minimum: 0
-    UpdateGoalRequest:
-      type: object
-      properties:
-        name:
+        milestoneId:
           type: string
-          maxLength: 80
-          minLength: 1
-        targetAmount:
-          type: number
-          exclusiveMinimum: 0
-        targetDate:
+        phaseType:
           type: string
-          format: date
-        fundingJarId:
-          type: string
-          format: uuid
         status:
           type: string
-          enum:
-          - ACTIVE
-          - ACHIEVED
-          - ARCHIVED
-    TransactionListItem:
+        title:
+          type: string
+        unlockRule:
+          type: string
+    Money:
       type: object
       properties:
-        id:
-          type: string
-          format: uuid
-        type:
-          type: string
         amount:
-          $ref: "#/components/schemas/Money"
-        jarId:
-          type: string
-          format: uuid
-        jarName:
-          type: string
-        toJarId:
-          type: string
-          format: uuid
-        toJarName:
-          type: string
-        categoryId:
-          type: string
-          format: uuid
-        categoryName:
-          type: string
-        counterparty:
-          type: string
-        note:
-          type: string
-        occurredAt:
-          type: string
-          format: date-time
-        source:
-          type: string
-    TransactionPage:
+          type: number
+        currency:
+          type: object
+          properties:
+            currencyCode:
+              type: string
+            defaultFractionDigits:
+              type: integer
+              format: int32
+            displayName:
+              type: string
+            numericCode:
+              type: integer
+              format: int32
+            numericCodeAsString:
+              type: string
+            symbol:
+              type: string
+    MonthFlow:
       type: object
       properties:
-        items:
-          type: array
-          items:
-            $ref: "#/components/schemas/TransactionListItem"
-        nextCursor:
+        expense:
+          $ref: "#/components/schemas/Money"
+        income:
+          $ref: "#/components/schemas/Money"
+        month:
+          type: string
+    NextActionCard:
+      type: object
+      properties:
+        expectedOutcome:
+          type: string
+        followOnTransition:
+          type: string
+        successSignal:
+          type: string
+        timeframe:
+          type: string
+        title:
+          type: string
+        why:
           type: string
     NotificationPage:
       type: object
@@ -1311,109 +1184,74 @@ components:
         unreadCount:
           type: integer
           format: int64
-    SseEmitter:
+    NotificationView:
       type: object
       properties:
-        timeout:
-          type: integer
-          format: int64
-    HealthResponse:
+        body:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        id:
+          type: string
+          format: uuid
+        readAt:
+          type: string
+          format: date-time
+        refId:
+          type: string
+          format: uuid
+        refType:
+          type: string
+        severity:
+          type: string
+        title:
+          type: string
+        type:
+          type: string
+    Pace:
       type: object
       properties:
-        status:
-          type: string
-        service:
-          type: string
-        version:
-          type: string
-    CurrentCapacity:
-      type: object
-      properties:
-        amount:
-          type: number
-        label:
-          type: string
-    Explanation:
-      type: object
-      properties:
-        summary:
-          type: string
-        projectionExplanation:
-          $ref: "#/components/schemas/ProjectionExplanation"
-        cautions:
-          type: array
-          items:
-            type: string
-        confidenceNote:
-          type: string
-    KeyMetrics:
-      type: object
-      properties:
-        currentMonthlyCapacity:
-          $ref: "#/components/schemas/CurrentCapacity"
-        currentProgressAmount:
-          type: number
-        currentProgressRatio:
-          type: number
-        targetAmount:
-          type: number
-        timelineMonths:
+        averageExpense:
+          $ref: "#/components/schemas/Money"
+        averageIncome:
+          $ref: "#/components/schemas/Money"
+        averageNet:
+          $ref: "#/components/schemas/Money"
+        currentMonthOnly:
+          type: boolean
+        monthsUsed:
           type: integer
           format: int32
-        projectedEndAmount:
-          type: number
-        feasibilityHint:
-          type: string
-        readinessLabel:
-          type: string
-    MaturityEvent:
+        netStdDev:
+          $ref: "#/components/schemas/Money"
+    PatchTransactionRequest:
       type: object
       properties:
-        eventType:
+        categoryId:
           type: string
-        title:
+          format: uuid
+        jarId:
           type: string
-        condition:
-          type: string
-    MilestoneData:
+          format: uuid
+    PeriodView:
       type: object
       properties:
-        milestoneId:
+        closed:
+          type: boolean
+        jars:
+          type: array
+          items:
+            $ref: "#/components/schemas/JarPeriodView"
+        month:
           type: string
-        phaseType:
-          type: string
-        title:
-          type: string
-        unlockRule:
-          type: string
-        expectedResult:
-          type: string
-        status:
-          type: string
-    NextActionCard:
-      type: object
-      properties:
-        title:
-          type: string
-        why:
-          type: string
-        timeframe:
-          type: string
-        expectedOutcome:
-          type: string
-        successSignal:
-          type: string
-        followOnTransition:
-          type: string
+        planned:
+          $ref: "#/components/schemas/Money"
+        spent:
+          $ref: "#/components/schemas/Money"
     PhaseData:
       type: object
       properties:
-        phaseType:
-          type: string
-        title:
-          type: string
-        objective:
-          type: string
         entryConditions:
           type: array
           items:
@@ -1426,71 +1264,121 @@ components:
           type: array
           items:
             type: string
+        objective:
+          type: string
+        phaseType:
+          type: string
         serviceIds:
           type: array
           items:
             type: string
         status:
           type: string
+        title:
+          type: string
     PlannerState:
       type: object
       properties:
-        cashflowStatus:
-          type: string
-        savingsCapacity:
-          $ref: "#/components/schemas/SavingsCapacity"
-        runwayMonths:
-          type: number
-        liquidityPressure:
-          type: string
         anomalyState:
           type: string
-        readinessLabel:
+        bufferStatus:
+          type: string
+        cashflowStatus:
           type: string
         feasibilityHint:
           type: string
-        riskBand:
-          type: string
         goalProgressRatio:
           type: number
-        bufferStatus:
+        liquidityPressure:
           type: string
+        readinessLabel:
+          type: string
+        riskBand:
+          type: string
+        runwayMonths:
+          type: number
+        savingsCapacity:
+          $ref: "#/components/schemas/SavingsCapacity"
         source:
           type: string
+    PointView:
+      type: object
+      properties:
+        month:
+          type: integer
+          format: int32
+        p10:
+          $ref: "#/components/schemas/Money"
+        p50:
+          $ref: "#/components/schemas/Money"
+        p90:
+          $ref: "#/components/schemas/Money"
+    PostTransactionRequest:
+      type: object
+      properties:
+        amount:
+          type: number
+          exclusiveMinimum: 0
+        categoryId:
+          type: string
+          format: uuid
+        counterparty:
+          type: string
+          maxLength: 120
+          minLength: 0
+        jarId:
+          type: string
+          format: uuid
+        note:
+          type: string
+          maxLength: 500
+          minLength: 0
+        occurredAt:
+          type: string
+          format: date-time
+        type:
+          type: string
+          enum:
+          - INCOME
+          - EXPENSE
+          - JAR_TRANSFER
+      required:
+      - amount
+      - type
     Projection:
       type: object
       properties:
-        confidenceLabel:
-          type: string
         basis:
           type: string
-        targetAmount:
-          type: number
+        caution:
+          type: string
+        confidenceLabel:
+          type: string
         projectedEndAmount:
           type: number
-        targetTimelineMonths:
-          type: integer
-          format: int32
         series:
           type: array
           items:
             $ref: "#/components/schemas/ProjectionPoint"
-        caution:
-          type: string
+        targetAmount:
+          type: number
+        targetTimelineMonths:
+          type: integer
+          format: int32
     ProjectionChart:
       type: object
       properties:
         confidenceLabel:
           type: string
+        gapToTarget:
+          type: number
+        projectedEndAmount:
+          type: number
         series:
           type: array
           items:
             $ref: "#/components/schemas/ProjectionPoint"
         targetAmount:
-          type: number
-        projectedEndAmount:
-          type: number
-        gapToTarget:
           type: number
         trend:
           type: string
@@ -1513,44 +1401,86 @@ components:
           format: int32
         projectedAmount:
           type: number
+    ProjectionSummary:
+      type: object
+      properties:
+        p10:
+          $ref: "#/components/schemas/Money"
+        p50:
+          $ref: "#/components/schemas/Money"
+        p90:
+          $ref: "#/components/schemas/Money"
+        path:
+          type: array
+          items:
+            $ref: "#/components/schemas/PointView"
+        probabilityOfSuccess:
+          type: number
+        reachesTarget:
+          type: boolean
+        strategy:
+          type: string
     Result:
       type: object
       properties:
-        summary:
-          type: string
-        roadmapStatus:
+        currentPhase:
           type: string
         journeyPattern:
-          type: string
-        currentPhase:
           type: string
         phaseSequence:
           type: array
           items:
             type: string
+        roadmapStatus:
+          type: string
+        summary:
+          type: string
+    RiskAnswersRequest:
+      type: object
+      properties:
+        answers:
+          type: array
+          items:
+            type: integer
+            format: int32
+          maxItems: 5
+          minItems: 5
+      required:
+      - answers
+    RiskProfileResponse:
+      type: object
+      properties:
+        assessedAt:
+          type: string
+          format: date-time
+        riskLevel:
+          type: string
+        score:
+          type: integer
+          format: int32
     RoadmapContract:
       type: object
       properties:
-        schemaVersion:
+        currentPhase:
           type: string
-        status:
+        goal:
+          $ref: "#/components/schemas/RoadmapGoal"
+        journeyPattern:
           type: string
+        maturityEvents:
+          type: array
+          items:
+            $ref: "#/components/schemas/MaturityEvent"
+        milestones:
+          type: array
+          items:
+            $ref: "#/components/schemas/MilestoneData"
         missingFields:
           type: array
           items:
             type: string
-        warnings:
-          type: array
-          items:
-            type: string
-        goal:
-          $ref: "#/components/schemas/RoadmapGoal"
-        plannerState:
-          $ref: "#/components/schemas/PlannerState"
-        journeyPattern:
-          type: string
-        currentPhase:
-          type: string
+        nextBestAction:
+          $ref: "#/components/schemas/NextActionCard"
         phaseSequence:
           type: array
           items:
@@ -1559,49 +1489,49 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/PhaseData"
-        milestones:
-          type: array
-          items:
-            $ref: "#/components/schemas/MilestoneData"
+        plannerState:
+          $ref: "#/components/schemas/PlannerState"
         projection:
           $ref: "#/components/schemas/Projection"
-        nextBestAction:
-          $ref: "#/components/schemas/NextActionCard"
-        maturityEvents:
-          type: array
-          items:
-            $ref: "#/components/schemas/MaturityEvent"
+        schemaVersion:
+          type: string
+        status:
+          type: string
         visualizationSupport:
           $ref: "#/components/schemas/VisualizationSupport"
+        warnings:
+          type: array
+          items:
+            type: string
     RoadmapGoal:
       type: object
       properties:
         goalType:
+          type: string
+        priority:
           type: string
         targetAmount:
           type: number
         targetTimelineMonths:
           type: integer
           format: int32
-        priority:
-          type: string
     RoadmapResponse:
       type: object
       properties:
-        schemaVersion:
-          type: string
         agentId:
           type: string
-        status:
-          type: string
+        explanation:
+          $ref: "#/components/schemas/Explanation"
         result:
           $ref: "#/components/schemas/Result"
         roadmapContract:
           $ref: "#/components/schemas/RoadmapContract"
+        schemaVersion:
+          type: string
+        status:
+          type: string
         uiExplanation:
           $ref: "#/components/schemas/UiExplanation"
-        explanation:
-          $ref: "#/components/schemas/Explanation"
     SavingsCapacity:
       type: object
       properties:
@@ -1609,262 +1539,332 @@ components:
           type: number
         label:
           type: string
-    StatusBanner:
+    ScenarioRequest:
       type: object
       properties:
-        tone:
-          type: string
-        title:
-          type: string
-        message:
-          type: string
-    TimelineNode:
-      type: object
-      properties:
-        phaseType:
-          type: string
-        title:
-          type: string
-        status:
-          type: string
-        objective:
-          type: string
-    UiExplanation:
-      type: object
-      properties:
-        summary:
-          type: string
-        whyThisRoadmap:
-          type: string
-        whyCurrentPhase:
-          type: string
-        whatHasToChangeNext:
-          type: string
-    UnlockCondition:
-      type: object
-      properties:
-        phaseType:
-          type: string
-        status:
-          type: string
-        conditions:
-          type: array
-          items:
-            type: string
-    VisualizationSupport:
-      type: object
-      properties:
-        timelineNodes:
-          type: array
-          items:
-            $ref: "#/components/schemas/TimelineNode"
-        phaseCards:
-          type: array
-          items:
-            $ref: "#/components/schemas/PhaseData"
-        milestoneCards:
-          type: array
-          items:
-            $ref: "#/components/schemas/MilestoneData"
-        projectionChart:
-          $ref: "#/components/schemas/ProjectionChart"
-        nextActionCard:
-          $ref: "#/components/schemas/NextActionCard"
-        statusBanner:
-          $ref: "#/components/schemas/StatusBanner"
-        keyMetrics:
-          $ref: "#/components/schemas/KeyMetrics"
-        unlockConditions:
-          type: array
-          items:
-            $ref: "#/components/schemas/UnlockCondition"
-    FeasibilityView:
-      type: object
-      properties:
-        goalId:
-          type: string
-          format: uuid
-        goalName:
-          type: string
-        verdict:
-          type: string
-        targetAmount:
-          $ref: "#/components/schemas/Money"
-        targetDate:
-          type: string
-          format: date
-        currentAmount:
-          $ref: "#/components/schemas/Money"
-        fundingJarLinked:
-          type: boolean
-        monthsLeft:
+        horizonMonths:
           type: integer
           format: int32
-        remaining:
-          $ref: "#/components/schemas/Money"
-        requiredMonthly:
-          $ref: "#/components/schemas/Money"
-        currentMonthlyPace:
-          $ref: "#/components/schemas/Money"
-        projectedAtDeadline:
-          $ref: "#/components/schemas/Money"
-        gap:
-          $ref: "#/components/schemas/Money"
-        monthlyShortfall:
-          $ref: "#/components/schemas/Money"
-        probabilityOfSuccess:
+          maximum: 120
+          minimum: 1
+        incomeDelta:
           type: number
-        grade:
-          type: string
-        feasibilityHint:
-          type: string
-        pace:
-          $ref: "#/components/schemas/Pace"
+        monthlySavingDelta:
+          type: number
+        oneOffContribution:
+          type: number
         seed:
           type: integer
           format: int64
+        spendingDelta:
+          type: number
+    ScenarioResult:
+      type: object
+      properties:
+        deltas:
+          $ref: "#/components/schemas/Deltas"
+        deterministic:
+          $ref: "#/components/schemas/ProjectionSummary"
+        medianVsBase:
+          $ref: "#/components/schemas/Money"
+        monteCarlo:
+          $ref: "#/components/schemas/ProjectionSummary"
+        monthlyNet:
+          $ref: "#/components/schemas/Money"
+        name:
+          type: string
+        probabilityVsBase:
+          type: number
+        stress:
+          $ref: "#/components/schemas/ProjectionSummary"
+    ScenarioView:
+      type: object
+      properties:
+        base:
+          $ref: "#/components/schemas/ScenarioResult"
+        goalId:
+          type: string
+          format: uuid
+        horizonMonths:
+          type: integer
+          format: int32
         notes:
           type: array
           items:
             type: string
-    CategorySpend:
+        pace:
+          $ref: "#/components/schemas/Pace"
+        scenarios:
+          type: array
+          items:
+            $ref: "#/components/schemas/ScenarioResult"
+        seed:
+          type: integer
+          format: int64
+        startingAmount:
+          $ref: "#/components/schemas/Money"
+        targetAmount:
+          $ref: "#/components/schemas/Money"
+    SplitRequest:
       type: object
       properties:
+        amount:
+          type: number
+          exclusiveMinimum: 0
+        jarId:
+          type: string
+          format: uuid
+      required:
+      - amount
+      - jarId
+    SseEmitter:
+      type: object
+      properties:
+        timeout:
+          type: integer
+          format: int64
+    StatusBanner:
+      type: object
+      properties:
+        message:
+          type: string
+        title:
+          type: string
+        tone:
+          type: string
+    Suggestion:
+      type: object
+      properties:
+        amount:
+          $ref: "#/components/schemas/Money"
+        historyWeight:
+          type: number
+        lines:
+          type: array
+          items:
+            $ref: "#/components/schemas/Line"
+        monthsOfHistory:
+          type: integer
+          format: int32
+    SuggestionRequest:
+      type: object
+      properties:
+        amount:
+          type: number
+          exclusiveMinimum: 0
+      required:
+      - amount
+    TimelineNode:
+      type: object
+      properties:
+        objective:
+          type: string
+        phaseType:
+          type: string
+        status:
+          type: string
+        title:
+          type: string
+    TokenRequest:
+      type: object
+      properties:
+        sub:
+          type: string
+    TransactionListItem:
+      type: object
+      properties:
+        amount:
+          $ref: "#/components/schemas/Money"
         categoryId:
           type: string
           format: uuid
-        name:
+        categoryName:
           type: string
-        spent:
-          $ref: "#/components/schemas/Money"
-        txnCount:
-          type: integer
-          format: int32
-    Dashboard:
-      type: object
-      properties:
-        month:
+        counterparty:
           type: string
-        balance:
-          $ref: "#/components/schemas/Money"
-        income:
-          $ref: "#/components/schemas/Money"
-        expense:
-          $ref: "#/components/schemas/Money"
-        net:
-          $ref: "#/components/schemas/Money"
-        spendByJar:
-          type: array
-          items:
-            $ref: "#/components/schemas/JarSpend"
-        spendByCategory:
-          type: array
-          items:
-            $ref: "#/components/schemas/CategorySpend"
-        trend:
-          type: array
-          items:
-            $ref: "#/components/schemas/MonthFlow"
-        openAnomalies:
-          type: integer
-          format: int64
-    JarSpend:
-      type: object
-      properties:
-        jarId:
-          type: string
-          format: uuid
-        code:
-          type: string
-        name:
-          type: string
-        targetPct:
-          type: number
-        balance:
-          $ref: "#/components/schemas/Money"
-        spent:
-          $ref: "#/components/schemas/Money"
-        txnCount:
-          type: integer
-          format: int32
-    MonthFlow:
-      type: object
-      properties:
-        month:
-          type: string
-        income:
-          $ref: "#/components/schemas/Money"
-        expense:
-          $ref: "#/components/schemas/Money"
-    CategoryView:
-      type: object
-      properties:
         id:
           type: string
           format: uuid
-        name:
-          type: string
-        kind:
-          type: string
-        parentId:
-          type: string
-          format: uuid
-        system:
-          type: boolean
-    JarPeriodView:
-      type: object
-      properties:
         jarId:
           type: string
           format: uuid
-        code:
+        jarName:
           type: string
-        name:
+        note:
           type: string
-        planned:
-          $ref: "#/components/schemas/Money"
-        spent:
-          $ref: "#/components/schemas/Money"
-        remaining:
-          $ref: "#/components/schemas/Money"
-        closedAt:
+        occurredAt:
           type: string
           format: date-time
-    PeriodView:
-      type: object
-      properties:
-        month:
+        source:
           type: string
-        closed:
-          type: boolean
-        planned:
-          $ref: "#/components/schemas/Money"
-        spent:
-          $ref: "#/components/schemas/Money"
-        jars:
-          type: array
-          items:
-            $ref: "#/components/schemas/JarPeriodView"
-    DailyBalanceView:
-      type: object
-      properties:
-        date:
+        toJarId:
           type: string
-          format: date
-        balance:
-          $ref: "#/components/schemas/Money"
-    AnomalyPage:
+          format: uuid
+        toJarName:
+          type: string
+        type:
+          type: string
+    TransactionPage:
       type: object
       properties:
         items:
           type: array
           items:
-            $ref: "#/components/schemas/AnomalyView"
+            $ref: "#/components/schemas/TransactionListItem"
         nextCursor:
           type: string
+    TransactionReceipt:
+      type: object
+      properties:
+        jarBalances:
+          type: array
+          items:
+            $ref: "#/components/schemas/JarBalance"
+        transaction:
+          $ref: "#/components/schemas/TransactionView"
+    TransactionView:
+      type: object
+      properties:
+        amount:
+          $ref: "#/components/schemas/Money"
+        categoryId:
+          type: string
+          format: uuid
+        counterparty:
+          type: string
+        id:
+          type: string
+          format: uuid
+        jarId:
+          type: string
+          format: uuid
+        note:
+          type: string
+        occurredAt:
+          type: string
+          format: date-time
+        source:
+          type: string
+        toJarId:
+          type: string
+          format: uuid
+        type:
+          type: string
+    TransferRequest:
+      type: object
+      properties:
+        amount:
+          type: number
+          exclusiveMinimum: 0
+        fromJarId:
+          type: string
+          format: uuid
+        note:
+          type: string
+          maxLength: 500
+          minLength: 0
+        toJarId:
+          type: string
+          format: uuid
+      required:
+      - amount
+      - fromJarId
+      - toJarId
+    UiExplanation:
+      type: object
+      properties:
+        summary:
+          type: string
+        whatHasToChangeNext:
+          type: string
+        whyCurrentPhase:
+          type: string
+        whyThisRoadmap:
+          type: string
+    UnlockCondition:
+      type: object
+      properties:
+        conditions:
+          type: array
+          items:
+            type: string
+        phaseType:
+          type: string
+        status:
+          type: string
+    UpdateGoalRequest:
+      type: object
+      properties:
+        fundingJarId:
+          type: string
+          format: uuid
+        name:
+          type: string
+          maxLength: 80
+          minLength: 1
+        status:
+          type: string
+          enum:
+          - ACTIVE
+          - ACHIEVED
+          - ARCHIVED
+        targetAmount:
+          type: number
+          exclusiveMinimum: 0
+        targetDate:
+          type: string
+          format: date
+    UpdateJarRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          maxLength: 40
+          minLength: 1
+        targetPct:
+          type: number
+          maximum: 100
+          minimum: 0
+    UpdateMeRequest:
+      type: object
+      properties:
+        displayName:
+          type: string
+          maxLength: 80
+          minLength: 0
+        locale:
+          type: string
+          pattern: vi-VN|en-US
+    VisualizationSupport:
+      type: object
+      properties:
+        keyMetrics:
+          $ref: "#/components/schemas/KeyMetrics"
+        milestoneCards:
+          type: array
+          items:
+            $ref: "#/components/schemas/MilestoneData"
+        nextActionCard:
+          $ref: "#/components/schemas/NextActionCard"
+        phaseCards:
+          type: array
+          items:
+            $ref: "#/components/schemas/PhaseData"
+        projectionChart:
+          $ref: "#/components/schemas/ProjectionChart"
+        statusBanner:
+          $ref: "#/components/schemas/StatusBanner"
+        timelineNodes:
+          type: array
+          items:
+            $ref: "#/components/schemas/TimelineNode"
+        unlockConditions:
+          type: array
+          items:
+            $ref: "#/components/schemas/UnlockCondition"
   securitySchemes:
     cognito:
-      type: http
+      bearerFormat: JWT
       description: Cognito access token (not the ID token)
       scheme: bearer
-      bearerFormat: JWT
+      type: http
