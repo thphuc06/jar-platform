@@ -9,15 +9,43 @@ spring:
       # Tomcat request handling, @Async and schedulers run on virtual threads (JDK 21+)
       enabled: true
   datasource:
+    # take a pooled connection only when a statement actually runs (Boot 4.1), so a request that is served
+    # from cache or fails validation never wakes a paused Aurora
+    connection-fetch: lazy
     hikari:
       # every connection uses the "jars" schema; Flyway creates it on first run
       schema: jars
+      # keep no idle connections: Aurora Serverless v2 can only auto-pause when nothing is connected (ADR-0008)
+      minimum-idle: 0
+      idle-timeout: 60000
+      max-lifetime: 300000
+      # a request that arrives while Aurora resumes may wait up to ~15 s
+      connection-timeout: 30000
+  jpa:
+    # the schema belongs to Flyway; Hibernate only checks that entities match it
+    hibernate:
+      ddl-auto: validate
+    # no lazy loading in the web layer: controllers return DTOs
+    open-in-view: false
   flyway:
     default-schema: jars
     schemas: jars
+  lifecycle:
+    timeout-per-shutdown-phase: 20s
 
 server:
   port: 8080
+  # finish in-flight requests on SIGTERM (ECS stopTimeout is 30 s)
+  shutdown: graceful
+
+jars:
+  security:
+    # Cognito user pool issuer, e.g. https://cognito-idp.ap-southeast-1.amazonaws.com/ap-southeast-1_xxxx
+    # blank = no identity provider: every token is rejected
+    issuer-uri: ${JARS_ISSUER_URI:}
+    # comma-separated Cognito app client ids whose access tokens are accepted
+    allowed-client-ids: ${JARS_ALLOWED_CLIENT_IDS:}
+    local-dev-tokens: false
 
 management:
   endpoints:

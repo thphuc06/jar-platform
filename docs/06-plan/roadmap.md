@@ -65,7 +65,7 @@ Ký hiệu: 👤 bạn tự làm (console, quyết định) · 🤖 làm cùng t
 > Làm trên nhánh `feat/phase-1-core-to-cloud`, mỗi work package (WP) là một hoặc vài commit. Thứ tự đảm bảo dừng ở đâu cũng có sản phẩm chạy được: WP0–4 là lõi, WP5–7 mở rộng, WP8–9 lên cloud.
 
 - [x] **WP0** (12/11) Java 21, enforcer + JaCoCo, nâng BOM (Spring AI 2.0.2, Spring Cloud AWS 4.2.1, Spotless 3.11.0), ADR-0019, sửa mâu thuẫn tài liệu, viết lại roadmap. `./mvnw verify` xanh trên JDK 21.0.13 (12 test).
-- [ ] **WP1** Platform + shared: security resource server (validator `token_use`/`client_id`), `ProblemDetail` + `traceId`, `Money`, `Clock`, `IdempotencyService`, ArchUnit cấm `double` cho tiền.
+- [x] **WP1** (12/11) Platform + shared: security resource server (validator `token_use`/`client_id`, decoder lazy), `ProblemDetail` + `traceId`/`traceparent`, `Money`, `Clock`, `IdempotencyService` (một transaction, test đồng thời 8 luồng), ArchUnit cấm `double` cho tiền. 58 test xanh.
 - [ ] **WP2** Identity: `GET/PATCH /me` tạo user lazy (`ON CONFLICT`), bỏ unique email, risk profile (port `risk.py`), UUIDv7.
 - [ ] **WP3** Ledger: hũ, bút toán, danh mục, `POST /transactions` và chuyển hũ với `@Version` + retry ngoài transaction + idempotency; keyset pagination; test đồng thời, test IDOR, đếm query.
 - [ ] **WP4** Event + insights + notification: outbox Modulith, CUSUM/MAD (golden data từ repo cũ), read model, dashboard, anomaly feedback, SSE.
