@@ -21,7 +21,7 @@
 
 ### Góc nhìn kỹ thuật: năng lực hệ thống
 
-- **Modular monolith** Java 25 / Spring Boot 4.1 với 9 module, ranh giới được kiểm tra tự động trong CI, cộng **1 microservice** tách ra theo event và **1 Lambda Python**.
+- **Modular monolith** Java 21 / Spring Boot 4.1 với 9 module, ranh giới được kiểm tra tự động trong CI, cộng **1 microservice** tách ra theo event và **1 Lambda Python**.
 - **Tiền đúng tuyệt đối**: ledger append-only, optimistic locking, idempotency, job đối soát.
 - **Event-driven**: transactional outbox, SNS/SQS FIFO có thứ tự theo user, DLQ, idempotent consumer.
 - **AI có kiểm soát**: LLM chỉ diễn giải, số liệu do Java tính; guardrails; rate limit; streaming.
@@ -47,7 +47,7 @@
 > Các ô `[...]` chỉ điền **sau khi đo**. Chọn 4–6 bullet tùy độ dài CV. Thứ tự bullet ưu tiên theo JD đang apply.
 
 **Jars Platform — Personal finance app (6-Jars budgeting, anomaly alerts, AI advisor)** · *Personal project* · `github.com/thphuc06/jar-platform` · `[demo link]`
-*Java 25, Spring Boot 4.1, Spring Modulith, Spring Security, JPA/PostgreSQL, Spring AI, AWS (ECS Fargate, Aurora Serverless v2, SNS/SQS, EventBridge, Cognito, Bedrock, Lambda, CloudFront), AWS CDK, GitHub Actions*
+*Java 21, Spring Boot 4.1, Spring Modulith, Spring Security, JPA/PostgreSQL, Spring AI, AWS (ECS Fargate, Aurora Serverless v2, SNS/SQS, EventBridge, Cognito, Bedrock, Lambda, CloudFront), AWS CDK, GitHub Actions*
 
 - Designed and built a **modular monolith** (9 modules, boundaries verified in CI with Spring Modulith/ArchUnit) and later extracted an **event-driven microservice** over **SNS/SQS FIFO** using the **transactional outbox** pattern, with idempotent consumers and DLQs.
 - Implemented a **money ledger** with append-only entries, **optimistic locking** and **idempotency keys**, preventing lost updates and duplicate postings under concurrent requests (covered by concurrency tests).

@@ -35,7 +35,7 @@ io.github.thphuc06.jars
 | Module | Trách nhiệm | Bảng sở hữu | API public (tóm tắt) | Event phát | Event nghe | Nguồn port từ project cũ |
 |---|---|---|---|---|---|---|
 | `identity` | Tạo user từ JWT (lazy), profile, bảng hỏi rủi ro | `users`, `risk_assessments` | `currentUser()`, `riskProfile(userId)` | `UserRegistered`, `RiskProfileAssessed` | – | `risk.py`, `suitability.py`, UI Onboarding |
-| `ledger` | **Nguồn sự thật về tiền**: giao dịch, sổ cái hũ, số dư, danh mục | `transactions`, `jars`, `jar_entries`, `categories`, `idempotency_keys` | `postTransaction(cmd)`, `transferBetweenJars(cmd)`, `jars(userId)`, `balances(...)` | `TransactionPosted`, `TransactionRecategorized`, `JarCreated` | `UserRegistered` (tạo 6 hũ mặc định) | schema `jars`, `transactions` cũ |
+| `ledger` | **Nguồn sự thật về tiền**: giao dịch, sổ cái hũ, số dư, danh mục | `transactions`, `jars`, `jar_entries`, `categories` | `postTransaction(cmd)`, `transferBetweenJars(cmd)`, `jars(userId)`, `balances(...)` | `TransactionPosted`, `TransactionRecategorized`, `JarCreated` | `UserRegistered` (tạo 6 hũ mặc định) | schema `jars`, `transactions` cũ |
 | `budgeting` | Kế hoạch: tỷ lệ % mỗi hũ, ngân sách tháng, gợi ý phân bổ, khép sổ tháng | `jar_periods`, `allocation_decisions` | `suggestAllocation(userId)`, `closeMonth(userId, month)` | `MonthClosed` | `TransactionPosted` (cập nhật đã chi trong kỳ) | `allocation.py`, `taxonomy.py` |
 | `goals` | Mục tiêu, khả thi, what-if, lộ trình | `goals` | `feasibility(goalId)`, `scenarios(goalId)`, `roadmap(goalId)` | `GoalCreated` | – | `goal.py`, `scenario.py`, `service_agent/*_engine`, `roadmap_compiler` |
 | `insights` | Phân tích chi tiêu, phát hiện bất thường, read model cho dashboard | `anomaly_detector_state`, `anomalies`, `monthly_jar_spend` | `dashboard(userId, month)`, `spendBreakdown(...)` | `AnomalyDetected` | `TransactionPosted`, `TransactionRecategorized` | `cusum_engine`, `anomaly.py` (MAD), `spend.py`, `recurring.py` |
@@ -45,7 +45,7 @@ io.github.thphuc06.jars
 | `imports` | Import sao kê CSV: presigned URL, Spring Batch job | `statement_imports` (+ bảng metadata của Spring Batch) | `createUpload(userId)` | `StatementImportCompleted` | SQS `jars-imports` | `ingest_statement_vn` |
 | `shared` | Value object và tiện ích dùng chung | – | `Money`, `UserId`, `Month`, `ProblemTypes` | – | – | – |
 
-Thêm vào đó là các thành phần **hạ tầng không phải module nghiệp vụ**, nằm trong `io.github.thphuc06.jars.platform` (được Modulith đánh dấu là shared): cấu hình security, xử lý lỗi toàn cục, audit (AOP), cấu hình OpenTelemetry.
+Thêm vào đó là các thành phần **hạ tầng không phải module nghiệp vụ**, nằm trong `io.github.thphuc06.jars.platform` (được Modulith đánh dấu là shared): cấu hình security, xử lý lỗi toàn cục, idempotency (bảng `idempotency_keys`), `Clock`, audit (AOP), cấu hình OpenTelemetry. `shared` (`Money`, `UserId`, `ProblemTypes`) cũng được khai báo shared trong `@Modulithic`.
 
 > **Đã cài đặt (P0.7):** `JarsApplication` có `@Modulithic(systemName = "Jars Platform", sharedModules = "platform")`; `platform/package-info.java` có `@ApplicationModule(displayName = "Platform (infrastructure)")`. `ModularityTests` gọi `verify()` ở mọi build và sinh diagram module vào `target/spring-modulith-docs` (`components.puml`).
 

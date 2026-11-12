@@ -5,11 +5,11 @@
 Ứng dụng quản lý tài chính cá nhân theo **phương pháp 6 chiếc hũ (6 Jars)**: chia thu nhập vào hũ, theo dõi chi tiêu, phát hiện chi tiêu bất thường, lập lộ trình tiết kiệm cho mục tiêu, và có trợ lý AI tư vấn. Kèm theo đó là phần phân tích cổ phiếu Việt Nam dành cho mục đích giáo dục.
 
 Đây là **repo cá nhân**, viết lại **từ đầu** project hackathon *Jars/IUS* (org `swinhackathon`). Mục tiêu là làm một **portfolio Java Backend + AWS** (khi hoàn thành sẽ demo và đưa lên CV được những gì: [cv-showcase.md](docs/01-product/cv-showcase.md)):
-- Backend viết bằng **Java 25 + Spring Boot 4.1**.
+- Backend viết bằng **Java 21 + Spring Boot 4.1** ([ADR-0019](docs/04-adr/0019-java-21-lts.md)).
 - Hạ tầng **AWS-native**: ECS Fargate, Aurora Serverless v2, Cognito, SNS/SQS, EventBridge, Bedrock, Lambda; tất cả dựng bằng **AWS CDK (Java)**.
 - Python chỉ dùng ở chỗ nó thật sự có lợi thế: `quant-fn` (vnstock + PyPortfolioOpt).
 
-> **Trạng thái (2026-10-23):** ✅ **Phase 0 (nền móng) hoàn thành**: skeleton `jars-api` (Spring Boot 4.1.2 / Java 25), PostgreSQL 17 + Flyway, Testcontainers, kiểm tra ranh giới module bằng Spring Modulith, Spotless, CI (build/test + gitleaks). Bước tiếp theo là **Phase 1** (monolith lõi + Auth + nối UI), xem [docs/06-plan/roadmap.md](docs/06-plan/roadmap.md).
+> **Trạng thái (2026-10-23):** ✅ **Phase 0 (nền móng) hoàn thành**: skeleton `jars-api` (Spring Boot 4.1.2 / Java 21), PostgreSQL 17 + Flyway, Testcontainers, kiểm tra ranh giới module bằng Spring Modulith, Spotless, CI (build/test + gitleaks). Bước tiếp theo là **Phase 1** (monolith lõi + Auth + nối UI), xem [docs/06-plan/roadmap.md](docs/06-plan/roadmap.md).
 
 ![AWS target architecture](docs/diagrams/aws-architecture.png)
 
@@ -17,7 +17,7 @@
 
 | Lớp | Công nghệ |
 |---|---|
-| Backend | Java 25 LTS, Spring Boot 4.1, Spring Modulith 2.1, Spring Security (OAuth2 Resource Server), Spring Data JPA, Flyway, Spring Batch, Spring AI 2.0, Spring Cloud AWS 4.2 |
+| Backend | Java 21 LTS, Spring Boot 4.1, Spring Modulith 2.1, Spring Security (OAuth2 Resource Server), Spring Data JPA, Flyway, Spring Batch, Spring AI 2.0, Spring Cloud AWS 4.2 |
 | Database | Amazon Aurora PostgreSQL Serverless v2 (scale-to-zero) |
 | Messaging | Transactional outbox (Spring Modulith) → SNS FIFO → SQS FIFO; EventBridge (S3 events) và EventBridge Scheduler |
 | AI | Amazon Bedrock (Claude Haiku, cross-region inference profile) + Bedrock Guardrails |
@@ -35,7 +35,7 @@ Chi tiết và lý do của từng lựa chọn nằm ở [docs/02-architecture/
 ```
 jar-platform/
 ├── apps/
-│   ├── jars-api/          # Java 25 · Spring Boot 4.1 · modular monolith (Maven)
+│   ├── jars-api/          # Java 21 · Spring Boot 4.1 · modular monolith (Maven)
 │   ├── insights-worker/   # Java · service tách ra ở Phase 5 (consumer SQS)
 │   └── web/               # React + Vite PWA (chuyển từ ius_financial_ui)
 ├── functions/
@@ -59,7 +59,7 @@ jar-platform/
 
 ## Quick start
 
-Yêu cầu: JDK 25, Docker đang chạy. Chi tiết: [docs/05-operations/local-development.md](docs/05-operations/local-development.md).
+Yêu cầu: JDK 21, Docker đang chạy. Chi tiết: [docs/05-operations/local-development.md](docs/05-operations/local-development.md).
 
 ```bash
 cd apps/jars-api

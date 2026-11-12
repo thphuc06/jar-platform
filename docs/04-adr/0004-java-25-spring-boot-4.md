@@ -1,6 +1,6 @@
 # ADR-0004: Java 25 LTS + Spring Boot 4.1
 
-- **Trạng thái:** Accepted
+- **Trạng thái:** Accepted. Phần chọn JDK đã bị thay bởi [ADR-0019](0019-java-21-lts.md) (Java 21); các quyết định còn lại vẫn có hiệu lực
 - **Ngày:** 2026-10-23
 
 ## Bối cảnh

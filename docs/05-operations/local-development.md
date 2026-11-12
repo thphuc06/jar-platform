@@ -6,7 +6,7 @@
 
 | Công cụ | Version | Trạng thái máy dev (2026-10-23) | Cài bằng |
 |---|---|---|---|
-| JDK | **25** (Temurin) | ✅ 25.0.4 (cài 23/10; 21.0.11 vẫn còn, nên phải trỏ `JAVA_HOME` đúng bản) | `winget install EclipseAdoptium.Temurin.25.JDK` |
+| JDK | **21** (Temurin) | ✅ 21.0.13 ([ADR-0019](../04-adr/0019-java-21-lts.md)); máy còn JDK 17 và 8 nên phải trỏ `JAVA_HOME` đúng bản 21 | `winget install EclipseAdoptium.Temurin.21.JDK` |
 | Maven | dùng **Maven Wrapper** (`./mvnw`) | ❌ chưa có `mvn` (không cần nếu dùng wrapper) | đi kèm repo |
 | Docker Desktop | mới nhất | ✅ 29.5.3 đang chạy | mở Docker Desktop |
 | Node.js | 22/24 LTS | ✅ 24.15 | – |
@@ -93,6 +93,6 @@ Phase 1 sẽ viết `SeedDataRunner` (chỉ chạy ở profile `local`): tạo 1
 | Test (kể cả test Modulith) đòi credential AWS | `spring.config.import=aws-secretsmanager:` đặt trong `application.yaml` chung | Chỉ đặt trong `application-aws.yaml`, có tiền tố `optional:` |
 | Bedrock `AccessDeniedException ... is not available for this account` | Model có inference profile nhưng account chưa được phép gọi (ví dụ Haiku 5.5) | Dùng model đã kiểm chứng: `global.anthropic.claude-haiku-4-5-20251001-v1:0` |
 | `401` dù đã đăng nhập | Gửi **ID token** thay vì access token | Lấy `accessToken` từ Amplify `fetchAuthSession()` |
-| `Unsupported class file major version 69` | Chạy bằng JDK 21 | Đặt `JAVA_HOME` trỏ tới JDK 25 |
+| `jars-api needs JDK 21 or newer` (từ maven-enforcer) hoặc `Unsupported class file major version 65` | Chạy bằng JDK 17 hoặc 8 | Đặt `JAVA_HOME` trỏ tới JDK 21 |
 | LocalStack thoát ngay khi start | Thiếu `LOCALSTACK_AUTH_TOKEN` | Xem mục 2 |
 | `AccessDeniedException` / `ExpiredToken` từ AWS | Phiên `aws login` hết hạn (12 giờ) hoặc model Bedrock chưa được bật | `aws login --profile jars-dev`; kiểm tra model access ở console Bedrock (ap-southeast-1) |

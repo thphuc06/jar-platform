@@ -154,11 +154,14 @@ data: {"id":"0193b2...","type":"ANOMALY","severity":"HIGH","title":"Hũ PLAY tă
 ## 4. Idempotency
 
 1. Client sinh `Idempotency-Key` (UUIDv4) **một lần cho mỗi ý định của người dùng**. Nếu bấm lại do mạng lỗi thì vẫn gửi **cùng key**.
-2. Server: `INSERT idempotency_keys (user_id, key, request_hash, status='IN_PROGRESS')`.
-   - Nếu bị trùng khóa chính và `request_hash` giống: trả response đã lưu, hoặc trả 409 `request-in-progress` nếu request trước vẫn đang chạy.
-   - Nếu `request_hash` khác: trả 422.
-3. Xử lý xong thì lưu `status_code` + `response_body` **trong cùng transaction** với nghiệp vụ.
+2. Server, **trong cùng transaction với nghiệp vụ**: `INSERT idempotency_keys (user_id, key, request_hash) ON CONFLICT DO NOTHING`.
+   - Chèn được: tiếp tục xử lý nghiệp vụ.
+   - Không chèn được (key đã có) và `request_hash` giống: trả response đã lưu. Nếu request trước chưa commit thì INSERT chờ khóa unique tới khi nó commit hoặc rollback.
+   - Không chèn được và `request_hash` khác: trả 422.
+3. Xử lý xong thì `UPDATE` dòng key với `status_code` + `response_body` rồi commit. Nghiệp vụ lỗi thì rollback cả dòng key, nên client gửi lại cùng key vẫn chạy được.
 4. Key hết hạn sau 24 giờ (có job dọn dẹp).
+
+> Thiết kế này thay cho bản trước dùng trạng thái `IN_PROGRESS` và mã 409 `request-in-progress`: vì INSERT nằm trong transaction nghiệp vụ nên request đồng thời tự xếp hàng trên unique index, không cần trạng thái trung gian.
 
 ## 5. Mapping màn hình UI → API
 

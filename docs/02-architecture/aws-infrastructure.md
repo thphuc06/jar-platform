@@ -75,7 +75,7 @@ Docs: [Restrict access with VPC origins](https://docs.aws.amazon.com/AmazonCloud
 | Launch type | Fargate, **ARM64 (Graviton)** | Fargate ARM64 |
 | CPU / RAM | 0.5 vCPU / 1 GB (JVM `-XX:MaxRAMPercentage=75`) | 0.25 vCPU / 0.5 GB |
 | Desired count | 1 (dev). Đặt về 0 khi "ngủ" | 1 / 0 |
-| Image | ECR `jars/jars-api:<git-sha>`, base `eclipse-temurin:25-jre` (multi-arch) | `jars/insights-worker:<sha>` |
+| Image | ECR `jars/jars-api:<git-sha>`, base `eclipse-temurin:21-jre` (multi-arch) | `jars/insights-worker:<sha>` |
 | Port | 8080 (ALB target group, health check `/actuator/health/readiness`) | không mở port |
 | Deployment | Rolling + **deployment circuit breaker (auto rollback)**; Phase 6 thử **ECS native blue/green** | Rolling |
 | Logs | `awslogs` driver → CloudWatch Logs, log JSON, retention 14 ngày | như bên trái |

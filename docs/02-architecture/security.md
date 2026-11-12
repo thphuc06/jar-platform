@@ -25,7 +25,7 @@ OAuth2TokenValidator<Jwt> clientId = jwt -> allowedClientIds.contains(jwt.getCla
 - Mọi bảng nghiệp vụ có `user_id`. **`userId` luôn lấy từ security context**, không bao giờ lấy từ body hay path.
 - Repository dùng method dạng `findByIdAndUserId(id, userId)`. Không tìm thấy thì trả **404** (không phải 403), để không lộ là tài nguyên đó có tồn tại.
 - **Test IDOR bắt buộc** cho mọi endpoint có `{id}`: user B gọi tài nguyên của user A thì nhận 404.
-- Scope `jars-api/write` cho các method làm thay đổi dữ liệu (`@PreAuthorize("hasAuthority('SCOPE_jars-api/write')")`).
+- **Không phân quyền theo scope ở MVP.** App chỉ có một vai trò (người dùng thường) và mọi endpoint (trừ health) chỉ cần token hợp lệ cộng kiểm tra quyền sở hữu dữ liệu. Resource server `jars-api` với scope `read`/`write` vẫn được tạo ở Cognito để mở rộng sau, nhưng code không kiểm tra scope. Lý do: token lấy bằng luồng admin (smoke test) hoặc luồng PKCE mặc định không tự mang scope tùy chỉnh, và scope không thêm bảo vệ thật khi mọi user có cùng quyền.
 
 ## 3. IAM
 
@@ -40,7 +40,7 @@ Nguyên tắc **least privilege**: không dùng `*` ở resource, trừ khi API 
 | `jars-github-deploy` | GitHub Actions qua OIDC | Trust policy giới hạn `token.actions.githubusercontent.com:sub = repo:thphuc06/jar-platform:ref:refs/heads/main` (và environment `dev`); quyền: assume các role bootstrap của CDK (`cdk-*-deploy-role`, `cdk-*-file-publishing-role`, `cdk-*-image-publishing-role`) |
 | `jars-dev-scheduler` | EventBridge Scheduler | `sqs:SendMessage` trên `jars-jobs` |
 
-> **Tài khoản người dùng** ([ADR-0018](../04-adr/0018-human-access-iam-user-aws-login.md)): CLI đang đăng nhập bằng **root**. Phase 0 chuyển sang IAM user **`phuc-account` (bật MFA) + `aws login`** để có credential tạm thời. Vô hiệu hóa access key dài hạn của user này. Root giữ MFA và không có access key (đã đúng từ 2026-10-23). **Không dùng IAM Identity Center** vì tài khoản standalone; muốn có permission set thì phải có Organizations, mà Organizations làm mất credit.
+> **Tài khoản người dùng** ([ADR-0018](../04-adr/0018-human-access-iam-user-aws-login.md)): thiết kế đích là IAM user **`phuc-account` (bật MFA) + `aws login`** để có credential tạm thời. **Trạng thái thực tế (2026-11-12): ADR-0018 đang hoãn, CLI vẫn đăng nhập bằng root** (root có MFA, không có access key; access key dài hạn của `phuc-account` đã bị vô hiệu hóa). Rủi ro này được chấp nhận trong giai đoạn dev và phải được xử lý trước khi bật CI/CD deploy. **Không dùng IAM Identity Center** vì tài khoản standalone; muốn có permission set thì phải có Organizations, mà Organizations làm mất credit.
 
 ## 4. Network
 

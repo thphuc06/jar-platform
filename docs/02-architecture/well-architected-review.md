@@ -22,7 +22,7 @@ Ký hiệu: ✅ có trong thiết kế · 🔧 bổ sung sau review này · ⚠�
 
 | Best practice | Áp dụng | Trạng thái | Phase |
 |---|---|---|---|
-| Bảo vệ root: MFA, không access key, không dùng hằng ngày | Root đã có MFA và không có access key ✅; **CLI đang dùng root** → chuyển sang IAM user | 🔧 | 0 |
+| Bảo vệ root: MFA, không access key, không dùng hằng ngày | Root đã có MFA và không có access key ✅; ⚠️ **CLI vẫn đang dùng root** (ADR-0018 hoãn, ghi nhận 2026-11-12); phải chuyển sang IAM user trước khi bật CI/CD deploy | ⚠️ | 0 |
 | Danh tính tập trung, credential tạm thời | ⚠️ **Không dùng Identity Center** (account standalone; Organizations làm mất credit). Thay bằng IAM user có MFA + `aws login` (credential tạm thời) cho người; OIDC (CI); task role (app) ([ADR-0018](../04-adr/0018-human-access-iam-user-aws-login.md)) | ⚠️ / 🔧 | 0 |
 | Least privilege | Role tách riêng, resource ARN cụ thể ([security.md §3](security.md#3-iam)); cdk-nag | ✅ | 3 |
 | **Phát hiện truy cập ngoài ý muốn** | **IAM Access Analyzer – external access analyzer** (miễn phí): báo resource bị chia sẻ public hoặc cross-account | 🔧 | 0 |

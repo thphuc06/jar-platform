@@ -66,29 +66,36 @@ sequenceDiagram
     participant DB as Aurora
 
     W->>API: POST /api/v1/transactions<br/>Idempotency-Key: 7f9c...<br/>{type: EXPENSE, amount: 85000, jarId, categoryId}
-    API->>DB: SELECT idempotency_keys WHERE user_id, key
-    alt key đã tồn tại với cùng request hash
-        API-->>W: Trả lại response đã lưu (không ghi lần 2)
-    else key tồn tại nhưng request khác
-        API-->>W: 422 idempotency-key-reused
+    loop tối đa 3 lần (vòng retry nằm NGOÀI transaction, mỗi lần là một transaction mới)
+        API->>DB: BEGIN
+        API->>DB: INSERT idempotency_keys (user_id, key, request_hash) ON CONFLICT DO NOTHING
+        alt không chèn được dòng nào (key đã có)
+            Note over API,DB: Nếu request đầu còn chưa commit, INSERT chờ khóa unique tới khi nó commit hoặc rollback
+            alt request_hash khác
+                API-->>W: 422 idempotency-key-reused
+            else cùng request
+                API-->>W: Trả lại response đã lưu (không ghi lần 2)
+            end
+        end
+        API->>DB: SELECT jars WHERE id AND user_id (version = 7)
+        API->>API: Kiểm tra quy tắc: hũ thuộc user, chưa archived, số dư đủ (nếu bật chặn chi vượt)
+        API->>DB: INSERT transactions
+        API->>DB: INSERT jar_entries (SPEND, -85000, balance_after)
+        API->>DB: UPDATE jars SET balance=..., version=8 WHERE id=? AND version=7
+        API->>DB: INSERT event_publication (TransactionPosted)
+        API->>DB: UPDATE idempotency_keys SET status_code, response_body
+        API->>DB: COMMIT
+        Note over API,DB: UPDATE jars trả về 0 dòng thì ném OptimisticLockException, transaction rollback (cả dòng idempotency) rồi vòng lặp thử lại
     end
-    API->>DB: BEGIN
-    API->>DB: SELECT jars WHERE id AND user_id (version = 7)
-    API->>API: Kiểm tra quy tắc: hũ thuộc user, chưa archived, số dư đủ (nếu bật chặn chi vượt)
-    API->>DB: INSERT transactions
-    API->>DB: INSERT jar_entries (SPEND, -85000, balance_after)
-    API->>DB: UPDATE jars SET balance=..., version=8 WHERE id=? AND version=7
-    API->>DB: INSERT event_publication (TransactionPosted)
-    API->>DB: INSERT idempotency_keys (response)
-    API->>DB: COMMIT
-    alt UPDATE trả về 0 dòng (đã có request khác sửa trước)
-        API->>API: OptimisticLockException → retry tối đa 3 lần
-    end
-    API-->>W: 201 Created {transaction, jarBalance}
+    API-->>W: 201 Created {transaction, jarBalance} (409 nếu hết 3 lần vẫn xung đột)
     API--)API: AFTER_COMMIT: phát TransactionPosted cho insights và budgeting (async)
 ```
 
 **Điểm cần học:** `@Transactional` (proxy, rollback rules), optimistic locking với `@Version`, isolation `READ COMMITTED` (mặc định của PostgreSQL) và vì sao nó đủ dùng khi đã có `@Version`, idempotency key, outbox.
+
+**Vì sao retry phải nằm ngoài transaction:** transaction đã gặp `OptimisticLockException` bị đánh dấu rollback-only và entity trong persistence context đã cũ. Thử lại trong cùng transaction vẫn dùng dữ liệu cũ. Vòng retry phải gọi một method `@Transactional` từ bên ngoài proxy (bean khác), để mỗi lần có transaction và persistence context mới.
+
+**Vì sao INSERT key nằm trong cùng transaction:** hai request cùng key chạy đồng thời sẽ va vào unique index. Request sau chờ cho tới khi request đầu commit, rồi thấy key đã tồn tại và trả response đã lưu. Nếu request đầu rollback thì dòng key cũng biến mất và request sau được chạy bình thường. Không cần trạng thái `IN_PROGRESS` riêng.
 
 ---
 
