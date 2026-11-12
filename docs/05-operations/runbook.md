@@ -37,6 +37,22 @@ aws logs tail /jars/dev/api --since 1h --filter-pattern '"level":"ERROR"'
 
 Tìm theo trace: `--filter-pattern '"traceId":"<id>"'`.
 
+## Từ một lỗi tới trace trong X-Ray
+
+Mọi response lỗi có `traceId` (body RFC 9457) và mọi response có header `traceparent`. Trace id đó chính là id trong X-Ray (`TraceIdFilter` lấy từ span hiện tại):
+
+```bash
+aws xray batch-get-traces --region ap-southeast-1 --trace-ids "1-<8 ký tự đầu>-<24 ký tự còn lại>"
+```
+
+X-Ray hiển thị trace id dạng `1-xxxxxxxx-yyyyyyyyyyyyyyyyyyyyyyyy`: 8 ký tự hex đầu của id W3C, rồi 24 ký tự còn lại. Trên console: CloudWatch → Traces → tìm theo trace id. Collector ghi log của chính nó vào `/jars/dev/api` với prefix `otel/`; không có trace thì xem ở đó trước (thường là thiếu quyền X-Ray hoặc sai cấu hình).
+
+## Dashboard, alarm và load test
+
+- Dashboard `jars-dev` (CloudWatch → Dashboards): request, 5xx, p50/p95/p99 từ ALB, CPU/memory ECS, ACU Aurora, sự kiện nghiệp vụ, độ sâu queue.
+- Alarm: `jars-dev-api-5xx-rate`, `jars-dev-api-p95-latency`, `jars-dev-aurora-not-paused`, alarm DLQ. Gửi về SNS `jars-dev-alarms`; topic chỉ có người nhận khi deploy `JarsFoundation` kèm `-c alertEmail=<địa chỉ>`.
+- Load test: `pwsh scripts/load-test.ps1` (mặc định 5 user, tối đa 20 virtual user, 2 phút ổn định). Cần Docker. Kết quả p95 in ra cuối và lưu JSON ở thư mục tạm. Chạy thử ngắn: thêm `-e STEADY=20s` vào lệnh `docker run` trong script, hoặc sửa tham số `-PeakVus`.
+
 ## Xử lý message trong DLQ
 
 1. Xem số lượng: `aws sqs get-queue-attributes --queue-url <dlq-url> --attribute-names ApproximateNumberOfMessages`.

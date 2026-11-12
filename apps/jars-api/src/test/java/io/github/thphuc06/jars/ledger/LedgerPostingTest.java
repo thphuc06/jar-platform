@@ -3,6 +3,8 @@ package io.github.thphuc06.jars.ledger;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.github.thphuc06.jars.ApiTestSupport;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
@@ -12,11 +14,15 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.JwtRequestPostProcessor;
 import tools.jackson.databind.JsonNode;
 
 /** Posting money: the rules, the ledger invariant, idempotency, and what happens under concurrent writes. */
 class LedgerPostingTest extends ApiTestSupport {
+
+    @Autowired
+    private MeterRegistry meters;
 
     @Test
     void newUser_getsTheSixDefaultJarsWhoseSharesAddUpToOneHundred() {
@@ -280,6 +286,30 @@ class LedgerPostingTest extends ApiTestSupport {
         assertThat(balanceOf(edu)).isEqualByComparingTo("300000");
         assertBalanceMatchesEntries(nec);
         assertBalanceMatchesEntries(edu);
+    }
+
+    @Test
+    void theBusinessCounterCountsCommittedPostingsOnly() {
+        JwtRequestPostProcessor user = newUser();
+        UUID nec = jarId(user, "NEC");
+        UUID edu = jarId(user, "EDU");
+        double incomes = postedCount("INCOME");
+        double transfers = postedCount("JAR_TRANSFER");
+
+        post(user, "/api/v1/transactions", newKey(), incomeBody(nec, "1000"));
+        Resp rejected = post(user, "/api/v1/jars/transfers", newKey(), transferBody(nec, edu, "999999"));
+
+        assertThat(rejected.status()).isEqualTo(422);
+        assertThat(postedCount("INCOME") - incomes).isEqualTo(1);
+        assertThat(postedCount("JAR_TRANSFER") - transfers)
+                .as("a rejected transfer is not counted")
+                .isZero();
+    }
+
+    private double postedCount(String type) {
+        Counter counter =
+                meters.find("jars.transactions.posted").tag("type", type).counter();
+        return counter == null ? 0 : counter.count();
     }
 
     @Test

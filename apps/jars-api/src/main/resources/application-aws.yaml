@@ -14,6 +14,9 @@ spring:
     aws:
       sqs:
         enabled: true
+        # a span for every message the listener handles (the month-close job), with its trace context in the message
+        # attributes when the sender set one
+        observation-enabled: true
 
 logging:
   structured:
@@ -33,3 +36,20 @@ management:
     health:
       # probes answer with the status only
       show-components: never
+  # The ADOT collector runs as a sidecar in the same task (localhost): traces go to X-Ray, metrics whose name starts
+  # with "jars." become CloudWatch metrics through EMF, everything else is dropped by the collector.
+  tracing:
+    export:
+      otlp:
+        enabled: true
+  opentelemetry:
+    tracing:
+      export:
+        otlp:
+          endpoint: http://localhost:4318/v1/traces
+  otlp:
+    metrics:
+      export:
+        enabled: true
+        url: http://localhost:4318/v1/metrics
+        step: 1m

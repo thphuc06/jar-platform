@@ -123,6 +123,12 @@
             <groupId>io.awspring.cloud</groupId>
             <artifactId>spring-cloud-aws-starter-sqs</artifactId>
         </dependency>
+        <!-- traces and metrics over OTLP (Micrometer Tracing with the OpenTelemetry bridge); on ECS an ADOT collector
+             sidecar forwards them to X-Ray and CloudWatch -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-opentelemetry</artifactId>
+        </dependency>
         <!-- dev only: `spring-boot:run` starts local/compose.yaml; excluded from the packaged jar -->
         <dependency>
             <groupId>org.springframework.boot</groupId>

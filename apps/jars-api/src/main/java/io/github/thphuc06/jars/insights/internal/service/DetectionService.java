@@ -10,9 +10,12 @@ import io.github.thphuc06.jars.insights.internal.persistence.AnomalyRepository;
 import io.github.thphuc06.jars.insights.internal.persistence.DetectorStateRepository;
 import io.github.thphuc06.jars.ledger.JarSummary;
 import io.github.thphuc06.jars.ledger.LedgerApi;
+import io.github.thphuc06.jars.platform.observability.AfterCommit;
+import io.github.thphuc06.jars.platform.observability.BusinessMetrics;
 import io.github.thphuc06.jars.shared.Money;
 import io.github.thphuc06.jars.shared.UserId;
 import io.github.thphuc06.jars.shared.Uuids;
+import io.micrometer.core.instrument.MeterRegistry;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -34,6 +37,7 @@ class DetectionService {
     private final LedgerApi ledger;
     private final ApplicationEventPublisher events;
     private final Clock clock;
+    private final MeterRegistry meters;
     private final SpendingDetector detector = new SpendingDetector();
 
     DetectionService(
@@ -41,7 +45,9 @@ class DetectionService {
             AnomalyRepository anomalies,
             LedgerApi ledger,
             ApplicationEventPublisher events,
-            Clock clock) {
+            Clock clock,
+            MeterRegistry meters) {
+        this.meters = meters;
         this.states = states;
         this.anomalies = anomalies;
         this.ledger = ledger;
@@ -85,6 +91,11 @@ class DetectionService {
                     transactionId,
                     amount,
                     now));
+            String detectorName = f.detector().name();
+            String severity = f.severity().name();
+            AfterCommit.run(() -> meters.counter(
+                            BusinessMetrics.ANOMALIES_DETECTED, "detector", detectorName, "severity", severity)
+                    .increment());
             return anomaly;
         });
     }

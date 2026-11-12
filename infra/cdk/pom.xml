@@ -61,6 +61,13 @@
             <version>${assertj.version}</version>
             <scope>test</scope>
         </dependency>
+        <!-- parses the ADOT collector configuration in tests; same version as the jackson-databind that jsii brings -->
+        <dependency>
+            <groupId>com.fasterxml.jackson.dataformat</groupId>
+            <artifactId>jackson-dataformat-yaml</artifactId>
+            <version>2.22.4</version>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 
     <build>

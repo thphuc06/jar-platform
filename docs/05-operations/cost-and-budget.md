@@ -36,6 +36,13 @@
 | CloudWatch Logs ingest (Standard) | GB | 0.70 |
 | EBS gp3 | GB-tháng | 0.096 |
 | ElastiCache Serverless Valkey (ước tính) | tối thiểu 100 MB được tính phí | khoảng $6/tháng (nguồn bên thứ ba) |
+| CloudWatch custom metric (EMF) | metric-tháng, 10.000 metric đầu (tính theo giờ tồn tại) | 0.30 |
+| CloudWatch alarm (standard) | mỗi metric trong alarm-tháng | 0.10 |
+| CloudWatch dashboard | dashboard-tháng, **3 dashboard đầu miễn phí** (account chưa có dashboard nào, kiểm ngày 2026-11-12) | 3.00 |
+| X-Ray trace lưu trữ | trace, sau **100.000 trace miễn phí** mỗi tháng | 0.000005 |
+
+> 4 dòng trên lấy từ AWS Pricing API ngày **2026-11-12** (Phase 2 WP2), trừ phần free tier của dashboard và X-Ray (theo trang giá CloudWatch/X-Ray).
+> **Observability khi `JarsApp` chạy** (WP2): khoảng 6 custom metric nghiệp vụ × 0,30 = 1,8 USD/tháng nếu chạy liên tục, nhưng tính theo giờ tồn tại nên một phiên 1 giờ chỉ khoảng 0,0025 USD; 3 alarm có 4 metric = 0,40 USD/tháng (alarm 5xx dùng 2 metric); dashboard và trace nằm trong free tier. Chọn lọc metric ở collector là cố ý: cấu hình ECS mặc định của ADOT đẩy mọi metric Micrometer (vài trăm metric, khoảng 60–100 USD/tháng nếu chạy liên tục).
 | Bedrock Claude | token | Xem [Bedrock pricing](https://aws.amazon.com/bedrock/pricing/); phụ thuộc lượng dùng |
 
 ## 3. Ba chế độ vận hành

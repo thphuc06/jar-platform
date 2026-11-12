@@ -226,6 +226,13 @@ public final class AppStack extends Stack {
         if (cfg.dbMode() == DbMode.AURORA) {
             addAuroraNeverPausesAlarm(cfg, data, alarmTopic);
         }
+        ApiObservability.addDashboardAndAlarms(
+                this,
+                cfg,
+                loadBalancer,
+                service,
+                data.identifier(),
+                alarmTopic);
 
         acknowledgeDocumentedDeviations(webBucket, service);
         if (cfg.deployWeb()) {
@@ -539,6 +546,9 @@ public final class AppStack extends Stack {
                         .containerName(CONTAINER_NAME)
                         .image(ContainerImage.fromEcrRepository(foundation.apiRepository(), cfg.imageTag()))
                         .essential(true)
+                        // a hard limit so the JVM (MaxRAMPercentage=75) sizes its heap from this container's share
+                        // of the task, not from the whole 1 GB that it shares with the collector sidecar
+                        .memoryLimitMiB(ApiObservability.API_MEMORY_MIB)
                         .portMappings(List.of(PortMapping.builder()
                                 .containerPort(NetworkStack.APP_PORT)
                                 .protocol(Protocol.TCP)
@@ -582,6 +592,7 @@ public final class AppStack extends Stack {
                 .containerPath("/tmp")
                 .readOnly(false)
                 .build());
+        ApiObservability.addCollector(this, cfg, taskDefinition, container, logGroup, taskRole);
 
         FargateService apiService = FargateService.Builder.create(this, "ApiService")
                 .serviceName("jars-api")

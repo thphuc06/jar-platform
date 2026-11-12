@@ -11,6 +11,9 @@ import static org.mockito.Mockito.when;
 
 import io.github.thphuc06.jars.budgeting.internal.service.MonthCloseService.CloseReport;
 import io.github.thphuc06.jars.platform.idempotency.IdempotencyService;
+import io.micrometer.core.instrument.observation.DefaultMeterObservationHandler;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+import io.micrometer.observation.ObservationRegistry;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.YearMonth;
@@ -28,9 +31,36 @@ class MonthCloseJobTest {
     private final MonthCloseService months = mock(MonthCloseService.class);
     private final IdempotencyService idempotency = mock(IdempotencyService.class);
     private final JsonMapper json = JsonMapper.builder().build();
+    private final SimpleMeterRegistry meters = new SimpleMeterRegistry();
+    private final ObservationRegistry observations = ObservationRegistry.create();
+
+    {
+        observations.observationConfig().observationHandler(new DefaultMeterObservationHandler(meters));
+    }
 
     private MonthCloseJob jobAt(String instant) {
-        return new MonthCloseJob(months, idempotency, json, Clock.fixed(Instant.parse(instant), ZoneOffset.UTC));
+        return new MonthCloseJob(
+                months, idempotency, json, Clock.fixed(Instant.parse(instant), ZoneOffset.UTC), observations);
+    }
+
+    @Test
+    void aMonthCloseIsTimedAsOneObservationTaggedWithItsTrigger() {
+        jobAt("2026-10-31T17:05:00Z").handle("{\"job\":\"MONTH_CLOSE\"}");
+        jobAt("2026-10-31T17:05:00Z").handle("{\"job\":\"MONTH_CLOSE\",\"month\":\"2026-09\"}");
+
+        assertThat(meters.get("jars.month.close")
+                        .tag("trigger", "schedule")
+                        .timer()
+                        .count())
+                .isEqualTo(1);
+        assertThat(meters.get("jars.month.close")
+                        .tag("trigger", "manual")
+                        .timer()
+                        .count())
+                .isEqualTo(1);
+        // the month is a high-cardinality value: it may go on the span, never on the metric
+        assertThat(meters.get("jars.month.close").timers())
+                .allSatisfy(t -> assertThat(t.getId().getTag("month")).isNull());
     }
 
     @BeforeEach

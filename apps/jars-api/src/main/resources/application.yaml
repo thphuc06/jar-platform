@@ -87,3 +87,26 @@ management:
         enabled: true
       # list component names (not details) so it is visible that readiness does NOT depend on the DB
       show-components: always
+  # Traces and metrics leave over OTLP only where a collector listens (the ADOT sidecar on ECS, profile aws). Spans are
+  # still created everywhere, so local logs and error bodies carry real trace ids.
+  tracing:
+    sampling:
+      # dev traffic is small: keep every trace (X-Ray records the first 100,000 traces a month for free)
+      probability: 1.0
+    export:
+      otlp:
+        enabled: false
+  otlp:
+    metrics:
+      export:
+        enabled: false
+  logging:
+    export:
+      otlp:
+        # logs go to stdout and the awslogs driver; shipping them over OTLP too would pay for them twice
+        enabled: false
+  observations:
+    enable:
+      # Spring Security adds several spans to every request (filter chain, authentication); the request span and
+      # the business spans are enough. Health checks are left out by ObservabilityConfig.
+      spring.security: false

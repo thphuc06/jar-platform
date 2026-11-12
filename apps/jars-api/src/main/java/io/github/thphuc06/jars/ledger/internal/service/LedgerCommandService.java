@@ -23,10 +23,13 @@ import io.github.thphuc06.jars.ledger.internal.service.Views.TransactionReceipt;
 import io.github.thphuc06.jars.ledger.internal.service.Views.TransactionView;
 import io.github.thphuc06.jars.platform.idempotency.IdempotencyService;
 import io.github.thphuc06.jars.platform.idempotency.IdempotencyService.Result;
+import io.github.thphuc06.jars.platform.observability.AfterCommit;
+import io.github.thphuc06.jars.platform.observability.BusinessMetrics;
 import io.github.thphuc06.jars.shared.DomainException;
 import io.github.thphuc06.jars.shared.Money;
 import io.github.thphuc06.jars.shared.UserId;
 import io.github.thphuc06.jars.shared.Uuids;
+import io.micrometer.core.instrument.MeterRegistry;
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Duration;
@@ -79,6 +82,7 @@ public class LedgerCommandService {
     private final Clock clock;
     private final LedgerProperties properties;
     private final OptimisticRetry retry;
+    private final MeterRegistry meters;
 
     LedgerCommandService(
             JarRepository jars,
@@ -89,7 +93,9 @@ public class LedgerCommandService {
             ApplicationEventPublisher events,
             TransactionTemplate tx,
             Clock clock,
-            LedgerProperties properties) {
+            LedgerProperties properties,
+            MeterRegistry meters) {
+        this.meters = meters;
         this.jars = jars;
         this.entries = entries;
         this.transactions = transactions;
@@ -415,6 +421,11 @@ public class LedgerCommandService {
                 t.getCategoryId(),
                 t.getOccurredAt(),
                 t.getSource().name()));
+        // counted after commit: an attempt that loses the optimistic-lock race is rolled back and retried
+        String type = t.getType().name();
+        String source = t.getSource().name();
+        AfterCommit.run(() -> meters.counter(BusinessMetrics.TRANSACTIONS_POSTED, "type", type, "source", source)
+                .increment());
     }
 
     private static void requirePositive(Money amount) {

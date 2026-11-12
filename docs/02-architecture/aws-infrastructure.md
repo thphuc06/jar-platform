@@ -19,7 +19,7 @@ Hạ tầng chia thành nhiều stack theo **vòng đời**: stack nào hay bị
 | `JarsMessaging` | SQS (jobs, imports) + DLQ, EventBridge rules, Scheduler; từ Phase 5: SNS FIFO + SQS FIFO. **Hiện có:** `jars-jobs` + DLQ, schedule `month-close`, alarm DLQ. `jars-imports` và rule `statement-uploaded` chưa tạo | Giữ mãi (gần như $0) | Foundation (alarm topic); Data (bucket) khi có |
 | `JarsApp` | ECS cluster, task definition, service, internal ALB, CloudFront + VPC origin, web bucket, Cognito app client, alarm Aurora không pause, (Phase 4) Valkey. Chỉ được synth khi có context `imageTag` | **Xóa khi không demo lâu ngày** | Foundation, Network, Data, Auth, Messaging |
 | `JarsQuant` | Lambda `quant-fn` (container image) | Giữ (chỉ tính tiền khi gọi) | Foundation (ECR) |
-| `JarsObservability` | CloudWatch dashboard, alarm (5xx, latency, DLQ depth, Aurora ACU) | Phase 6 | App |
+| ~~`JarsObservability`~~ | Gộp vào `JarsApp` (construct `ApiObservability`, Phase 2 WP2): collector ADOT, dashboard `jars-dev`, alarm 5xx và p95. Xem [§11](#11-observability) | Theo `JarsApp` | – |
 
 **Thứ tự deploy lần đầu:** Foundation → Network → Auth → Data → Messaging → Quant → App → Observability. CDK tự suy ra thứ tự khi chạy `cdk deploy --all`.
 
@@ -75,7 +75,7 @@ Docs: [Restrict access with VPC origins](https://docs.aws.amazon.com/AmazonCloud
 | Hạng mục | `jars-api` | `insights-worker` (Phase 5) |
 |---|---|---|
 | Launch type | Fargate, **ARM64 (Graviton)** | Fargate ARM64 |
-| CPU / RAM | 0.5 vCPU / 1 GB (JVM `-XX:MaxRAMPercentage=75`) | 0.25 vCPU / 0.5 GB |
+| CPU / RAM | 0.5 vCPU / 1 GB cho cả task: container app 896 MiB (JVM `-XX:MaxRAMPercentage=75`), sidecar ADOT 128 MiB ([§11](#11-observability)) | 0.25 vCPU / 0.5 GB |
 | Desired count | 1 (dev). Đặt về 0 khi "ngủ" | 1 / 0 |
 | Image | ECR `jars/jars-api:<git-sha>`, base `eclipse-temurin:21-jre` (multi-arch) | `jars/insights-worker:<sha>` |
 | Port | 8080 (ALB target group, health check `/actuator/health/readiness`) | không mở port |
@@ -186,12 +186,27 @@ Dùng cho: cache giá cổ phiếu (TTL 60 s), cache dashboard, **rate limit cha
 
 ## 11. Observability
 
-| Tín hiệu | Phase 3 | Phase 6 |
-|---|---|---|
-| Logs | stdout JSON → CloudWatch Logs (retention 14 ngày) | Thêm `traceId` / `spanId` vào mọi dòng log |
-| Metrics | Metric mặc định của ECS, ALB, Aurora, SQS. Container Insights **tắt** (tính phí theo metric; bật được bằng `containerInsightsV2` khi cần) | Micrometer → OTLP → **ADOT collector sidecar** → CloudWatch (EMF). Cẩn thận cardinality vì mỗi custom metric tốn phí |
-| Traces | – | OpenTelemetry (`spring-boot-starter-opentelemetry`) → ADOT → **X-Ray** |
-| Alarm | Budget alarm; Aurora không pause 6 giờ (trong `JarsApp`); DLQ có message (trong `JarsMessaging`) | 5xx > 1%, p95 > 1 s, DLQ có message, Aurora ACU > 0 liên tục 6 giờ, `jars-jobs` tồn quá 1 giờ |
+**Đang có (Phase 2 WP2).** Toàn bộ nằm trong `JarsApp` (construct `ApiObservability`), không tách stack `JarsObservability` như thiết kế ban đầu: alarm và dashboard theo dõi ALB và service của chính `JarsApp`, nên tách stack chỉ thêm export và một lượt deploy/destroy cho cùng vòng đời.
+
+```
+jars-api ──OTLP/HTTP localhost:4318──► ADOT collector (sidecar, v0.51.0)
+                                         ├─ traces ─────────────► X-Ray
+                                         └─ metrics jars.* ─EMF─► CloudWatch Jars/Api (log group /jars/dev/api/metrics)
+ALB, ECS, RDS, SQS ── metric mặc định (miễn phí) ──► dashboard jars-dev + alarm
+```
+
+| Tín hiệu | Cấu hình |
+|---|---|
+| Logs | stdout JSON (ECS format, profile `aws`) → `/jars/dev/api`, retention 14 ngày. Mọi dòng có `traceId` qua MDC; `traceId` trong body lỗi RFC 9457 và header `traceparent` của response **là trace id của X-Ray** (`TraceIdFilter` lấy từ span hiện tại). Log **không** gửi qua OTLP để khỏi trả tiền hai lần |
+| Traces | `spring-boot-starter-opentelemetry` (Micrometer Tracing + OTel bridge), sampling 100% (lưu lượng dev nhỏ; X-Ray miễn phí 100.000 trace đầu mỗi tháng). Span cho request HTTP (bỏ `/actuator/**` và các span của Spring Security), JDBC qua Spring Data, listener SQS (`spring.cloud.aws.sqs.observation-enabled`), lần khép sổ tháng (`jars.month.close`). X-Ray exporter từ bản contrib 0.86.0 nhận trace id dạng W3C, nên không cần bộ sinh id của X-Ray |
+| Metrics nghiệp vụ | `jars.transactions.posted` (tag `type`, `source`), `jars.anomalies.detected` (tag `detector`, `severity`), timer `jars.month.close` (tag `trigger`). Đếm **sau khi transaction commit** (`AfterCommit`), nên lần thử bị rollback vì optimistic lock không bị đếm. Tag chỉ có vài giá trị; không bao giờ gắn user id hay jar id |
+| Metrics hệ thống | Lấy từ metric mặc định của ALB (request, 5xx, `TargetResponseTime` p50/p95/p99), ECS (CPU, memory), RDS (ACU), SQS (độ sâu queue). Collector **lọc bỏ** metric JVM và HTTP của Micrometer (processor `filter/business`): cấu hình ECS mặc định của ADOT đẩy tất cả, tức vài trăm custom metric. Container Insights vẫn tắt |
+| Alarm | `jars-dev-api-5xx-rate`: tỷ lệ 5xx > 5% trong 2 chu kỳ 5 phút liên tiếp, chỉ tính khi có ≥ 20 request/chu kỳ; `jars-dev-api-p95-latency`: p95 > 1 s trong 15 phút (bỏ qua một chu kỳ chậm khi Aurora vừa resume); Aurora không pause 6 giờ (`JarsApp`); DLQ có message (`JarsMessaging`). Tất cả gửi về SNS `jars-dev-alarms` |
+| Dashboard | `jars-dev`: request và 5xx, thời gian phản hồi p50/p95/p99, CPU và memory của ECS, ACU của Aurora, sự kiện nghiệp vụ (`SEARCH` theo namespace `Jars/Api`), độ sâu queue jobs và DLQ |
+| Bộ nhớ trong task | Task 1 GB chia cứng: app 896 MiB (JVM `MaxRAMPercentage=75` tính heap từ con số này), collector 128 MiB, non-essential (collector chết thì API vẫn chạy) |
+| Load test | `scripts/load-test.ps1`: tạo user Cognito tạm, chạy `scripts/load-test.js` bằng `grafana/k6:2.3.0` trong Docker qua CloudFront, ngưỡng p95 đọc < 300 ms, ghi < 500 ms |
+
+Chưa làm (Phase 3+): `traceparent` trong message attributes khi **app gửi** message (hiện app chỉ nhận message từ EventBridge Scheduler, vốn không gửi trace context), alarm `jars-jobs` tồn quá 1 giờ.
 
 ## 12. Dịch vụ dùng chung
 

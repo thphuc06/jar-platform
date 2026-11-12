@@ -40,15 +40,16 @@ class AppStackTest {
                 "AWS::ECS::TaskDefinition",
                 like(
                         "ContainerDefinitions",
-                        List.of(like(
+                        Match.arrayWith(List.of(like(
                                 "Name", "api",
                                 "Essential", true,
+                                "Memory", 896,
                                 "PortMappings", List.of(like("ContainerPort", 8080, "Protocol", "tcp")),
                                 "ReadonlyRootFilesystem", true,
                                 "StopTimeout", 30,
                                 "LinuxParameters", like("InitProcessEnabled", true),
                                 "MountPoints",
-                                        List.of(like("ContainerPath", "/tmp", "SourceVolume", "tmp", "ReadOnly", false)))),
+                                        List.of(like("ContainerPath", "/tmp", "SourceVolume", "tmp", "ReadOnly", false))))),
                         "Volumes", List.of(map("Name", "tmp"))));
     }
 
@@ -64,11 +65,13 @@ class AppStackTest {
                 "AWS::ECS::TaskDefinition",
                 like(
                         "ContainerDefinitions",
-                        List.of(like(
+                        Match.arrayWith(List.of(like(
+                                "Name", "api",
                                 "LogConfiguration",
                                 like(
                                         "LogDriver", "awslogs",
-                                        "Options", like("awslogs-stream-prefix", "api", "awslogs-region", "ap-southeast-1"))))));
+                                        "Options",
+                                                like("awslogs-stream-prefix", "api", "awslogs-region", "ap-southeast-1")))))));
         template.hasResourceProperties(
                 "AWS::Logs::LogGroup", like("LogGroupName", "/jars/dev/api", "RetentionInDays", 14));
     }
@@ -424,13 +427,16 @@ class AppStackTest {
                         "DatapointsToAlarm", 6,
                         "Statistic", "Minimum",
                         "TreatMissingData", "notBreaching"));
-        assertThat(properties(template, "AWS::CloudWatch::Alarm").get(0).get("AlarmActions").toString())
-                .contains("JarsFoundation:ExportsOutputRef");
+        assertThat(properties(template, "AWS::CloudWatch::Alarm"))
+                .allSatisfy(alarm -> assertThat(alarm.get("AlarmActions").toString())
+                        .contains("JarsFoundation:ExportsOutputRef"));
     }
 
     @Test
     void thereIsNoAuroraAlarmInRdsMode() {
-        InfraFixture.rds().app().resourceCountIs("AWS::CloudWatch::Alarm", 0);
+        assertThat(properties(InfraFixture.rds().app(), "AWS::CloudWatch::Alarm"))
+                .extracting(alarm -> alarm.get("AlarmName"))
+                .doesNotContain("jars-dev-aurora-not-paused");
     }
 
     @Test
@@ -462,12 +468,20 @@ class AppStackTest {
         return config;
     }
 
-    @SuppressWarnings("unchecked")
+    /** The application container (the task also runs the collector sidecar). */
     private Map<String, Object> container() {
+        return container("api");
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> container(String name) {
         List<Map<String, Object>> containers = (List<Map<String, Object>>)
                 properties(template, "AWS::ECS::TaskDefinition").get(0).get("ContainerDefinitions");
-        assertThat(containers).hasSize(1);
-        return containers.get(0);
+        assertThat(containers).extracting(c -> c.get("Name")).containsExactlyInAnyOrder("api", "otel-collector");
+        return containers.stream()
+                .filter(c -> name.equals(c.get("Name")))
+                .findFirst()
+                .orElseThrow();
     }
 
     /** Environment as name to JSON text of the value, so that Fn::Join values can be matched by content. */
