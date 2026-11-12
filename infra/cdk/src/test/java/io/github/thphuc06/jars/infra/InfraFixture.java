@@ -127,6 +127,15 @@ final class InfraFixture {
         }
     }
 
+    /** The validation report as written by the synth, including acknowledged and warning-level findings. */
+    static String validationReportRaw(App app) {
+        try {
+            return Files.readString(Path.of(app.getOutdir(), "validation-report.json"));
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
     private static String abbreviate(String text) {
         return text.length() <= 140 ? text : text.substring(0, 140) + "...";
     }
@@ -142,7 +151,7 @@ final class InfraFixture {
     }
 
     /** A synthesized app and its stacks. */
-    record Synthesized(App app, JarsStacks stacks) {
+    record Synthesized(App cdkApp, JarsStacks stacks) {
 
         Template foundation() {
             return Template.fromStack(stacks.foundation());
@@ -162,6 +171,10 @@ final class InfraFixture {
 
         Template messaging() {
             return Template.fromStack(stacks.messaging());
+        }
+
+        Template app() {
+            return Template.fromStack(stacks.app());
         }
     }
 }
