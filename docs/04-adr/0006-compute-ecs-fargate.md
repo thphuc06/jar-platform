@@ -25,7 +25,7 @@ Chạy `jars-api` (và `insights-worker` ở Phase 5) trên **ECS with Fargate**
 - ✅ Kỹ năng ECS, task definition, IAM task role và ALB đúng với JD ("deploy trên AWS / K8s").
 - ✅ Scale về 0 khi không dùng (`desiredCount=0`).
 - ⚠️ JVM cần tối thiểu khoảng 1 GB RAM khi có Spring AI + Batch. Phải đặt `MaxRAMPercentage` và theo dõi OOM (exit code 137).
-- ⚠️ Image phải build multi-arch hoặc arm64 (base `eclipse-temurin:25-jre` có arm64).
+- ⚠️ Image phải build multi-arch hoặc arm64 (base `eclipse-temurin:21-jre` có arm64; JDK đổi từ 25 sang 21 theo [ADR-0019](0019-java-21-lts.md)).
 
 ## Xem lại khi
 Cần nhiều service (≥ 5) và muốn dùng chung tool K8s; hoặc chi phí Fargate chiếm > 50% ngân sách.

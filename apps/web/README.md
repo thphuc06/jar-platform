@@ -58,9 +58,7 @@ Rules the code follows, because the backend depends on them:
 npm run gen:api    # after the backend API changed
 ```
 
-CI fails if the committed file differs from the generated one.
-
-Goals and budget allocation endpoints are typed by hand in `src/api/goals.ts` and `src/api/budget.ts` (marked `TODO(WP5-openapi)`) until they are part of the OpenAPI file; then those files and `handwritten.ts` are deleted.
+CI fails if the committed file differs from the generated one. Goals and budget types in `src/api/goals.ts` and `src/api/budget.ts` are derived from the generated schema through `DeepWire`, so a backend field change breaks `npm run typecheck`.
 
 ## Not included
 

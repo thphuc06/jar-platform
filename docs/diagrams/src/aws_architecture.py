@@ -36,7 +36,7 @@ with Diagram("Jars Platform - AWS target architecture (ap-southeast-1, end of Ph
             with Cluster("private subnets"):
                 alb = ALB("internal ALB")
             with Cluster("public subnets  (SG: inbound only from ALB)"):
-                api = Fargate("jars-api\nJava 25 / Spring Boot 4.1\nmodular monolith")
+                api = Fargate("jars-api\nJava 21 / Spring Boot 4.1\nmodular monolith")
                 worker = Fargate("insights-worker\nJava (Phase 5)")
             with Cluster("isolated subnets"):
                 db = Aurora("Aurora PostgreSQL\nServerless v2  0-2 ACU")

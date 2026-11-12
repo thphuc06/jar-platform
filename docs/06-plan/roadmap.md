@@ -1,6 +1,6 @@
 # Roadmap
 
-> **Cách dùng:** mỗi bước (`P<phase>.<n>` ở Phase 0, `WP<n>` ở Phase 1 gộp) là **một mục tiêu nhỏ**, làm xong thì có giải thích theo chế độ "thầy giáo" (đã làm gì → vì sao → kiến thức cốt lõi → phương án khác → lỗi hay gặp → câu hỏi phỏng vấn → bài tập). Tick `[x]` khi xong và ghi ngày.
+> **Cách dùng:** mỗi bước (`P<phase>.<n>` ở Phase 0, `WP<n>` từ Phase 1) là **một mục tiêu nhỏ**. Tick `[x]` khi xong, ghi ngày và thêm một dòng vào nhật ký cuối file. Từ Phase 2 bỏ chế độ "thầy giáo" (không viết ghi chú `docs/learning/` cho bước mới); các ghi chú cũ vẫn giữ.
 > Thời gian ước lượng theo giả định **khoảng 15 giờ/tuần** (chưa được xác nhận). Hạn cứng: **credit AWS hết khoảng 2027-04-09**; Tết Nguyên Đán 2027 rơi vào đầu tháng 2, đã chừa buffer.
 > **Trình độ đầu vào** (2026-10-23): Java core, OOP, DSA vững về khái niệm; có chứng chỉ **AWS SAA-C03**. Vì vậy phần giải thích bỏ qua kiến thức cơ bản về Java và AWS, tập trung vào **Spring (IoC, AOP proxy, transaction, security filter chain), JPA/Hibernate, hệ phân tán và vận hành thực tế trên AWS** (phần SAA ít đi sâu: CDK, chi phí, chi tiết ECS/ALB).
 
@@ -9,7 +9,8 @@
 | 0 | Nền móng: bảo mật, tài khoản, repo, skeleton | 26/10 – 01/11/2026 → **xong 23/10** | ✅ |
 | 1 (gộp) | **Core → Cloud**: backend lõi + auth + ledger + event/cảnh báo + goals/budgeting + UI + CDK + deploy AWS + smoke test (gộp các Phase 1, 2 và 3 cũ, gồm 11 work package WP0–WP10) | 12/11/2026 → **xong 12/11/2026** | ✅ (WP0–WP10; còn nợ liệt kê ở nhật ký) |
 | ⭐ | **Mốc CV-ready**: có link demo + README tiếng Anh | cuối Phase 1 | |
-| 2+ | Backlog: import CSV, AI advisor + quant, tách insights-worker, observability (xem mục "Phase 2+") | chưa lên lịch | ⬜ |
+| 2 | **Thông minh và vận hành được**: CD qua OIDC, observability, import CSV, AI advisor, market + `quant-fn`, phiên kiểm chứng trên AWS (WP0–WP6) | từ 12/11/2026 | 🟡 |
+| 3+ | Backlog: tách insights-worker, ECS blue/green, WAF, game day, Well-Architected Tool (xem mục "Phase 3+") | chưa lên lịch | ⬜ |
 | – | Hạn cứng: credit AWS hết hạn | ~09/04/2027 | |
 
 > Các bảng "Chuẩn bị đầu mỗi phase" bên dưới giữ nguyên cách đánh số phase cũ (0–6) để tra cứu repo nguồn cần port. Phase 1 gộp dùng các hàng 1, 2 và 3; các hàng 4, 5, 6 thuộc backlog Phase 2+.
@@ -62,7 +63,7 @@ Ký hiệu: 👤 bạn tự làm (console, quyết định) · 🤖 làm cùng t
 
 > **Quyết định 2026-11-12:** gộp Phase 1, phần lõi của Phase 2 và phần deploy của Phase 3 thành **một phase lớn**, kết thúc bằng một bản chạy thật trên AWS đã được smoke test. Đổi JDK sang **Java 21** ([ADR-0019](../04-adr/0019-java-21-lts.md)). Bỏ khỏi phase này: import CSV, AI advisor, quant-fn, tách insights-worker, observability nâng cao (xem "Phase 2+" bên dưới).
 > **Mục tiêu:** UI chạy với backend Java ở local và trên AWS, mỗi user thấy dữ liệu riêng, cảnh báo bất thường hiện realtime. **Deliverable:** link demo CloudFront (dựng khi cần, teardown khi xong), `./mvnw verify` xanh với coverage đo thật, hạ tầng tái tạo 100% bằng CDK.
-> Làm trên nhánh `feat/phase-1-core-to-cloud`, mỗi work package (WP) là một hoặc vài commit. Thứ tự đảm bảo dừng ở đâu cũng có sản phẩm chạy được: WP0–4 là lõi, WP5–7 mở rộng, WP8–9 lên cloud.
+> Đã làm trên nhánh `feat/phase-1-core-to-cloud` (merge vào `main` qua PR #3, nhánh đã xóa), mỗi work package (WP) là một hoặc vài commit. Thứ tự đảm bảo dừng ở đâu cũng có sản phẩm chạy được: WP0–4 là lõi, WP5–7 mở rộng, WP8–9 lên cloud.
 
 - [x] **WP0** (12/11) Java 21, enforcer + JaCoCo, nâng BOM (Spring AI 2.0.2, Spring Cloud AWS 4.2.1, Spotless 3.11.0), ADR-0019, sửa mâu thuẫn tài liệu, viết lại roadmap. `./mvnw verify` xanh trên JDK 21.0.13 (12 test).
 - [x] **WP1** (12/11) Platform + shared: security resource server (validator `token_use`/`client_id`, decoder lazy), `ProblemDetail` + `traceId`/`traceparent`, `Money`, `Clock`, `IdempotencyService` (một transaction, test đồng thời 8 luồng), ArchUnit cấm `double` cho tiền. 58 test xanh.
@@ -72,21 +73,33 @@ Ký hiệu: 👤 bạn tự làm (console, quyết định) · 🤖 làm cùng t
 - [x] **WP5** (12/11) Budgeting + goals + khép sổ tháng: gợi ý và áp dụng phân bổ (một giao dịch `INCOME` + một bút toán `ALLOCATE` mỗi hũ, cùng transaction), kỳ ngân sách, khả thi, what-if (Monte Carlo có seed, tái lập được), roadmap theo hình dạng `RoadmapResponse` của UI; khép sổ idempotent, trigger bằng `@SqsListener` chỉ ở profile `aws`. `GoalsApiTest` 13 test. Làm song song bằng một agent trên nhánh riêng rồi merge (chỉ xung đột ở `application.yaml`).
 - [x] **WP6** (12/11) Đóng gói backend: `contracts/openapi/jars-api.yaml` sinh từ controller và có test chống lệch, `SeedDataRunner` (cho đúng 2 cảnh báo), `application-aws.yaml`, Dockerfile (JRE 21, arm64, layered jar, non-root, read-only FS). Chạy image với giới hạn Fargate (0,5 vCPU, 1 GB): sẵn sàng sau khoảng 31 giây, dùng khoảng 355 MiB. Chạy image thật lộ hai lỗi mà test không thấy (xem [runbook](../05-operations/runbook.md#sự-cố-đã-gặp)); đã thêm `AwsProfileTest`.
 - [x] **WP7** (12/11) UI React: `ius_financial_ui` đưa vào `apps/web`, Amplify Auth PKCE, client sinh từ OpenAPI, bỏ Supabase và mock, ẩn màn AI Chat, SSE cho Alerts; 17 file test (Vitest), workflow `web.yml` (lint, test, build). Sau khi nối backend thật mới thấy kiểu goals/budget viết tay lệch hẳn backend (feasibility, what-if, phân bổ, camelCase của roadmap): đã thay bằng kiểu sinh từ OpenAPI qua `DeepWire`, fixture gắn kiểu đó nên backend đổi field là `npm run typecheck` fail; 126 test web.
-- [x] **WP8** (12/11) CDK Java: 6 stack (`JarsFoundation`, `JarsNetwork`, `JarsAuth`, `JarsData`, `JarsMessaging`, `JarsApp`), 95 test (không NAT, task ARM64, không `0.0.0.0/0`, log retention, Aurora min 0) + cdk-nag; workflow `infra.yml` chạy test và `cdk synth`. **Chưa làm:** `deploy-dev.yml` (CD tự động) mới chỉ có trong thiết kế ([ADR-0016](../04-adr/0016-cicd-github-actions-oidc.md)), cần push lên GitHub và ADR-0018 (không deploy bằng root từ CI).
+- [x] **WP8** (12/11) CDK Java: 6 stack (`JarsFoundation`, `JarsNetwork`, `JarsAuth`, `JarsData`, `JarsMessaging`, `JarsApp`), 95 test (không NAT, task ARM64, không `0.0.0.0/0`, log retention, Aurora min 0) + cdk-nag; workflow `infra.yml` chạy test và `cdk synth`. **Chưa làm:** `deploy-dev.yml` (CD tự động) mới chỉ có trong thiết kế ([ADR-0016](../04-adr/0016-cicd-github-actions-oidc.md)); chuyển sang Phase 2 WP1.
 - [x] **WP9** (12/11) Deploy thật (kết quả ở [deployment §2](../05-operations/deployment.md#lần-đầu-deploy-jarsapp-hai-lượt) và [runbook](../05-operations/runbook.md#sự-cố-đã-gặp)): 3 stack cũ đã xóa trước đó, 5 stack nền + `JarsApp` deploy thành công, smoke test **11/11** qua CloudFront với token Cognito thật, Aurora tự pause sau khoảng 6 phút, rồi `cdk destroy JarsApp` (không còn ALB, 0 task). Kế hoạch gốc: xóa 3 stack cũ (`jars-dev-auth`, `jars-dev-foundation`, `jars-dev-network`, deploy 23–27/10, không còn code trong repo), deploy stack mới, smoke test bằng script, ghi chi phí thật, rồi `cdk destroy JarsApp`.
 - [x] **WP10** (12/11) README tiếng Anh (bản tiếng Việt thành `README.vi.md`), cập nhật `cv-showcase.md` bằng số liệu đo thật (mục 0).
 
 **Kỹ năng:** Spring Security / JWT, JPA + locking, idempotency, pagination, N+1, event-driven trong monolith, outbox, SSE, thuật toán thống kê, Docker, ECS, ALB, CloudFront, Aurora, IAM, CDK, CI/CD, tối ưu chi phí.
 
-## Phase 2+: backlog (chưa lên lịch)
+## Phase 2: Thông minh và vận hành được
 
-Các hạng mục dưới đây giữ nguyên thiết kế trong tài liệu, sẽ làm sau Phase 1 nếu còn thời gian trước khi credit hết hạn (khoảng 2027-04-09).
+> **Quyết định 2026-11-12:** gom phần lớn backlog cũ thành một phase lớn, kết thúc bằng một phiên chạy thật trên AWS có số đo (smoke test, p95, trace, chi phí thật) rồi dọn. Java 21, chỉ code và test (không viết ghi chú học tập cho bước mới). Được deploy AWS khi cần, với điều kiện ghi chi phí trước và sau mỗi phiên và `cdk destroy` các stack tính tiền theo giờ khi xong. Trần chi phí cả phase khoảng **15 USD**.
+> **Thứ tự:** observability trước để các WP sau có trace và metric ngay; import trước advisor vì advisor cần dữ liệu giao dịch thật; `quant-fn` cuối cùng vì rủi ro cao nhất (nguồn dữ liệu có thể chặn IP AWS).
+> Làm trên nhánh `feat/phase-2-intelligence`.
 
-- **Import CSV:** module `imports`, S3 presigned, EventBridge → SQS, Spring Batch (chunk, skip, restart).
-- **AI advisor + market:** Spring AI + Bedrock Converse streaming, tool calling read-only theo user, Guardrails (prompt attack filter), rate limit Bucket4j + Valkey; `quant-fn` Lambda Python (cần spike P4.1: IP AWS có bị nguồn dữ liệu chặn không, wheel `cvxpy` arm64, license vnstock).
-- **Tách `insights-worker`:** SNS FIFO → SQS FIFO, `@Externalized`, inbox `processed_messages`, schema `insights` riêng, `traceparent` qua message attributes.
-- **Observability và resilience:** OpenTelemetry → ADOT → X-Ray, `JarsObservability`, k6 (ghi p95 vào README), ECS native blue/green, job đối soát `balance == SUM(entries)` hằng đêm, game day, thử restore Aurora, Well-Architected Tool lần 1 và 2.
-- **Khác:** audit log bằng AOP, lab Kafka local, WAF rate-based rule, chuyển sang IAM user (ADR-0018) trước khi bật CI/CD deploy.
+- [x] **WP0** (12/11) Dọn nợ: sửa tài liệu còn ghi Java 25 (ADR-0006, source diagram), README web, mục lục `docs/` có `learning/`, `.gitignore` bỏ qua `cdk-outputs.json`; viết lại roadmap thành Phase 2.
+- [ ] **WP1** CD qua GitHub OIDC: `deploy-dev.yml` chỉ chạy tay (`workflow_dispatch`), assume `GitHubDeployRole` của `JarsFoundation`, build image ARM64 → ECR theo git SHA → `cdk deploy` → smoke test; input `destroy` để dọn `JarsApp`. Rà quyền deploy role, test trust policy không có wildcard.
+- [ ] **WP2** Observability: OpenTelemetry trong `jars-api`, `traceId`/`spanId` trong log, metric nghiệp vụ (không gắn `userId` vào tag); sidecar ADOT → X-Ray + CloudWatch EMF; stack `JarsObservability` (dashboard, alarm 5xx, p95, DLQ, Aurora không pause); `traceparent` qua message attributes SQS; script k6.
+- [ ] **WP3** Import sao kê CSV: module `imports` (`POST /imports` presigned PUT, `GET /imports/{id}`), Spring Batch chunk/skip/restart ghi qua `LedgerApi` có idempotency theo dòng, event `StatementImportCompleted` → thông báo; bucket `statements`, queue `jars-imports` + DLQ, rule `statement-uploaded`; màn hình tải sao kê.
+- [ ] **WP4** AI advisor: module `advisor` (Spring AI `ChatClient` + Bedrock Converse stream, Haiku 4.5), phiên và tin nhắn chat, SSE; tool Java chỉ đọc, `userId` lấy từ JWT; Bedrock Guardrail bằng CDK; rate limit theo user và trần `max-tokens` (đề xuất lưu bucket trong PostgreSQL thay Valkey, ghi ADR-0023); bật lại màn AI Chat.
+- [ ] **WP5** Market + `quant-fn`: spike trước (vnstock từ IP AWS, wheel `cvxpy` arm64, license); Lambda Python 3.13 container + stack `JarsQuant`; module `market` (timeout, circuit breaker, heuristic dự phòng, cache giá 60 giây); tool `getQuote` cho advisor.
+- [ ] **WP6** Phiên kiểm chứng trên AWS: deploy đủ, smoke test mở rộng (import, chat, market), thử tay đăng nhập qua managed login, k6 lấy p95, trace X-Ray; `cdk destroy`; ghi chi phí thật từ Cost Explorer; cập nhật README, `cv-showcase.md` và tài liệu kiến trúc.
+
+**Dừng và hỏi khi:** chi phí vượt trần; spike `quant-fn` thất bại; Bedrock từ chối quyền; cần thao tác chỉ chủ repo làm được (push, merge, cài đặt GitHub, IAM user thay root theo ADR-0018); thay đổi phá dữ liệu trên Aurora hoặc xóa `JarsData`/`JarsAuth`; thiết kế phải đổi kiến trúc.
+
+## Phase 3+: backlog (chưa lên lịch)
+
+- **Tách `insights-worker`:** SNS FIFO → SQS FIFO, `@Externalized`, inbox `processed_messages`, schema `insights` riêng.
+- **Resilience:** ECS native blue/green, job đối soát `balance == SUM(entries)` hằng đêm, game day, thử restore Aurora, Well-Architected Tool lần 1 và 2.
+- **Khác:** audit log bằng AOP, lab Kafka local, WAF rate-based rule, chuyển sang IAM user (ADR-0018).
 
 ---
 
@@ -98,3 +111,5 @@ Các hạng mục dưới đây giữ nguyên thiết kế trong tài liệu, s�
 | 2026-11-12 | Gộp phase, WP0 | Gộp Phase 1–3 cũ thành Phase 1 "Core → Cloud"; chuyển sang Java 21 (ADR-0019). **Phát hiện:** account đang có 3 stack CDK `jars-dev-auth` (23/10), `jars-dev-foundation` và `jars-dev-network` (27/10) mà code CDK không còn trong repo (local lẫn GitHub); quyết định viết lại CDK và thay các stack này ở WP9. Sửa mâu thuẫn tài liệu: idempotency chuyển về `platform` và dùng một transaction duy nhất, retry optimistic lock nằm ngoài transaction, bỏ phân quyền theo scope ở MVP. `aws login` hiện vẫn là root (ADR-0018 hoãn). |
 | 2026-10-23 | **Phase 0 ✅** | Xong 8/8 bước (P0.1 bỏ qua theo quyết định). Build sạch từ clone mới: 12/12 test, Spotless, Modulith; gitleaks 0 leak; actionlint 0 lỗi. **Lệch thiết kế phát hiện được:** Identity Center không dùng được (ADR-0018, đang hoãn); account baseline để ngoài CDK; Haiku 5.5 bị AccessDenied nên đổi sang Haiku 4.5; cần module `awssdk:signin`; thứ tự BOM làm Modulith bị hạ version; biến `JAVA_HOME` cấp User trỏ JDK 21 (đã xóa). **Còn mở:** push và xem CI chạy lần đầu trên GitHub; xóa access key `phuc-account` sau 30/10; chọn mức agentic (trước P4); số giờ/tuần. |
 | 2026-11-12 | **Phase 1 ✅** | WP0–WP10 xong trong một ngày. 578 test backend (96,7% coverage), 95 test CDK, 126 test web; smoke test 11/11 trên AWS thật. **Phát hiện khi chạy thật:** (1) image Docker sập ở profile `aws` mà test không thấy; (2) script smoke test có hai lỗi quoting của PowerShell; (3) UI goals/budget viết tay lệch backend, `tsc` không bắt được vì `unwrap<R>` ép kiểu; đã thay bằng kiểu sinh từ OpenAPI. **Còn nợ:** đăng nhập bằng trình duyệt qua managed login chưa thử tay; chưa có số Cost Explorer (chỉ ước lượng ≈ 0,1 USD); chưa có `deploy-dev.yml` và vẫn deploy bằng root (ADR-0018); lượt deploy web thay task một lần không rõ lý do; `npm audit` còn 2 cảnh báo mức moderate ở công cụ dev; chưa k6 nên chưa có p95. `JarsApp` đã destroy; dựng lại khoảng 25 phút. |
+| 2026-11-12 | Hợp nhất `main` | `main` local (bản cài đặt đầu tiên P1.1–P3.3, Java 25) và `origin/main` (Core to Cloud) đã phân nhánh từ cuối Phase 0. Chọn code của `origin/main` (nhiều module và test hơn, khớp stack đang chạy trên AWS); giữ `docs/learning/`. Sửa test đồng thời flaky (`containsOnly(201, 409)` đòi có cả 409). Dọn các nhánh Dependabot và nhánh đã merge. |
+| 2026-11-12 | Phase 2 WP0 | Lên kế hoạch Phase 2; dọn nợ tài liệu. PNG `aws-architecture.png` chưa render lại vì máy chưa có Graphviz (chỉ đổi nhãn "Java 25" → "Java 21" trong source). |
