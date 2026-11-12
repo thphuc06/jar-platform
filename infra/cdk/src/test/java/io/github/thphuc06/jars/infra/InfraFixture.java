@@ -8,6 +8,7 @@ import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashMap;
+import java.util.function.Supplier;
 import java.util.Map;
 import software.amazon.awscdk.App;
 import software.amazon.awscdk.AppProps;
@@ -24,34 +25,52 @@ final class InfraFixture {
 
     private static final ObjectMapper JSON = new ObjectMapper();
 
-    private static Synthesized aurora;
-    private static Synthesized rds;
-    private static Synthesized withWeb;
+    private static final Memo AURORA = new Memo(() -> synth(Map.of()));
+    private static final Memo RDS = new Memo(() -> synth(Map.of("dbMode", "rds")));
+    private static final Map<String, Memo> WEB = new HashMap<>();
 
     private InfraFixture() {}
 
     /** Default configuration: Aurora, one task, no web upload. */
-    static synchronized Synthesized aurora() {
-        if (aurora == null) {
-            aurora = synth(Map.of());
-        }
-        return aurora;
+    static Synthesized aurora() {
+        return AURORA.get();
     }
 
     /** {@code -c dbMode=rds}: the RDS PostgreSQL fallback of ADR-0008. */
-    static synchronized Synthesized rds() {
-        if (rds == null) {
-            rds = synth(Map.of("dbMode", "rds"));
-        }
-        return rds;
+    static Synthesized rds() {
+        return RDS.get();
     }
 
     /** {@code -c deployWeb=true}: JarsApp uploads the built SPA. */
     static synchronized Synthesized withWeb(Path webDist) {
-        if (withWeb == null) {
-            withWeb = synth(Map.of("deployWeb", true, "webDistDir", webDist.toAbsolutePath().toString()));
+        String dir = webDist.toAbsolutePath().toString();
+        return WEB.computeIfAbsent(dir, d -> new Memo(() -> synth(Map.of("deployWeb", true, "webDistDir", d))))
+                .get();
+    }
+
+    /** Runs a synth once and replays its result, including a failure, so a broken app is reported once. */
+    private static final class Memo {
+        private final Supplier<Synthesized> supplier;
+        private Synthesized value;
+        private RuntimeException failure;
+
+        Memo(Supplier<Synthesized> supplier) {
+            this.supplier = supplier;
         }
-        return withWeb;
+
+        synchronized Synthesized get() {
+            if (value == null && failure == null) {
+                try {
+                    value = supplier.get();
+                } catch (RuntimeException | AssertionError e) {
+                    failure = e instanceof RuntimeException re ? re : new IllegalStateException(e);
+                }
+            }
+            if (failure != null) {
+                throw failure;
+            }
+            return value;
+        }
     }
 
     /** Builds and synthesizes an app. A cdk-nag finding or a validation error fails with the report. */
@@ -135,6 +154,10 @@ final class InfraFixture {
 
         Template auth() {
             return Template.fromStack(stacks.auth());
+        }
+
+        Template data() {
+            return Template.fromStack(stacks.data());
         }
     }
 }

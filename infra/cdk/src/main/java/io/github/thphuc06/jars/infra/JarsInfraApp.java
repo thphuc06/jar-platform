@@ -37,6 +37,7 @@ public final class JarsInfraApp {
         FoundationStack foundation = new FoundationStack(app, "JarsFoundation", props, cfg);
         NetworkStack network = new NetworkStack(app, "JarsNetwork", props, cfg);
         AuthStack auth = new AuthStack(app, "JarsAuth", props, cfg);
+        DataStack data = new DataStack(app, "JarsData", props, cfg, network);
 
         Tags.of(app).add("Project", EnvConfig.PROJECT);
         Tags.of(app).add("Env", cfg.env());
@@ -45,7 +46,7 @@ public final class JarsInfraApp {
 
         enableNag(app);
 
-        return new JarsStacks(foundation, network, auth);
+        return new JarsStacks(foundation, network, auth, data);
     }
 
     /**
@@ -60,5 +61,5 @@ public final class JarsInfraApp {
     }
 
     /** The stacks of the app, for tests and for readers of {@link #build(App)}. */
-    public record JarsStacks(FoundationStack foundation, NetworkStack network, AuthStack auth) {}
+    public record JarsStacks(FoundationStack foundation, NetworkStack network, AuthStack auth, DataStack data) {}
 }
