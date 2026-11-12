@@ -330,7 +330,9 @@ class LedgerPostingTest extends ApiTestSupport {
                         ? post(user, "/api/v1/jars/transfers", newKey(), transferBody(nec, edu, "1000"))
                         : post(user, "/api/v1/jars/transfers", newKey(), transferBody(edu, nec, "1000")));
 
-        assertThat(responses).extracting(Resp::status).containsOnly(201, 409);
+        // isSubsetOf, not containsOnly: containsOnly also demands that every listed value shows up, and a run where
+        // no writer loses the retry race (all 201) is a perfectly good outcome
+        assertThat(responses).extracting(Resp::status).isSubsetOf(201, 409);
         assertBalanceMatchesEntries(nec);
         assertBalanceMatchesEntries(edu);
         assertThat(balanceOf(nec).add(balanceOf(edu)))
