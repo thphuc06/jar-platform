@@ -189,7 +189,8 @@ describe("Goal planner (hand-written types until WP5 is in the OpenAPI file)", (
 
     expect(await screen.findByText("Quỹ khẩn cấp")).toBeInTheDocument();
     expect(await screen.findByText(/Cần tiết kiệm ~/)).toBeInTheDocument();
-    expect(await screen.findByText("Cần thận trọng")).toBeInTheDocument(); // status banner of the roadmap
+    // the status banner of the roadmap (its title also appears in the overview card)
+    expect((await screen.findAllByText("Cần thận trọng")).length).toBeGreaterThan(0);
     expect(screen.getByText("Lộ trình theo giai đoạn")).toBeInTheDocument();
   });
 
