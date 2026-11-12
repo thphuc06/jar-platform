@@ -12,7 +12,7 @@ ADR ghi lại **vì sao** một quyết định kiến trúc được đưa ra, 
 | [0001](0001-record-architecture-decisions.md) | Ghi quyết định kiến trúc bằng ADR | Accepted | 2026-10-23 |
 | [0002](0002-monorepo.md) | Monorepo cho backend, frontend, function, infra, docs | Accepted | 2026-10-23 |
 | [0003](0003-modular-monolith-spring-modulith.md) | Modular monolith (Spring Modulith), chỉ tách 1 service ở Phase 5 | Accepted | 2026-10-23 |
-| [0004](0004-java-25-spring-boot-4.md) | Java 25 LTS + Spring Boot 4.1 | Accepted | 2026-10-23 |
+| [0004](0004-java-25-spring-boot-4.md) | Java 25 LTS + Spring Boot 4.1 (phần JDK bị ADR-0019 thay thế) | Accepted (một phần Superseded) | 2026-10-23 |
 | [0005](0005-region-ap-southeast-1.md) | Region ap-southeast-1 (Singapore) | Accepted | 2026-10-23 |
 | [0006](0006-compute-ecs-fargate.md) | Compute: ECS on Fargate ARM64 (không dùng App Runner/EC2/EKS) | Accepted | 2026-10-23 |
 | [0007](0007-edge-cloudfront-vpc-origin.md) | CloudFront là cửa vào duy nhất; S3 OAC + VPC origin tới ALB internal | Accepted | 2026-10-23 |
@@ -27,3 +27,7 @@ ADR ghi lại **vì sao** một quyết định kiến trúc được đưa ra, 
 | [0016](0016-cicd-github-actions-oidc.md) | CI/CD bằng GitHub Actions + OIDC | Accepted | 2026-10-23 |
 | [0017](0017-python-quant-lambda.md) | Python chỉ ở `quant-fn` (Lambda); bỏ Dexter | Accepted | 2026-10-23 |
 | [0018](0018-human-access-iam-user-aws-login.md) | Truy cập của người: IAM user + MFA + `aws login` (không dùng Identity Center) | Accepted | 2026-10-23 |
+| [0019](0019-java-21-lts.md) | Java 21 LTS thay cho Java 25 (Boot 4.1 giữ nguyên) | Accepted | 2026-11-12 |
+| [0020](0020-spa-fallback-cloudfront-function.md) | SPA fallback bằng CloudFront Function, không dùng custom error response (bổ sung ADR-0007) | Accepted | 2026-11-12 |
+| [0021](0021-anomaly-detection-mad-cusum.md) | Phát hiện chi tiêu bất thường theo hũ bằng MAD + CUSUM | Accepted | 2026-11-12 |
+| [0022](0022-idempotency-key-in-business-transaction.md) | Idempotency-Key ghi trong cùng transaction với nghiệp vụ | Accepted | 2026-11-12 |

@@ -31,13 +31,13 @@ Mọi domain event ra khỏi process đều có cấu trúc chung (JSON, đặt 
 
 | Event | Phát bởi | Nghe bởi | Payload chính | Externalize (Phase 5) |
 |---|---|---|---|---|
-| `UserRegistered` | identity | ledger (tạo 6 hũ mặc định + danh mục mặc định) | `userId`, `email`, `locale` | Không |
+| `UserRegistered` | identity | ledger (tạo 6 hũ mặc định) | `userId`, `locale` | Không. **Nghe đồng bộ trong cùng transaction** với việc tạo user (`@EventListener`, không phải `@ApplicationModuleListener`), để user không bao giờ tồn tại mà thiếu 6 hũ |
 | `RiskProfileAssessed` | identity | advisor (ngữ cảnh chat) | `riskLevel`, `score` | Không |
-| `TransactionPosted` | ledger | insights (CUSUM/MAD, read model), budgeting (đã chi của kỳ) | `transactionId`, `type`, `amount`, `currency`, `jarId`, `categoryId`, `occurredAt`, `source` | **Có** → `jars-ledger-events.fifo`, group = `userId` |
-| `TransactionRecategorized` | ledger | insights | `transactionId`, `oldCategoryId`, `newCategoryId`, `oldJarId`, `newJarId` | **Có** |
+| `TransactionPosted` | ledger | insights (MAD + CUSUM, read model), budgeting (đã chi của kỳ: chỉ tính `EXPENSE` có `jarId`) | `eventId` (UUIDv7), `transactionId`, `userId`, `type`, `amount`, `jarId`, `categoryId`, `occurredAt`, `source`. Một lần `LedgerApi.allocateIncome` phát **một** event `INCOME` với `jarId = null` (tiền chia cho nhiều hũ) | **Có** → `jars-ledger-events.fifo`, group = `userId` |
+| `TransactionRecategorized` | ledger | insights, budgeting (chuyển `spent_amount` giữa hai hũ khi khoản chi đổi hũ) | `transactionId`, `oldCategoryId`, `newCategoryId`, `oldJarId`, `newJarId` | **Có** |
 | `JarCreated` | ledger | insights (khởi tạo detector state) | `jarId`, `code` | **Có** |
-| `MonthClosed` | budgeting | notification, insights | `month`, `summary` (theo từng hũ) | Không |
-| `AnomalyDetected` | insights | notification | `anomalyId`, `jarId`, `detector`, `direction`, `score`, `threshold`, `transactionId` | **Có** → `jars-insights-events.fifo` |
+| `MonthClosed` | budgeting | notification (tạo thông báo "Đã khép sổ tháng MM/YYYY"; bỏ qua tháng có kế hoạch và chi đều bằng 0). insights chưa nghe | `eventId` (UUIDv7), `userId`, `month` (`YYYY-MM`), `summary[{jarId, jarName, planned, spent}]` cho mọi hũ có dòng trong tháng (kể cả hũ đã archive). Mỗi user mỗi tháng phát **tối đa một lần** | Không |
+| `AnomalyDetected` | insights | notification | `eventId`, `anomalyId`, `userId`, `jarId`, `jarName`, `detector` (MAD/CUSUM), `direction`, `severity`, `score`, `threshold`, `transactionId`, `amount` | **Có** → `jars-insights-events.fifo` |
 | `StatementImportCompleted` | imports | notification | `importId`, `rowsOk`, `rowsFailed` | Không |
 | `GoalCreated` | goals | (dự phòng) | `goalId`, `targetAmount`, `targetDate` | Không |
 
@@ -46,7 +46,15 @@ Mọi domain event ra khỏi process đều có cấu trúc chung (JSON, đặt 
 | Nguồn | Rule / Schedule | Đích | Message mà jars-api nhận |
 |---|---|---|---|
 | S3 `jars-dev-statements`, prefix `uploads/{userId}/{importId}.csv` | Rule `statement-uploaded`: `source=aws.s3`, `detail-type=Object Created` | SQS `jars-imports` | Event EventBridge gốc (`detail.object.key`). jars-api tách `userId` / `importId` từ key **rồi kiểm tra với bảng `statement_imports`** (không tin key) |
-| EventBridge Scheduler `month-close` | `cron(5 0 1 * ? *)`, TZ `Asia/Ho_Chi_Minh` | SQS `jars-jobs` | `{"job":"MONTH_CLOSE","month":"2026-10"}` |
+| EventBridge Scheduler `month-close` | `cron(5 0 1 * ? *)`, TZ `Asia/Ho_Chi_Minh` | SQS `jars-jobs` | `{"job":"MONTH_CLOSE"}`. Tháng cần khép không nằm trong message: job tự tính **tháng trước** theo giờ Việt Nam. Có thể gửi tay `{"job":"MONTH_CLOSE","month":"2026-10"}` để chạy lại một tháng ([F6](flows.md#f6)) |
+
+## 4b. Cách event in-process được giao nhận (đã cài đặt)
+
+- Event được publish **trong transaction nghiệp vụ**; Spring Modulith ghi một dòng `event_publication` cho **mỗi listener** (outbox) trong cùng transaction đó.
+- Sau commit, `@ApplicationModuleListener` chạy bất đồng bộ trong transaction riêng. Listener xong thì dòng bị xóa (`completion-mode: delete`); listener lỗi thì dòng **ở lại** và không mất event.
+- **Chưa bật** tự publish lại các dòng còn tồn khi khởi động; hiện chúng là hàng đợi cần xem tay (`SELECT * FROM event_publication`). Việc này nằm trong backlog.
+- Consumer luôn kiểm tra `processed_messages(consumer, eventId)` ở đầu transaction để bỏ qua event bị giao lại.
+- `UserRegistered` là ngoại lệ có chủ đích: ledger nghe **đồng bộ** trong transaction tạo user.
 
 ## 5. Đảm bảo giao nhận
 

@@ -2,6 +2,33 @@
 
 > **Nguyên tắc trung thực:** chỉ đưa lên CV những gì **đã chạy thật**. Mọi con số (`[p95]`, `[số test]`...) phải là **số đo được** (k6, JaCoCo, Cost Explorer). Không ghi số ước lượng. UI xuất phát từ bản hackathon (do Lovable sinh), nên **không nhận là tự viết frontend**. Phần của bạn là backend, hạ tầng và phần nối UI.
 
+## 0. Trạng thái thật sau Phase 1 (2026-11-12): đã đo, đã chạy, ghi được lên CV ngay
+
+Mọi số dưới đây lấy từ một lần chạy thật, không phải ước lượng. Phần 1 trở xuống là **đích đến** (hết Phase 6), không phải hiện trạng.
+
+| Hạng mục | Số đo | Lấy từ đâu |
+|---|---|---|
+| Test backend | **578 test, 0 lỗi** | `./mvnw verify`, surefire |
+| Coverage dòng (JaCoCo) | **96,7%** toàn backend; build ép tối thiểu 80% trên `internal/domain` và `internal/service` | JaCoCo |
+| Test hạ tầng | **95 test** (không NAT Gateway, task ARM64, không ingress `0.0.0.0/0`, log retention, Aurora `min = 0`) + cdk-nag | `infra/cdk`, `./mvnw test` |
+| Test web | **119 test** trong 17 file | `npm test` (Vitest) |
+| Đồng thời | 12 writer cùng ghi một hũ: mọi khoản chi được nhận đều có trong số dư, `balance == SUM(entries)`; 8 request trùng `Idempotency-Key` chỉ ghi một lần. Tìm ra và sửa một **deadlock** của chuyển hũ hai chiều | `LedgerPostingTest` |
+| Smoke test trên AWS | **11/11 đạt** qua CloudFront, token Cognito thật: idempotency, user khác nhận 404, anomaly → notification → SSE, ALB internal | `scripts/smoke-test.ps1` |
+| Khởi động trên Fargate | `Started JarsApplication in 53,3 s` (0,5 vCPU, Aurora vừa resume từ paused) | CloudWatch Logs |
+| Dựng cả hệ thống | `JarsApp` lần đầu 18 phút (CloudFront VPC origin 9 phút là phần chậm nhất) + 4 phút đẩy web | CloudFormation events |
+| Aurora Serverless v2 | scale-to-zero: 0 ACU khi không dùng, lên tối đa 2 ACU khi app kết nối lần đầu | CloudWatch `ServerlessDatabaseCapacity` |
+| Tài liệu | 22 ADR, trong đó có những quyết định phải đổi vì thực tế khác thiết kế (Java 21 thay 25, không dùng Identity Center, CloudFront Function cho SPA fallback) | `docs/04-adr` |
+
+**Bullet CV dùng được ngay** (tiếng Anh, chỉ gồm điều đã chạy thật):
+
+- Built a **modular monolith** (6 modules, boundaries verified on every build with Spring Modulith and ArchUnit) on Java 21 / Spring Boot 4 for a 6-jars personal-finance app: append-only money ledger, budgeting with a once-only month close, savings goals with seeded Monte Carlo what-ifs.
+- Made money postings safe under concurrency: **optimistic locking** with a retry loop outside the transaction, **idempotency keys** inserted inside the business transaction, and a reproduced-then-fixed PostgreSQL **deadlock** on two-way jar transfers. 578 tests (96.7% line coverage), including race tests with 8–12 parallel writers.
+- Implemented per-jar **spending anomaly detection** (robust MAD outlier test plus CUSUM drift, checked against golden vectors from the original Python prototype), delivered through the **Modulith transactional outbox** to idempotent consumers and pushed to the browser over **Server-Sent Events**.
+- Secured the API as a stateless **OAuth2 resource server for Amazon Cognito** (access tokens from our own app clients only, fail-closed validators), with every query scoped to the caller and IDOR tests for each resource endpoint.
+- Provisioned everything with **AWS CDK (Java)**, six stacks, 95 guardrail tests and cdk-nag: Fargate on Graviton, internal ALB behind a CloudFront VPC origin, Aurora Serverless v2 scaling to zero, no NAT gateway. Verified a real deployment end to end with a smoke test (11/11 checks) and tore the compute stack down afterwards.
+
+**Chưa được ghi** (chưa làm hoặc chưa đo): AI advisor, microservice / SNS-SQS FIFO, import CSV với Spring Batch, p95 và req/s (chưa chạy k6), chi phí thật theo Cost Explorer (số hiện có là ước lượng theo đơn giá niêm yết), CI/CD tự deploy bằng OIDC (chưa có `deploy-dev.yml`; lần deploy vừa rồi dùng credential root từ máy cá nhân), link demo công khai (`JarsApp` đã bị `cdk destroy`; dựng lại khoảng 25 phút), đăng nhập bằng trình duyệt qua managed login (mới kiểm bằng token lấy từ admin API, chưa thử tay).
+
 ## 1. Khi code xong (hết Phase 6), hệ thống làm được gì
 
 ### Góc nhìn người dùng: kịch bản demo 3 phút
@@ -21,7 +48,7 @@
 
 ### Góc nhìn kỹ thuật: năng lực hệ thống
 
-- **Modular monolith** Java 25 / Spring Boot 4.1 với 9 module, ranh giới được kiểm tra tự động trong CI, cộng **1 microservice** tách ra theo event và **1 Lambda Python**.
+- **Modular monolith** Java 21 / Spring Boot 4.1 với 9 module, ranh giới được kiểm tra tự động trong CI, cộng **1 microservice** tách ra theo event và **1 Lambda Python**.
 - **Tiền đúng tuyệt đối**: ledger append-only, optimistic locking, idempotency, job đối soát.
 - **Event-driven**: transactional outbox, SNS/SQS FIFO có thứ tự theo user, DLQ, idempotent consumer.
 - **AI có kiểm soát**: LLM chỉ diễn giải, số liệu do Java tính; guardrails; rate limit; streaming.
@@ -47,7 +74,7 @@
 > Các ô `[...]` chỉ điền **sau khi đo**. Chọn 4–6 bullet tùy độ dài CV. Thứ tự bullet ưu tiên theo JD đang apply.
 
 **Jars Platform — Personal finance app (6-Jars budgeting, anomaly alerts, AI advisor)** · *Personal project* · `github.com/thphuc06/jar-platform` · `[demo link]`
-*Java 25, Spring Boot 4.1, Spring Modulith, Spring Security, JPA/PostgreSQL, Spring AI, AWS (ECS Fargate, Aurora Serverless v2, SNS/SQS, EventBridge, Cognito, Bedrock, Lambda, CloudFront), AWS CDK, GitHub Actions*
+*Java 21, Spring Boot 4.1, Spring Modulith, Spring Security, JPA/PostgreSQL, Spring AI, AWS (ECS Fargate, Aurora Serverless v2, SNS/SQS, EventBridge, Cognito, Bedrock, Lambda, CloudFront), AWS CDK, GitHub Actions*
 
 - Designed and built a **modular monolith** (9 modules, boundaries verified in CI with Spring Modulith/ArchUnit) and later extracted an **event-driven microservice** over **SNS/SQS FIFO** using the **transactional outbox** pattern, with idempotent consumers and DLQs.
 - Implemented a **money ledger** with append-only entries, **optimistic locking** and **idempotency keys**, preventing lost updates and duplicate postings under concurrent requests (covered by concurrency tests).

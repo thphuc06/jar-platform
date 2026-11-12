@@ -40,17 +40,19 @@ sequenceDiagram
     API->>API: Xác thực JWT: chữ ký (JWKS cache), iss, exp, token_use=access, client_id
     API->>DB: SELECT users WHERE cognito_sub = ?
     alt chưa có user
-        API->>DB: INSERT users + event_publication(UserRegistered)
-        Note over API,DB: Cùng 1 transaction
-        API--)API: AFTER_COMMIT → ledger tạo 6 hũ + danh mục mặc định
+        API->>DB: BEGIN, INSERT users ... ON CONFLICT (cognito_sub) DO NOTHING
+        API->>API: nếu chèn được: publish UserRegistered, ledger nghe đồng bộ và tạo 6 hũ
+        API->>DB: COMMIT (user và 6 hũ cùng một transaction)
+        Note over API,DB: Không chèn được nghĩa là request khác đã thắng: SELECT lại id
     end
-    API-->>W: 200 {id, email, onboardingCompleted}
+    API-->>W: 200 {id, email, displayName, locale, onboardingCompleted}
 ```
 
 **Điểm cần học:**
 - **PKCE** thay cho client secret, vì SPA không giữ được bí mật.
 - API chỉ nhận **access token**. ID token dùng để hiển thị thông tin user ở frontend, không dùng để gọi API.
-- **Race condition:** 2 request đầu tiên đến cùng lúc thì cả hai cùng thấy "chưa có user". Xử lý bằng `INSERT ... ON CONFLICT (cognito_sub) DO NOTHING` rồi SELECT lại.
+- **Race condition:** 2 request đầu tiên đến cùng lúc thì cả hai cùng thấy "chưa có user". Xử lý bằng `INSERT ... ON CONFLICT (cognito_sub) DO NOTHING` rồi SELECT lại (có test 12 luồng đồng thời).
+- **Email:** access token của Cognito không có claim `email` nên `users.email` hiện để trống; UI đã có email từ ID token. Khi cần gửi mail sẽ lấy qua endpoint `/oauth2/userInfo`.
 - Spring Security xác thực JWT **offline** bằng JWKS được cache, nên không phải gọi Cognito ở mỗi request.
 
 ---
@@ -66,29 +68,42 @@ sequenceDiagram
     participant DB as Aurora
 
     W->>API: POST /api/v1/transactions<br/>Idempotency-Key: 7f9c...<br/>{type: EXPENSE, amount: 85000, jarId, categoryId}
-    API->>DB: SELECT idempotency_keys WHERE user_id, key
-    alt key đã tồn tại với cùng request hash
-        API-->>W: Trả lại response đã lưu (không ghi lần 2)
-    else key tồn tại nhưng request khác
-        API-->>W: 422 idempotency-key-reused
+    loop tối đa 3 lần (vòng retry nằm NGOÀI transaction, mỗi lần là một transaction mới)
+        API->>DB: BEGIN
+        API->>DB: INSERT idempotency_keys (user_id, key, request_hash) ON CONFLICT DO NOTHING
+        alt không chèn được dòng nào (key đã có)
+            Note over API,DB: Nếu request đầu còn chưa commit, INSERT chờ khóa unique tới khi nó commit hoặc rollback
+            alt request_hash khác
+                API-->>W: 422 idempotency-key-reused
+            else cùng request
+                API-->>W: Trả lại response đã lưu (không ghi lần 2)
+            end
+        end
+        API->>DB: SELECT jars WHERE id AND user_id (version = 7)
+        API->>API: Kiểm tra quy tắc: hũ thuộc user, chưa archived, số dư đủ (nếu bật chặn chi vượt)
+        API->>DB: INSERT transactions
+        API->>DB: INSERT jar_entries (SPEND, -85000, balance_after)
+        API->>DB: UPDATE jars SET balance=..., version=8 WHERE id=? AND version=7
+        API->>DB: INSERT event_publication (TransactionPosted)
+        API->>DB: UPDATE idempotency_keys SET status_code, response_body
+        API->>DB: COMMIT
+        Note over API,DB: UPDATE jars trả về 0 dòng thì ném OptimisticLockException, transaction rollback (cả dòng idempotency) rồi vòng lặp thử lại
     end
-    API->>DB: BEGIN
-    API->>DB: SELECT jars WHERE id AND user_id (version = 7)
-    API->>API: Kiểm tra quy tắc: hũ thuộc user, chưa archived, số dư đủ (nếu bật chặn chi vượt)
-    API->>DB: INSERT transactions
-    API->>DB: INSERT jar_entries (SPEND, -85000, balance_after)
-    API->>DB: UPDATE jars SET balance=..., version=8 WHERE id=? AND version=7
-    API->>DB: INSERT event_publication (TransactionPosted)
-    API->>DB: INSERT idempotency_keys (response)
-    API->>DB: COMMIT
-    alt UPDATE trả về 0 dòng (đã có request khác sửa trước)
-        API->>API: OptimisticLockException → retry tối đa 3 lần
-    end
-    API-->>W: 201 Created {transaction, jarBalance}
+    API-->>W: 201 Created {transaction, jarBalance} (409 nếu hết 3 lần vẫn xung đột)
     API--)API: AFTER_COMMIT: phát TransactionPosted cho insights và budgeting (async)
 ```
 
 **Điểm cần học:** `@Transactional` (proxy, rollback rules), optimistic locking với `@Version`, isolation `READ COMMITTED` (mặc định của PostgreSQL) và vì sao nó đủ dùng khi đã có `@Version`, idempotency key, outbox.
+
+**Vì sao retry phải nằm ngoài transaction:** transaction đã gặp `OptimisticLockException` bị đánh dấu rollback-only và entity trong persistence context đã cũ. Thử lại trong cùng transaction vẫn dùng dữ liệu cũ. Vòng retry phải gọi một method `@Transactional` từ bên ngoài proxy (bean khác), để mỗi lần có transaction và persistence context mới.
+
+**Thử lại tối đa 5 lần với backoff ngẫu nhiên** (`jars.ledger.max-attempts`, nâng từ 3 sau khi test đồng thời 12 luồng trên một hũ). Vòng retry bắt `ConcurrencyFailureException`, tức cả xung đột `@Version` lẫn nạn nhân của deadlock; hết lượt thì trả 409 `version-conflict`.
+
+**Deadlock khi chuyển hũ hai chiều (đã gặp thật khi viết test):** chuyển A→B và B→A cùng lúc làm hai transaction `UPDATE` hai dòng `jars` theo thứ tự ngược nhau, PostgreSQL báo `deadlock detected` (SQLSTATE 40P01). Cách xử lý: bật `hibernate.order_updates` để mọi transaction ghi các dòng theo thứ tự khóa chính (nguyên nhân gốc), và coi nạn nhân deadlock như xung đột đồng thời (retry, rồi 409). Test `concurrentTransfersBetweenTwoJars_keepBothLedgersConsistent` giữ cho lỗi này không quay lại.
+
+**Chi tiêu vượt số dư:** mặc định vẫn ghi (tiền đã tiêu rồi, số dư âm cho thấy tiêu lố); đặt `jars.ledger.block-overspend=true` để từ chối với 422 `insufficient-jar-balance`. Chuyển hũ luôn cần đủ tiền ở hũ nguồn.
+
+**Vì sao INSERT key nằm trong cùng transaction:** hai request cùng key chạy đồng thời sẽ va vào unique index. Request sau chờ cho tới khi request đầu commit, rồi thấy key đã tồn tại và trả response đã lưu. Nếu request đầu rollback thì dòng key cũng biến mất và request sau được chạy bình thường. Không cần trạng thái `IN_PROGRESS` riêng.
 
 ---
 
@@ -112,7 +127,7 @@ sequenceDiagram
     Note over R: Sau COMMIT
     R->>I: @ApplicationModuleListener (async, REQUIRES_NEW)
     I->>DB: SELECT anomaly_detector_state FOR jar (version)
-    I->>I: CUSUM: S+ = max(0, S+ + (x - mu)/sigma - k)
+    I->>I: MAD (outlier đơn lẻ) rồi CUSUM: S+ = max(0, S+ + (x - mu)/sigma - k)
     alt S+ > h
         I->>DB: INSERT anomalies + reset state + event_publication(AnomalyDetected)
     else
@@ -124,6 +139,15 @@ sequenceDiagram
     N->>DB: INSERT notifications
     N-->>W: SSE event: notification {title, severity, anomalyId}
 ```
+
+**Thuật toán đã cài (`SpendingDetector`)**, chạy trên mỗi khoản chi của một hũ:
+
+1. 5 khoản chi đầu tiên chỉ để học baseline (trung bình/độ lệch chuẩn chạy bằng Welford).
+2. **MAD:** với trung vị m và MAD d của tối đa 30 khoản gần nhất, điểm z hiệu chỉnh = 0.6745 (x - m) / d; lớn hơn 3.5 là *spike* (HIGH nếu > 7). Spike **không** được đưa vào baseline hay CUSUM để không làm nhiễm chúng.
+3. **CUSUM** trên z = (x - mean)/sigma với k = 0.5, h = 5: S+ vượt h là chi tăng kéo dài, S- dưới -h là chi giảm kéo dài (LOW). Sigma có sàn 10% của mean và MAD có sàn 5% của trung vị, để hũ có lịch sử toàn khoản bằng nhau không coi chênh lệch 1 đồng là vô cùng bất thường.
+4. Trạng thái của hũ bị khóa bi quan (`SELECT ... FOR UPDATE`) trong lúc xử lý, nên các event của một hũ được áp dụng lần lượt.
+
+Dữ liệu chuẩn của test lấy từ `test_cusum_sliding_window_local.py` của bản hackathon (baseline 100k, sigma 52k: lệch tăng dần báo ở khoản thứ 10, không đổi 200k báo ở khoản thứ 4).
 
 ### Phase 5 (externalized, qua SNS/SQS)
 
@@ -232,18 +256,43 @@ sequenceDiagram
     autonumber
     participant SCH as EventBridge Scheduler
     participant Q as SQS jars-jobs
-    participant API as jars-api (budgeting)
+    participant L as MonthCloseQueueListener (chỉ profile aws)
+    participant J as MonthCloseJob
+    participant S as MonthCloseService (budgeting)
+    participant ID as IdentityApi
     participant DB as Aurora
+    participant N as notification
 
-    SCH->>Q: 00:05 ngày 1 hằng tháng (Asia/Ho_Chi_Minh): {job: MONTH_CLOSE, month: 2026-10}
-    API->>Q: @SqsListener
-    API->>DB: processed_messages check (job + month là khóa idempotency)
-    loop từng user (theo trang 500 user, mỗi user 1 transaction)
-        API->>DB: Tổng kết jar_periods tháng cũ, tạo jar_periods tháng mới
-        API->>DB: event_publication(MonthClosed)
+    SCH->>Q: 00:05 ngày 1 hằng tháng (Asia/Ho_Chi_Minh): {"job":"MONTH_CLOSE"}
+    L->>Q: @SqsListener(${jars.jobs.queue-name})
+    L->>J: handle(payload)
+    J->>J: tháng cần khép = tháng trước tháng hiện tại, tính theo giờ VN (hoặc "month" trong payload)
+    J->>S: closeAll(month)
+    S->>DB: processed_messages có (budgeting.month-close.batch, month)? có thì dừng
+    loop từng trang 500 user (IdentityApi.userIdsAfter, keyset theo id)
+        loop từng user, mỗi user MỘT transaction riêng
+            S->>DB: INSERT processed_messages (budgeting.month-close, userId:month), có rồi thì bỏ qua user
+            S->>DB: INSERT jar_periods tháng cũ và tháng mới cho mọi hũ đang dùng (ON CONFLICT DO NOTHING)
+            S->>DB: UPDATE jar_periods SET closed_at WHERE closed_at IS NULL
+            S->>DB: event_publication(MonthClosed)
+        end
     end
-    API->>Q: DeleteMessage
+    S->>DB: tất cả user xong thì ghi processed_messages (budgeting.month-close.batch, month)
+    J->>DB: dọn idempotency_keys hết hạn (IdempotencyService.purgeExpired)
+    L->>Q: DeleteMessage (khi handle không ném lỗi)
+    DB-->>N: sau commit, MonthClosedNotifier tạo notification "Đã khép sổ tháng MM/YYYY"
 ```
+
+**Idempotent ở hai tầng (đã cài đặt):**
+
+- **Từng user:** marker `(budgeting.month-close, userId:month)` được ghi trong **cùng transaction** với việc khép sổ, nên một tháng của một user chỉ được khép một lần; chạy lại thì thấy marker và không làm gì (không đổi `closed_at`, không phát event thứ hai). Ngoài marker, `closed_at` chỉ được đặt khi còn null và không bao giờ dời. Hai task nhận trùng message cùng lúc thì task sau chờ trên unique index rồi thấy marker.
+- **Cả đợt:** marker `(budgeting.month-close.batch, month)` được ghi **sau khi mọi user thành công**. Message giao trùng sau khi đợt đã xong thì trả về ngay, không duyệt user nào. Đợt chết giữa chừng thì chưa có marker, lần giao lại sẽ duyệt tiếp và bỏ qua user đã khép. Nếu có user lỗi, `closeAll` vẫn xử lý hết các user còn lại rồi `MonthCloseJob` ném lỗi, message quay lại hàng đợi và sau `maxReceiveCount=5` lần vào DLQ (có alarm); marker của đợt chỉ ghi khi không user nào lỗi.
+
+**Quy tắc khép sổ một user:** mọi hũ đang dùng có một dòng `jar_periods` tháng cũ (dù chưa dùng) để bản tóm tắt đầy đủ; hũ đã archive nhưng có dòng của tháng đó vẫn có trong bản tóm tắt (tên "Hũ đã lưu trữ"). Chi tiêu đến muộn sau khi khép sổ vẫn cộng vào `spent_amount` của tháng cũ nhưng `closed_at` giữ nguyên và không phát lại `MonthClosed`. Tháng chưa kết thúc (theo giờ VN) không khép được (`IllegalArgumentException`), để một message sai không khép tháng đang chạy. `MonthClosed` luôn được phát (kể cả tháng không có gì); module `notification` bỏ qua tháng có kế hoạch và chi đều bằng 0 để tài khoản không dùng không nhận thông báo mỗi tháng.
+
+**Payload:** lịch gửi `{"job":"MONTH_CLOSE"}` (không có tháng); job tự tính tháng trước theo giờ VN, đúng cả lúc 00:05 ngày 1 khi UTC vẫn là ngày cuối tháng. Có thể gửi tay `{"job":"MONTH_CLOSE","month":"2026-10"}` để chạy lại một tháng. Job lạ bị bỏ qua (và xác nhận message), payload không phải JSON hoặc tháng sai định dạng thì ném lỗi để vào DLQ.
+
+**Chỉ ở profile `aws`:** listener SQS là `@Profile("aws")` với tên hàng đợi từ `jars.jobs.queue-name` (biến môi trường `JARS_JOBS_QUEUE`); local và test không bao giờ kết nối AWS, logic nằm trong `MonthCloseJob` / `MonthCloseService` và được test gọi trực tiếp.
 
 **Vì sao không dùng `@Scheduled`:** khi có 2 task, cả hai sẽ cùng chạy job (khi đó cần ShedLock). Đưa lịch ra EventBridge Scheduler thì chỉ có **một message**, và chỉ một task nhận được nó. Ngoài ra Scheduler hỗ trợ timezone, có retry và DLQ.
 

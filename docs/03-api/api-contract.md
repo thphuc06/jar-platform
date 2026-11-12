@@ -36,7 +36,7 @@
 | 401 | Thiếu hoặc sai token |
 | 403 | Thiếu scope |
 | 404 | Không tồn tại **hoặc không thuộc user** (chống IDOR) |
-| 409 | Xung đột version (sau khi đã retry vẫn thất bại) |
+| 409 | Xung đột đồng thời (version hoặc deadlock) còn lại sau khi đã retry tối đa 5 lần |
 | 422 | Sai quy tắc nghiệp vụ (validation, số dư, Idempotency-Key bị dùng lại với request khác) |
 | 429 | Vượt rate limit (có header `Retry-After`) |
 | 503 | Phụ thuộc bên ngoài lỗi (quant-fn, Bedrock); circuit đang mở |
@@ -48,29 +48,33 @@
 |---|---|---|---|
 | GET | `/me` | Thông tin user (tự tạo lazy ở lần gọi đầu) | 1 |
 | PATCH | `/me` | Đổi `displayName`, `locale` | 1 |
-| PUT | `/me/risk-profile` | Nộp câu trả lời onboarding → `{score, riskLevel}` | 1 |
-| GET | `/me/risk-profile` | Risk profile hiện tại | 1 |
+| PUT | `/me/risk-profile` | Nộp 5 câu trả lời onboarding `{"answers":[2,3,2,2,1]}` (mỗi phần tử là chỉ số lựa chọn, thứ tự câu hỏi như UI) → `{score 0..100, riskLevel, assessedAt}`. Mỗi lần nộp thêm một dòng lịch sử; bảng điểm ở `RiskQuestionnaire` | 1 |
+| GET | `/me/risk-profile` | Risk profile hiện tại (404 nếu chưa làm onboarding) | 1 |
 
 ### Ledger: hũ và giao dịch
 | Method | Path | Mô tả | Phase |
 |---|---|---|---|
 | GET | `/jars` | Danh sách hũ + số dư | 1 |
 | POST | `/jars` | Tạo hũ tùy chỉnh | 1 |
-| PATCH | `/jars/{id}` | Đổi tên, `targetPct` (tổng các hũ phải = 100) | 1 |
+| PATCH | `/jars/{id}` | Đổi tên, `targetPct`. Tổng tỷ lệ các hũ đang dùng phải **≤ 100** (422 `allocation-exceeds-100`); phải bằng đúng 100 khi áp dụng một lần phân bổ thu nhập | 1 |
 | DELETE | `/jars/{id}` | Archive (chỉ khi số dư = 0) | 1 |
-| POST | `/jars/transfers` | Chuyển tiền giữa 2 hũ (**Idempotency-Key**) | 1 |
+| POST | `/jars/transfers` | Chuyển tiền giữa 2 hũ (**Idempotency-Key**); hũ nguồn phải đủ tiền | 1 |
 | GET | `/categories` | Danh mục (mặc định của hệ thống + của user) | 1 |
 | GET | `/transactions?limit&cursor&jarId&categoryId&type&from&to` | Money Inbox | 1 |
-| POST | `/transactions` | Ghi thu/chi (**Idempotency-Key**) | 1 |
-| PATCH | `/transactions/{id}` | Đổi danh mục / hũ, sinh bút toán điều chỉnh | 1 |
+| POST | `/transactions` | Ghi thu/chi (**Idempotency-Key**). Chi bắt buộc có `jarId`; thu có thể không có `jarId` (chỉ ghi nhận thu nhập, chưa vào hũ). Trả `201 {transaction, jarBalances[]}` và header `Idempotency-Replayed: true` khi là bản phát lại | 1 |
+| PATCH | `/transactions/{id}` | Đổi danh mục và/hoặc hũ của một khoản **chi** (đổi hũ sinh bút toán `ADJUST` trả tiền về hũ cũ và `SPEND` trừ hũ mới). Thu nhập chỉ đổi được danh mục; giao dịch chuyển hũ không sửa được | 1 |
 | GET | `/balances/daily?days=30` | Chuỗi số dư theo ngày (biểu đồ) | 1 |
 
 ### Budgeting
 | Method | Path | Mô tả | Phase |
 |---|---|---|---|
-| GET | `/budget/periods/{month}` | Kế hoạch và thực chi theo hũ trong tháng | 2 |
-| POST | `/budget/allocation-suggestions` | Gợi ý tỷ lệ phân bổ cho khoản thu nhập `{amount}` | 2 |
-| POST | `/budget/allocations` | Áp dụng phân bổ thu nhập vào các hũ (**Idempotency-Key**) | 2 |
+| GET | `/budget/periods/{month}` | `{month}` dạng `YYYY-MM` (sai định dạng: 400). Kế hoạch và thực chi của **mọi hũ đang dùng** trong tháng, hũ chưa có dòng nào hiện với số 0: `{month, closed, planned, spent, jars[{jarId, code, name, planned, spent, remaining, closedAt}]}`. `planned` là tiền đã phân bổ vào hũ bằng `POST /budget/allocations` trong tháng đó; `spent` là chi tiêu trong tháng, cập nhật bất đồng bộ từ event nên có thể trễ vài trăm ms. `closed` là true khi mọi hũ đã khép sổ | 2 |
+| POST | `/budget/allocation-suggestions` | Body `{amount}` (> 0, tối đa 2 chữ số thập phân; sai: 422). Trả `200 {amount, lines[{jarId, code, name, targetPct, sharePct, amount}], monthsOfHistory, historyWeight}`: chia `amount` cho các hũ đang dùng theo `targetPct`, điều chỉnh nhẹ theo chi tiêu thực tế 6 tháng gần nhất (quy tắc ở dưới). `sharePct` cộng đúng 100.00 và `amount` các dòng cộng đúng bằng số tiền nhập. Không ghi gì | 2 |
+| POST | `/budget/allocations` | **Idempotency-Key bắt buộc** (thiếu hoặc sai định dạng: 400). Body `{amount, splits[{jarId, amount}], categoryId?, counterparty?, note?, occurredAt?, skip?}`. Ghi **một** khoản thu nhập qua ledger và chia vào các hũ (`LedgerApi.allocateIncome`: một giao dịch `INCOME` không gắn hũ + mỗi hũ một bút toán `ALLOCATE`, cùng một transaction), rồi ghi một dòng `allocation_decisions`. Trả `201 {decisionId, decision, transactionId, amount, month, splits[{jarId, amount, balance}]}` và `Idempotency-Replayed: true` khi là bản phát lại. `decision` là `ACCEPTED` nếu `splits` đúng bằng gợi ý hiện tại cho số tiền đó (hũ gợi ý 0 đồng có thể bỏ khỏi `splits`), ngược lại `EDITED`. `skip: true` (không kèm `splits`) chỉ ghi quyết định `SKIPPED`, không ghi giao dịch nào. Lỗi: 404 hũ không tồn tại **hoặc của người khác**; 422 `invalid-allocation` (không có `splits`, `skip` kèm `splits`), `allocation-sum-mismatch` (tổng các phần khác `amount`), hũ lặp lại, số tiền không dương, hũ đã archive; 422 `idempotency-key-reused` khi dùng lại key cho request khác (thứ tự `splits` và cách viết số như `1000` / `1000.00` không làm request khác đi); 409 khi va chạm đồng thời quá 5 lần | 2 |
+
+**Quy tắc gợi ý phân bổ** (`AllocationPlanner`, port rút gọn từ `allocation.py` cũ): (1) bắt đầu từ `targetPct` của từng hũ (tổng không cần bằng 100, chuẩn hóa lại; không hũ nào có tỷ lệ thì chia đều); (2) nếu có lịch sử chi tiêu (số tháng trọn vẹn có chi trong 6 tháng trước tháng hiện tại, `monthsOfHistory`), trộn thêm tỷ lệ chi thực tế của từng hũ với trọng số `0.20 × min(tháng, 6) / 6` (`historyWeight`); hũ có `targetPct = 0` luôn giữ 0; (3) chuẩn hóa về đúng 100% và làm tròn tiền bằng **largest remainder** nên tổng các phần đúng bằng số tiền nhập. Bỏ so với bản cũ: suy luận "vai trò" của hũ từ tên, thác nước cố định (hóa đơn, 20% khẩn cấp, mục tiêu, sinh hoạt), thu nhập ước từ lịch sử, đề xuất chuyển tiền giữa hũ, độ tin cậy/forecast.
+
+**Áp dụng phân bổ gồm hai bước, mỗi bước idempotent theo cùng một key:** ledger ghi tiền (idempotent theo `(user, key)`), rồi budgeting ghi `allocation_decisions` và cộng `planned_amount` đúng một lần (unique `(user, key)`). Hai bước không chung một transaction vì ledger tự retry khi va chạm optimistic lock. Nếu tiến trình chết giữa hai bước thì client gửi lại cùng request là hoàn tất được; `Idempotency-Replayed` là true chỉ khi quyết định đã được ghi từ trước.
 
 ### Goals
 | Method | Path | Mô tả | Phase |
@@ -79,17 +83,17 @@
 | PATCH / DELETE | `/goals/{id}` | Sửa / archive | 1 |
 | GET | `/goals/{id}/feasibility` | Khả thi? Cần tiết kiệm bao nhiêu mỗi tháng? | 2 |
 | POST | `/goals/{id}/scenarios` | What-if `{monthlySavingDelta, incomeDelta, ...}` | 2 |
-| GET | `/goals/{id}/roadmap` | Lộ trình theo giai đoạn (khớp type `RoadmapResponse` của UI) | 2 |
+| GET | `/goals/{id}/roadmap` | Lộ trình theo giai đoạn. Cùng cấu trúc với `RoadmapResponse` của prototype hackathon nhưng tên field là **camelCase** (`roadmapContract`, không phải `roadmap_contract`), số tiền là số JSON thuần; kiểu của UI sinh từ OpenAPI | 2 |
 
 ### Insights và notification
 | Method | Path | Mô tả | Phase |
 |---|---|---|---|
 | GET | `/dashboard?month=YYYY-MM` | Một request trả đủ: số dư, thu/chi tháng, chi theo danh mục, chi theo hũ, xu hướng 6 tháng | 1–2 |
-| GET | `/anomalies?status=OPEN` | Danh sách cảnh báo | 2 |
-| POST | `/anomalies/{id}/feedback` | `{label: CONFIRMED / EXPECTED / FALSE_POSITIVE}` | 2 |
-| GET | `/notifications?limit&cursor` | Danh sách thông báo | 2 |
+| GET | `/anomalies?status&limit&cursor` | `{items, nextCursor}`, mới nhất trước; `status` = OPEN / CONFIRMED / EXPECTED / FALSE_POSITIVE | 2 |
+| POST | `/anomalies/{id}/feedback` | `{label: CONFIRMED / EXPECTED / FALSE_POSITIVE}` (nhãn khác, kể cả OPEN, trả 422; cảnh báo của người khác trả 404) | 2 |
+| GET | `/notifications?limit&cursor&unreadOnly` | `{items, nextCursor, unreadCount}`, mới nhất trước | 2 |
 | POST | `/notifications/{id}/read` | Đánh dấu đã đọc | 2 |
-| GET | `/notifications/stream` | **SSE** thông báo realtime | 2 |
+| GET | `/notifications/stream` | **SSE** thông báo realtime. Gửi comment `: connected` khi mở, `: heartbeat` mỗi 15 s; header `Last-Event-ID` phát lại tối đa 100 thông báo mới hơn id đó | 2 |
 
 ### Imports
 | Method | Path | Mô tả | Phase |
@@ -154,11 +158,14 @@ data: {"id":"0193b2...","type":"ANOMALY","severity":"HIGH","title":"Hũ PLAY tă
 ## 4. Idempotency
 
 1. Client sinh `Idempotency-Key` (UUIDv4) **một lần cho mỗi ý định của người dùng**. Nếu bấm lại do mạng lỗi thì vẫn gửi **cùng key**.
-2. Server: `INSERT idempotency_keys (user_id, key, request_hash, status='IN_PROGRESS')`.
-   - Nếu bị trùng khóa chính và `request_hash` giống: trả response đã lưu, hoặc trả 409 `request-in-progress` nếu request trước vẫn đang chạy.
-   - Nếu `request_hash` khác: trả 422.
-3. Xử lý xong thì lưu `status_code` + `response_body` **trong cùng transaction** với nghiệp vụ.
+2. Server, **trong cùng transaction với nghiệp vụ**: `INSERT idempotency_keys (user_id, key, request_hash) ON CONFLICT DO NOTHING`.
+   - Chèn được: tiếp tục xử lý nghiệp vụ.
+   - Không chèn được (key đã có) và `request_hash` giống: trả response đã lưu. Nếu request trước chưa commit thì INSERT chờ khóa unique tới khi nó commit hoặc rollback.
+   - Không chèn được và `request_hash` khác: trả 422.
+3. Xử lý xong thì `UPDATE` dòng key với `status_code` + `response_body` rồi commit. Nghiệp vụ lỗi thì rollback cả dòng key, nên client gửi lại cùng key vẫn chạy được.
 4. Key hết hạn sau 24 giờ (có job dọn dẹp).
+
+> Thiết kế này thay cho bản trước dùng trạng thái `IN_PROGRESS` và mã 409 `request-in-progress`: vì INSERT nằm trong transaction nghiệp vụ nên request đồng thời tự xếp hàng trên unique index, không cần trạng thái trung gian.
 
 ## 5. Mapping màn hình UI → API
 
