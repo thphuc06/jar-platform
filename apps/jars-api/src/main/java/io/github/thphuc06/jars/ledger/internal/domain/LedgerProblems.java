@@ -15,5 +15,8 @@ public final class LedgerProblems {
     public static final ProblemType INVALID_TRANSACTION =
             new ProblemType("invalid-transaction", 422, "Giao dịch không hợp lệ");
 
+    public static final ProblemType ALLOCATION_SUM_MISMATCH =
+            new ProblemType("allocation-sum-mismatch", 422, "Các phần phân bổ không cộng đúng bằng số tiền");
+
     private LedgerProblems() {}
 }
