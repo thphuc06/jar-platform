@@ -129,3 +129,14 @@ Phase 4 cộng thêm: Valkey khoảng $6 + Bedrock khoảng $3–5 (có rate lim
 | **Tổng ước lượng** | | **≈ 0,1** |
 
 Hai điều rút ra: (1) **đã đo:** Aurora tự pause khoảng 6 phút sau connection cuối, nên không tạo ra phần chi phí "ẩn" nào ([bẫy ở §3](#bẫy-chi-phí-ẩn)); (2) **theo bảng giá, chưa đo:** phần đắt nhất của `RUNNING` là ALB và Fargate chạy liên tục (§3), nên `cdk destroy JarsApp` ngay sau khi kiểm xong là cách tiết kiệm đúng chỗ. Các stack nền (`JarsFoundation`, `JarsNetwork`, `JarsAuth`, `JarsData`, `JarsMessaging`) vẫn chạy; chi phí cố định của chúng là Secrets Manager 0,40 USD/tháng, lưu trữ Aurora và ECR vài cent.
+
+### Phiên kiểm chứng Phase 2 (2026-11-13, WP6)
+
+`JarsApp` tồn tại khoảng 1,3 giờ (tạo lúc 05:36 giờ VN ngày 13/11, bắt đầu xóa lúc 06:45), gồm task API với sidecar ADOT, ALB, CloudFront và guardrail Bedrock. Trong phiên đã chạy hai lần smoke test, khoảng 10 lượt chat với Bedrock (Haiku 4.5, khoảng 3.700 token vào mỗi lượt) và một lần k6 với 7.840 request.
+
+| Mốc | Chi Jars theo tag `Project=jars`, tháng 11 tới ngày đó (USD) |
+|---|---|
+| Trước phiên | 0,18 |
+| Sau phiên (đọc lúc 07:00 ngày 13/11 giờ VN) | 0,18: Cost Explorer trễ khoảng một ngày, ngày 13/11 (UTC) chưa có dữ liệu. Điền số thật vào dòng tuần 2026-11-09 ở bảng trên khi có |
+
+Ước lượng theo đơn giá: ALB 0,03 + Fargate 0,03 + Aurora (tối đa 2 ACU trong k6) khoảng 0,1 + Bedrock khoảng 0,1 (khoảng 25 lần gọi model, mỗi lần khoảng 4.000 token vào, Haiku 4.5 giá 1 USD/1 triệu token vào) + guardrail khoảng 0,01 ≈ **0,3 USD**. Chi phí Bedrock không mang tag `Project=jars` vì gọi qua inference profile dùng chung, nên số trong Cost Explorer theo tag thấp hơn chi phí thật một chút.

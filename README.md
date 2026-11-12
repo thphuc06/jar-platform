@@ -10,7 +10,7 @@ This is a personal portfolio project, rewritten from scratch from a hackathon pr
 
 ![Deployment topology](docs/diagrams/aws-phase3-mvp.png)
 
-*The diagram is the MVP topology; the statements bucket and its EventBridge rule belong to the CSV-import feature, which is not built yet. Everything else in the picture is deployed by `infra/cdk`.*
+*The diagram is the MVP topology; everything in it is deployed by `infra/cdk`.*
 
 ## What it does
 
@@ -20,6 +20,8 @@ This is a personal portfolio project, rewritten from scratch from a hackathon pr
 - **Money Inbox.** Keyset-paginated transaction list with filters; expenses can be re-categorised or moved to another jar with a reversing ledger entry.
 - **Budgeting and month close.** Suggests how to split an income across jars, applies the split as one atomic ledger posting, tracks planned vs. spent per jar and month, and closes each month once (a scheduled SQS job, safe to run twice).
 - **Goals.** Savings goals with a feasibility check, what-if scenarios (seeded Monte Carlo, so results are reproducible) and a month-by-month roadmap.
+- **CSV statement import.** A bank statement is uploaded straight to S3 with a presigned URL; the S3 event reaches the app through EventBridge and SQS, and a **Spring Batch** job posts each row to the ledger (chunked, bad rows skipped with a reason, restartable, idempotent per row), then notifies the user.
+- **AI advisor.** Chat in Vietnamese on Amazon Bedrock (Claude Haiku 4.5 through Spring AI), streamed over SSE. The model can only call **read-only tools** bound to the caller's token, every input and answer passes a **Bedrock Guardrail** (no buy/sell advice, PII, prompt attacks), and each user has an hourly message limit.
 - **Web client.** React PWA (Amplify Auth with PKCE, TypeScript client generated from the OpenAPI file, TanStack Query, live alerts over SSE) served from S3 behind the same CloudFront distribution as the API.
 
 ## Engineering highlights
@@ -32,13 +34,14 @@ Every row links to the code and to the test that proves it.
 | **Deadlock found and fixed** | Transfers A→B and B→A updated two rows in opposite order and PostgreSQL reported `deadlock detected`. Fixed with `hibernate.order_updates` (rows are always written in primary-key order) and by treating a deadlock victim as a retryable conflict | `concurrentTransfersBetweenTwoJars_keepBothLedgersConsistent` |
 | **Idempotent POSTs** | `Idempotency-Key` row is inserted *in the business transaction*, so concurrent duplicates queue on the unique index and the second one replays the first response | `IdempotencyServiceTest` and `LedgerPostingTest`: 8 threads, one posting |
 | **Money is exact** | `BigDecimal` / `NUMERIC(19,2)`, amounts serialised as strings, an ArchUnit rule forbids `double`/`float` in domain code | `MoneyTest`, `MoneyArchitectureTest`, [ADR-0014](docs/04-adr/0014-money-and-ledger-model.md) |
-| **Modular monolith** | Spring Modulith modules (`identity`, `ledger`, `insights`, `notification`, `budgeting`, `goals`); module boundaries and cycles are verified on every build | `ModularityTests` (it also tests itself with a deliberately violating fixture), [ADR-0003](docs/04-adr/0003-modular-monolith-spring-modulith.md) |
+| **Modular monolith** | Spring Modulith modules (`identity`, `ledger`, `insights`, `notification`, `budgeting`, `goals`, `imports`, `advisor`); module boundaries and cycles are verified on every build | `ModularityTests` (it also tests itself with a deliberately violating fixture), [ADR-0003](docs/04-adr/0003-modular-monolith-spring-modulith.md) |
 | **Reliable events** | In-process events go through the Modulith outbox (`event_publication`), consumers are idempotent (`processed_messages`), listeners run after commit | `InsightsFlowTest` (a redelivered event is counted once), `InsightsModuleTest` (Modulith `Scenario`) |
 | **Authorization** | Stateless OAuth2 resource server for Cognito; only *access* tokens from our own app clients are accepted (fails closed); every query is scoped to the caller and someone else's resource is a `404`, not a `403` | `AccessTokenValidatorsTest`, the IDOR matrix in `LedgerReadAndSecurityTest` |
 | **Realtime** | SSE with a 15 s heartbeat, replay of missed notifications from `Last-Event-ID` (UUIDv7 ids sort by time), push only after the transaction commits | `NotificationStreamTest`, over a real HTTP connection |
 | **Errors** | RFC 9457 `problem+json` everywhere, including 401/403 produced before MVC, with a `traceId` that is also in the logs | `PlatformWebLayerTest` |
+| **Observability** | OpenTelemetry traces and business metrics through an ADOT sidecar to X-Ray and CloudWatch (EMF), dashboard and alarms in CDK; k6 through CloudFront: **p95 117 ms reads, 200 ms writes, 0% errors** at 20 virtual users on one 0.5 vCPU task | `scripts/load-test.ps1`, [cost and results](docs/05-operations/cost-and-budget.md) |
 | **Environment parity** | The production profile is started by a test (a bug that only showed under the `aws` profile was found by running the Docker image, then pinned by a test) | `AwsProfileTest` |
-| **Infrastructure as code** | AWS CDK in Java: six stacks, guardrail tests (no NAT gateway, ARM64 tasks, no `0.0.0.0/0` ingress, log retention) and `cdk-nag` | `infra/cdk` (95 tests), [ADR-0012](docs/04-adr/0012-iac-aws-cdk-java.md) |
+| **Infrastructure as code** | AWS CDK in Java: six stacks, guardrail tests (no NAT gateway, ARM64 tasks, no `0.0.0.0/0` ingress, log retention) and `cdk-nag` | `infra/cdk` (110 tests), [ADR-0012](docs/04-adr/0012-iac-aws-cdk-java.md) |
 | **Cost engineering** | Aurora Serverless v2 scales to zero and auto-pauses, no NAT gateway, Graviton, teardown-by-default; the app is configured so nothing keeps a database connection open | [ADR-0008](docs/04-adr/0008-database-aurora-serverless-v2.md), [ADR-0013](docs/04-adr/0013-networking-no-nat.md), [cost doc](docs/05-operations/cost-and-budget.md) |
 
 **Backend: 578 tests, 96.7% line coverage** (the build enforces 80% on domain and service code), Spotless formatting and a secret scan (gitleaks) on every pull request. The web client has its own unit and component tests (`apps/web`).
@@ -74,7 +77,7 @@ Swagger UI is at <http://localhost:8080/swagger-ui.html> (Authorize with the tok
 
 ## Deploy
 
-`infra/cdk` creates everything in `ap-southeast-1`; the application image is built for ARM64 and pushed to ECR by `scripts/push-image.ps1`; `scripts/smoke-test.ps1` then checks the deployed system end to end through CloudFront (real Cognito tokens, idempotency, cross-user isolation, an anomaly arriving as a live SSE event). Steps and costs: [deployment](docs/05-operations/deployment.md), [runbook](docs/05-operations/runbook.md).
+`infra/cdk` creates everything in `ap-southeast-1`; the application image is built for ARM64 and pushed to ECR by `scripts/push-image.ps1`; `scripts/smoke-test.ps1` then checks the deployed system end to end through CloudFront (real Cognito tokens, idempotency, cross-user isolation, an anomaly arriving as a live SSE event, a statement import through S3, an advisor answer and its guardrail). Steps and costs: [deployment](docs/05-operations/deployment.md), [runbook](docs/05-operations/runbook.md).
 
 ## Repository layout
 
@@ -83,10 +86,10 @@ apps/jars-api/     Spring Boot modular monolith (Maven)
 apps/web/          React web client
 infra/cdk/         AWS CDK (Java)
 contracts/openapi/ OpenAPI file generated from the controllers; a test fails when it drifts
-scripts/           push-image and smoke-test
-docs/              architecture, API contract, 22 ADRs, operations, roadmap
+scripts/           push-image, smoke-test and load-test
+docs/              architecture, API contract, 23 ADRs, operations, roadmap
 ```
 
 ## Status
 
-Phase 1 ("core to cloud") is implemented and the base AWS stacks are deployed from code; what is built, what is deliberately left out (CSV import, AI advisor, stock quotes, splitting a service out, full observability) and why: [docs/06-plan/roadmap.md](docs/06-plan/roadmap.md).
+Phase 1 ("core to cloud") and most of Phase 2 (CSV import, AI advisor, observability, a manual deploy workflow over GitHub OIDC) are implemented and were verified on AWS (smoke test 14/14). Stock quotes and the portfolio optimizer are on hold because of the data source's license. What is built, what is left out and why: [docs/06-plan/roadmap.md](docs/06-plan/roadmap.md).
