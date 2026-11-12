@@ -20,6 +20,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/dev/token": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["token"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/transactions": {
         parameters: {
             query?: never;
@@ -274,6 +290,9 @@ export interface components {
             /** Format: date-time */
             assessedAt?: string;
         };
+        TokenRequest: {
+            sub?: string;
+        };
         PostTransactionRequest: {
             /** @enum {string} */
             type: "INCOME" | "EXPENSE" | "JAR_TRANSFER";
@@ -304,9 +323,6 @@ export interface components {
                 numericCode?: number;
                 numericCodeAsString?: string;
             };
-            zero?: boolean;
-            negative?: boolean;
-            positive?: boolean;
         };
         TransactionReceipt: {
             transaction?: components["schemas"]["TransactionView"];
@@ -551,6 +567,32 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["RiskProfileResponse"];
+                };
+            };
+        };
+    };
+    token: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TokenRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": {
+                        [key: string]: unknown;
+                    };
                 };
             };
         };

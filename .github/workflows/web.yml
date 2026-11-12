@@ -1,0 +1,57 @@
+name: web
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "apps/web/**"
+      - "contracts/openapi/**"
+      - ".github/workflows/web.yml"
+  pull_request:
+    paths:
+      - "apps/web/**"
+      - "contracts/openapi/**"
+      - ".github/workflows/web.yml"
+
+concurrency:
+  group: web-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  web:
+    name: web (lint, test, build, api types)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: apps/web
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+
+      - run: npm ci
+
+      # the API types are generated from the backend's OpenAPI file; a stale committed copy fails the build
+      - name: API types are up to date
+        run: |
+          npm run gen:api
+          git diff --exit-code -- src/api/schema.d.ts
+
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
+
+      - name: Upload build
+        uses: actions/upload-artifact@v7
+        with:
+          name: web-dist
+          path: apps/web/dist/
+          retention-days: 7
