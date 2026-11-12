@@ -4,6 +4,7 @@
 #   SPRING_DATASOURCE_URL / _USERNAME / _PASSWORD   Aurora (username and password come from Secrets Manager)
 #   JARS_ISSUER_URI, JARS_ALLOWED_CLIENT_IDS        Cognito user pool and the app clients whose tokens are accepted
 #   JARS_JOBS_QUEUE                                 SQS queue that EventBridge Scheduler writes the month-close job to
+#   JARS_IMPORTS_BUCKET, JARS_IMPORTS_QUEUE         statements bucket (presigned uploads) and the queue of its S3 events
 # Region and credentials for the AWS SDK come from the task role.
 
 spring:
@@ -17,6 +18,15 @@ spring:
         # a span for every message the listener handles (the month-close job), with its trace context in the message
         # attributes when the sender set one
         observation-enabled: true
+      s3:
+        enabled: true
+
+jars:
+  imports:
+    storage: s3
+    # set by the task definition (JarsApp): the statements bucket of JarsData and the queue of JarsMessaging
+    bucket: ${JARS_IMPORTS_BUCKET}
+    queue-name: ${JARS_IMPORTS_QUEUE}
 
 logging:
   structured:

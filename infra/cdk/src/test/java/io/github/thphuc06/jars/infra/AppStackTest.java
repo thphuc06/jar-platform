@@ -86,7 +86,11 @@ class AppStackTest {
                         "JARS_ISSUER_URI",
                         "JARS_ALLOWED_CLIENT_IDS",
                         "JARS_JOBS_QUEUE",
+                        "JARS_IMPORTS_BUCKET",
+                        "JARS_IMPORTS_QUEUE",
                         "JAVA_TOOL_OPTIONS");
+        assertThat(environment).containsEntry("JARS_IMPORTS_BUCKET", "jars-dev-statements-626212071763");
+        assertThat(environment).containsEntry("JARS_IMPORTS_QUEUE", "jars-imports");
         assertThat(environment).containsEntry("SPRING_PROFILES_ACTIVE", "aws");
         assertThat(environment).containsEntry("JARS_JOBS_QUEUE", "jars-jobs");
         assertThat(environment).containsEntry("JAVA_TOOL_OPTIONS", "-XX:MaxRAMPercentage=75");
@@ -224,23 +228,39 @@ class AppStackTest {
     // ---- IAM ----
 
     @Test
-    void taskRoleMayOnlyConsumeTheJobsQueueAndNothingElse() {
+    void taskRoleMayConsumeItsTwoQueuesAndUseTheUploadPrefixOfTheStatementsBucket_andNothingElse() {
         template.hasResourceProperties("AWS::IAM::Role", like("RoleName", "jars-dev-api-task"));
         List<Map<String, Object>> statements = statementsOfPolicyFor("ApiTaskRoleDefaultPolicy");
-        assertThat(statements).hasSize(1);
-        assertThat(statements.get(0))
-                .containsEntry("Effect", "Allow")
-                .containsEntry(
-                        "Action",
-                        List.of(
-                                "sqs:ChangeMessageVisibility",
-                                "sqs:DeleteMessage",
-                                "sqs:GetQueueAttributes",
-                                "sqs:GetQueueUrl",
-                                "sqs:ReceiveMessage"));
-        assertThat(statements.get(0).get("Resource").toString())
+        List<String> consume = List.of(
+                "sqs:ChangeMessageVisibility",
+                "sqs:DeleteMessage",
+                "sqs:GetQueueAttributes",
+                "sqs:GetQueueUrl",
+                "sqs:ReceiveMessage");
+        assertThat(statements).hasSize(3);
+        assertThat(statements).allSatisfy(s -> assertThat(s).containsEntry("Effect", "Allow"));
+
+        Map<String, Object> jobs = statements.get(0);
+        assertThat(jobs).containsEntry("Action", consume);
+        assertThat(jobs.get("Resource").toString())
                 .contains("JarsMessaging:ExportsOutputFnGetAttJobsQueue")
                 .doesNotContain("*");
+
+        Map<String, Object> uploads = statements.stream()
+                .filter(s -> "StatementUploads".equals(s.get("Sid")))
+                .findFirst()
+                .orElseThrow();
+        assertThat(uploads)
+                .containsEntry("Action", List.of("s3:GetObject", "s3:PutObject"))
+                .containsEntry("Resource", "arn:aws:s3:::jars-dev-statements-626212071763/uploads/*");
+
+        Map<String, Object> imports = statements.stream()
+                .filter(s -> "ConsumeImportsQueue".equals(s.get("Sid")))
+                .findFirst()
+                .orElseThrow();
+        assertThat(imports)
+                .containsEntry("Action", consume)
+                .containsEntry("Resource", "arn:aws:sqs:ap-southeast-1:626212071763:jars-imports");
     }
 
     @Test

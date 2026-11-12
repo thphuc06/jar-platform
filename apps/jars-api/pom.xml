@@ -123,6 +123,16 @@
             <groupId>io.awspring.cloud</groupId>
             <artifactId>spring-cloud-aws-starter-sqs</artifactId>
         </dependency>
+        <!-- statement import: S3 presigned upload and download (only the aws profile turns the S3 client on),
+             Spring Batch with its JDBC job repository (tables in V9) -->
+        <dependency>
+            <groupId>io.awspring.cloud</groupId>
+            <artifactId>spring-cloud-aws-starter-s3</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-batch-jdbc</artifactId>
+        </dependency>
         <!-- traces and metrics over OTLP (Micrometer Tracing with the OpenTelemetry bridge); on ECS an ADOT collector
              sidecar forwards them to X-Ray and CloudWatch -->
         <dependency>

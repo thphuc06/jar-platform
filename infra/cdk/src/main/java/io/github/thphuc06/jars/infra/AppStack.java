@@ -509,6 +509,34 @@ public final class AppStack extends Stack {
                         "sqs:GetQueueUrl"))
                 .resources(List.of(messaging.jobsQueue().getQueueArn()))
                 .build());
+        // Statement import (Phase 2 WP3). By name, not through the constructs, to add no cross-stack exports: the
+        // bucket and the queue have fixed names. PutObject is what the presigned upload URL is signed with, so the
+        // browser can write the one key of an import; GetObject/HEAD reads it back for the batch job.
+        String statementsBucket = DataStack.statementsBucketName(cfg, getAccount());
+        taskRole.addToPolicy(PolicyStatement.Builder.create()
+                .sid("StatementUploads")
+                .effect(Effect.ALLOW)
+                .actions(List.of("s3:PutObject", "s3:GetObject"))
+                .resources(List.of("arn:" + getPartition() + ":s3:::" + statementsBucket + "/uploads/*"))
+                .build());
+        taskRole.addToPolicy(PolicyStatement.Builder.create()
+                .sid("ConsumeImportsQueue")
+                .effect(Effect.ALLOW)
+                .actions(List.of(
+                        "sqs:ReceiveMessage",
+                        "sqs:DeleteMessage",
+                        "sqs:ChangeMessageVisibility",
+                        "sqs:GetQueueAttributes",
+                        "sqs:GetQueueUrl"))
+                .resources(List.of("arn:" + getPartition() + ":sqs:" + getRegion() + ":" + getAccount() + ":"
+                        + MessagingStack.IMPORTS_QUEUE_NAME))
+                .build());
+        Validations.of(taskRole)
+                .acknowledge(Acknowledgment.builder()
+                        .id("AwsSolutions-IAM5[Resource::arn:aws:s3:::" + statementsBucket + "/uploads/*]")
+                        .reason("Each import writes and reads its own key under uploads/<user>/<import>.csv; the keys"
+                                + " are only known at run time. Nothing outside uploads/ is reachable.")
+                        .build());
         Role executionRole = Role.Builder.create(this, "ApiExecutionRole")
                 .roleName(cfg.name("api-exec"))
                 .description("ECS agent: pull the image, write logs, read the DB secret")
@@ -568,6 +596,10 @@ public final class AppStack extends Stack {
                                         + auth.smokeClient().getUserPoolClientId(),
                                 "JARS_JOBS_QUEUE",
                                 MessagingStack.JOBS_QUEUE_NAME,
+                                "JARS_IMPORTS_BUCKET",
+                                DataStack.statementsBucketName(cfg, getAccount()),
+                                "JARS_IMPORTS_QUEUE",
+                                MessagingStack.IMPORTS_QUEUE_NAME,
                                 // the JVM sizes its heap from the 1 GB task limit (aws-infrastructure.md section 4)
                                 "JAVA_TOOL_OPTIONS",
                                 "-XX:MaxRAMPercentage=75"))

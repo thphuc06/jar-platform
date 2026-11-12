@@ -98,8 +98,11 @@
 ### Imports
 | Method | Path | Mô tả | Phase |
 |---|---|---|---|
-| POST | `/imports` | Tạo phiên import → `{importId, uploadUrl, expiresAt}` | 2–3 |
-| GET | `/imports/{id}` | Trạng thái + số dòng ok/lỗi | 2–3 |
+| POST | `/imports` | `{fileName}` (đuôi `.csv`, `.tsv`, `.txt`) → 201 `{statementImport, upload: {url, method, headers, expiresAt, sameOrigin}}`. Client gửi tệp tới `upload.url`: **không** kèm token khi `sameOrigin=false` (presigned S3), kèm token khi `true` (local) | 2 ✅ |
+| GET | `/imports` | 20 lần nhập gần nhất (không kèm danh sách lỗi) | 2 ✅ |
+| GET | `/imports/{id}` | `status` (`AWAITING_UPLOAD`, `PROCESSING`, `COMPLETED`, `FAILED`), `totalRows`, `postedRows`, `skippedRows`, `failureReason`, `errors[]` (100 dòng lỗi đầu: `line`, `reason`). Client poll đến khi `COMPLETED`/`FAILED` | 2 ✅ |
+
+Định dạng tệp (port từ `ingest_statement_vn` của bản hackathon, xem [hackathon-migration](../07-legacy/hackathon-migration.md)): một dòng tiêu đề, phân cách bằng dấu phẩy hoặc tab, UTF-8. Cột nhận diện không phân biệt hoa thường và dấu tiếng Việt: ngày (`date`, `transaction_date`, `ngay_giao_dich`...), số tiền có dấu (`amount`, `so_tien`) hoặc cặp ghi nợ/ghi có (`debit`/`credit`, `ghi_no`/`ghi_co`), nội dung (`description`, `memo`, `noi_dung`, `dien_giai`...), chiều tiền (`direction`, `type`). Ngày thử theo thứ tự `yyyy-MM-dd`, `dd/MM/yyyy`, `dd-MM-yyyy`, `MM/dd/yyyy`, `yyyy/MM/dd`. Số tiền đọc được `1.500.000`, `1,500,000`, `1.500.000,50`, `(45,000)`.
 
 ### Advisor (AI)
 | Method | Path | Mô tả | Phase |

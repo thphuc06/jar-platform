@@ -100,6 +100,20 @@ public class LedgerTransaction {
             String note,
             Instant occurredAt,
             Instant now) {
+        return expense(
+                userId, amount, jarId, categoryId, counterparty, note, occurredAt, TransactionSource.MANUAL, now);
+    }
+
+    public static LedgerTransaction expense(
+            UUID userId,
+            Money amount,
+            UUID jarId,
+            UUID categoryId,
+            String counterparty,
+            String note,
+            Instant occurredAt,
+            TransactionSource source,
+            Instant now) {
         return new LedgerTransaction(
                 userId,
                 TransactionType.EXPENSE,
@@ -110,7 +124,7 @@ public class LedgerTransaction {
                 counterparty,
                 note,
                 occurredAt,
-                TransactionSource.MANUAL,
+                source,
                 now);
     }
 
@@ -124,6 +138,19 @@ public class LedgerTransaction {
             String note,
             Instant occurredAt,
             Instant now) {
+        return income(userId, amount, jarId, categoryId, counterparty, note, occurredAt, TransactionSource.MANUAL, now);
+    }
+
+    public static LedgerTransaction income(
+            UUID userId,
+            Money amount,
+            UUID jarId,
+            UUID categoryId,
+            String counterparty,
+            String note,
+            Instant occurredAt,
+            TransactionSource source,
+            Instant now) {
         return new LedgerTransaction(
                 userId,
                 TransactionType.INCOME,
@@ -134,7 +161,7 @@ public class LedgerTransaction {
                 counterparty,
                 note,
                 occurredAt,
-                TransactionSource.MANUAL,
+                source,
                 now);
     }
 

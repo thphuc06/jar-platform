@@ -12,6 +12,7 @@ import io.github.thphuc06.jars.ledger.internal.domain.Jar;
 import io.github.thphuc06.jars.ledger.internal.domain.JarCode;
 import io.github.thphuc06.jars.ledger.internal.domain.LedgerProblems;
 import io.github.thphuc06.jars.ledger.internal.domain.LedgerTransaction;
+import io.github.thphuc06.jars.ledger.internal.domain.TransactionSource;
 import io.github.thphuc06.jars.ledger.internal.domain.TransactionType;
 import io.github.thphuc06.jars.ledger.internal.persistence.CategoryRepository;
 import io.github.thphuc06.jars.ledger.internal.persistence.JarEntryRepository;
@@ -43,6 +44,8 @@ import java.util.Set;
 import java.util.UUID;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
@@ -113,7 +116,30 @@ public class LedgerCommandService {
     public Result<TransactionReceipt> post(
             UserId userId, String idempotencyKey, String requestHash, PostTransactionCommand cmd) {
         return retry.run(() -> tx.execute(status -> idempotency.execute(
-                userId, idempotencyKey, requestHash, TransactionReceipt.class, 201, () -> doPost(userId, cmd))));
+                userId,
+                idempotencyKey,
+                requestHash,
+                TransactionReceipt.class,
+                201,
+                () -> doPost(userId, cmd, TransactionSource.MANUAL))));
+    }
+
+    /**
+     * One row of an imported bank statement, in the caller's transaction (a Spring Batch chunk): the posting, its
+     * idempotency key and the batch's own bookkeeping commit or roll back together. Unlike {@link #post} there is no
+     * retry here, because a retry inside a transaction that is not ours cannot start from fresh data; the batch step
+     * retries the whole chunk on an optimistic-lock conflict instead.
+     */
+    @Transactional(propagation = Propagation.MANDATORY)
+    public Result<TransactionReceipt> recordImported(
+            UserId userId, String idempotencyKey, String requestHash, PostTransactionCommand cmd) {
+        return idempotency.execute(
+                userId,
+                idempotencyKey,
+                requestHash,
+                TransactionReceipt.class,
+                201,
+                () -> doPost(userId, cmd, TransactionSource.IMPORT));
     }
 
     public Result<TransactionReceipt> transfer(
@@ -142,7 +168,7 @@ public class LedgerCommandService {
         return retry.run(() -> tx.execute(status -> doRecategorize(userId, transactionId, categoryId, jarId)));
     }
 
-    private TransactionReceipt doPost(UserId userId, PostTransactionCommand cmd) {
+    private TransactionReceipt doPost(UserId userId, PostTransactionCommand cmd, TransactionSource source) {
         Instant now = now();
         Instant occurredAt = cmd.occurredAt() == null ? now : cmd.occurredAt().truncatedTo(ChronoUnit.MICROS);
         if (occurredAt.isAfter(now.plus(MAX_FUTURE))) {
@@ -151,13 +177,14 @@ public class LedgerCommandService {
         requirePositive(cmd.amount());
 
         return switch (cmd.type()) {
-            case EXPENSE -> postExpense(userId, cmd, occurredAt, now);
-            case INCOME -> postIncome(userId, cmd, occurredAt, now);
+            case EXPENSE -> postExpense(userId, cmd, occurredAt, now, source);
+            case INCOME -> postIncome(userId, cmd, occurredAt, now, source);
             case JAR_TRANSFER -> throw invalid("Chuyển tiền giữa các hũ dùng POST /api/v1/jars/transfers.");
         };
     }
 
-    private TransactionReceipt postExpense(UserId userId, PostTransactionCommand cmd, Instant occurredAt, Instant now) {
+    private TransactionReceipt postExpense(
+            UserId userId, PostTransactionCommand cmd, Instant occurredAt, Instant now, TransactionSource source) {
         if (cmd.jarId() == null) {
             throw invalid("Khoản chi cần chọn hũ để trừ tiền.");
         }
@@ -174,13 +201,15 @@ public class LedgerCommandService {
                 cmd.counterparty(),
                 cmd.note(),
                 occurredAt,
+                source,
                 now));
         entries.save(jar.post(EntryType.SPEND, cmd.amount().negate(), t.getId(), occurredAt, now));
         publishPosted(userId, t);
         return new TransactionReceipt(TransactionView.of(t), List.of(new JarBalance(jar.getId(), jar.balance())));
     }
 
-    private TransactionReceipt postIncome(UserId userId, PostTransactionCommand cmd, Instant occurredAt, Instant now) {
+    private TransactionReceipt postIncome(
+            UserId userId, PostTransactionCommand cmd, Instant occurredAt, Instant now, TransactionSource source) {
         Jar jar = cmd.jarId() == null ? null : requireJar(userId, cmd.jarId());
         requireCategory(userId, cmd.categoryId(), CategoryKind.INCOME);
         LedgerTransaction t = transactions.save(LedgerTransaction.income(
@@ -191,6 +220,7 @@ public class LedgerCommandService {
                 cmd.counterparty(),
                 cmd.note(),
                 occurredAt,
+                source,
                 now));
         List<JarBalance> balances = new ArrayList<>();
         if (jar != null) {

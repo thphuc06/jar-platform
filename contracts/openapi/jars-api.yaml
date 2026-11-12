@@ -328,6 +328,56 @@ paths:
           description: OK
       tags:
       - health-controller
+  /api/v1/imports:
+    get:
+      operationId: history
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ImportView"
+          description: OK
+      tags:
+      - import-controller
+    post:
+      operationId: create_1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateImportRequest"
+        required: true
+      responses:
+        "201":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/CreatedImport"
+          description: Created
+      tags:
+      - import-controller
+  /api/v1/imports/{importId}:
+    get:
+      operationId: get
+      parameters:
+      - in: path
+        name: importId
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ImportView"
+          description: OK
+      tags:
+      - import-controller
   /api/v1/jars:
     get:
       operationId: list_1
@@ -822,6 +872,15 @@ components:
       - name
       - targetAmount
       - targetDate
+    CreateImportRequest:
+      type: object
+      properties:
+        fileName:
+          type: string
+          maxLength: 200
+          minLength: 0
+      required:
+      - fileName
     CreateJarRequest:
       type: object
       properties:
@@ -835,6 +894,13 @@ components:
           minimum: 0
       required:
       - name
+    CreatedImport:
+      type: object
+      properties:
+        statementImport:
+          $ref: "#/components/schemas/ImportView"
+        upload:
+          $ref: "#/components/schemas/UploadTarget"
     CurrentCapacity:
       type: object
       properties:
@@ -992,6 +1058,40 @@ components:
           type: string
         version:
           type: string
+    ImportView:
+      type: object
+      properties:
+        completedAt:
+          type: string
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+        errors:
+          type: array
+          items:
+            $ref: "#/components/schemas/RowError"
+        failureReason:
+          type: string
+        fileName:
+          type: string
+        id:
+          type: string
+          format: uuid
+        postedRows:
+          type: integer
+          format: int32
+        skippedRows:
+          type: integer
+          format: int32
+        startedAt:
+          type: string
+          format: date-time
+        status:
+          type: string
+        totalRows:
+          type: integer
+          format: int32
     JarBalance:
       type: object
       properties:
@@ -1532,6 +1632,14 @@ components:
           type: string
         uiExplanation:
           $ref: "#/components/schemas/UiExplanation"
+    RowError:
+      type: object
+      properties:
+        line:
+          type: integer
+          format: int32
+        reason:
+          type: string
     SavingsCapacity:
       type: object
       properties:
@@ -1835,6 +1943,22 @@ components:
         locale:
           type: string
           pattern: vi-VN|en-US
+    UploadTarget:
+      type: object
+      properties:
+        expiresAt:
+          type: string
+          format: date-time
+        headers:
+          type: object
+          additionalProperties:
+            type: string
+        method:
+          type: string
+        sameOrigin:
+          type: boolean
+        url:
+          type: string
     VisualizationSupport:
       type: object
       properties:

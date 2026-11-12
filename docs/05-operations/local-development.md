@@ -110,4 +110,18 @@ Phase 1 sẽ viết `SeedDataRunner` (chỉ chạy ở profile `local`): tạo 1
 | `401` dù đã đăng nhập | Gửi **ID token** thay vì access token | Lấy `accessToken` từ Amplify `fetchAuthSession()` |
 | `jars-api needs JDK 21 or newer` (từ maven-enforcer) hoặc `Unsupported class file major version 65` | Chạy bằng JDK 17 hoặc 8 | Đặt `JAVA_HOME` trỏ tới JDK 21 |
 | LocalStack thoát ngay khi start | Thiếu `LOCALSTACK_AUTH_TOKEN` | Xem mục 2 |
+| `Migration checksum mismatch for migration version 7/8` khi `spring-boot:run` | Volume Postgres của Docker Compose còn schema của bản cài đặt đầu tiên (trước khi hợp nhất `main` ngày 12/11/2026), migration cùng số nhưng khác nội dung | Dữ liệu dev, xóa được: `docker compose -f local/compose.yaml down -v` rồi chạy lại |
+| `Vitest failed to find the current suite` khi `npm test` trên Windows | Đường dẫn làm việc có chữ ổ đĩa viết thường (`c:\...`), Vitest nạp hai bản | Mở terminal ở `C:\...` (chữ hoa) rồi chạy lại; CI trên Linux không bị |
+
+## 8. Nhập sao kê ở local
+
+Không có S3/SQS ở local: `jars.imports.storage=local` (mặc định) lưu tệp vào `${java.io.tmpdir}/jars-statements`, và `upload.url` trả về là `PUT /api/v1/imports/{id}/file` cùng origin (web gửi kèm token). Endpoint này chạy job import ngay trong request. Thử bằng curl:
+
+```bash
+TOKEN=$(curl -s -X POST localhost:8080/dev/token -H 'Content-Type: application/json' -d '{"sub":"demo"}' | jq -r .accessToken)
+ID=$(curl -s -X POST localhost:8080/api/v1/imports -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+  -d '{"fileName":"thang-10.csv"}' | jq -r .statementImport.id)
+printf 'date,description,amount\n2026-10-02,GRAB *TRIP,-45000\n' | curl -s -X PUT "localhost:8080/api/v1/imports/$ID/file" \
+  -H "Authorization: Bearer $TOKEN" -H 'Content-Type: text/csv' --data-binary @- | jq '{status, postedRows, skippedRows}'
+```
 | `AccessDeniedException` / `ExpiredToken` từ AWS | Phiên `aws login` hết hạn (12 giờ) hoặc model Bedrock chưa được bật | `aws login --profile jars-dev`; kiểm tra model access ở console Bedrock (ap-southeast-1) |

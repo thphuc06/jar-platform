@@ -61,6 +61,15 @@ X-Ray hiển thị trace id dạng `1-xxxxxxxx-yyyyyyyyyyyyyyyyyyyyyyyy`: 8 ký 
 4. Redrive về queue gốc: `aws sqs start-message-move-task --source-arn <dlq-arn>` (consumer idempotent nên chạy lại an toàn).
 5. Ghi lại sự cố vào mục "Sự cố đã gặp" bên dưới.
 
+## Import sao kê bị kẹt hoặc thất bại
+
+| Triệu chứng | Kiểm tra | Xử lý |
+|---|---|---|
+| Import ở `AWAITING_UPLOAD` mãi | Tệp có lên S3 không: `aws s3 ls s3://jars-dev-statements-<account>/uploads/<userId>/`; message có tới `jars-imports` không (metric `NumberOfMessagesReceived`) | Không có tệp: lỗi CORS hoặc URL hết hạn (10 phút), user tải lại. Có tệp mà không có message: kiểm tra rule `statement-uploaded` và việc bật EventBridge trên bucket |
+| `FAILED` với lý do của tệp (thiếu cột, không phải UTF-8, quá 5 MB, đã nhập) | `GET /api/v1/imports/{id}` → `failureReason` | Lỗi của tệp, chạy lại không đổi được kết quả; user sửa tệp rồi tạo phiên nhập mới |
+| `FAILED` với "lỗi hệ thống" | Log theo `traceId`; `SELECT status, exit_message FROM batch_job_execution ...` | Sửa nguyên nhân, rồi redrive message từ `jars-imports-dlq` (hoặc user tải lại đúng tệp): **cùng job instance** chạy tiếp từ chunk cuối đã commit, idempotency key chặn ghi trùng |
+| `PROCESSING` mãi sau khi task bị dừng giữa chừng | `batch_job_execution.status = 'STARTED'` mà không có task nào chạy | Spring Batch không tự restart execution còn `STARTED`: đặt `status='FAILED', end_time=now()` cho execution đó rồi redrive message |
+
 ## Đổi secret DB
 
 Secret do CDK tạo (`Credentials.fromGeneratedSecret`) và lưu trong Secrets Manager. Ở dev **chưa bật rotation tự động**: Lambda rotation chạy trong VPC cần đường tới Secrets Manager (NAT hoặc interface endpoint), mà kiến trúc hiện tại không có (ADR-0013). Cách rotate thủ công:

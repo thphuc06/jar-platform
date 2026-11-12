@@ -38,7 +38,7 @@ Mọi domain event ra khỏi process đều có cấu trúc chung (JSON, đặt 
 | `JarCreated` | ledger | insights (khởi tạo detector state) | `jarId`, `code` | **Có** |
 | `MonthClosed` | budgeting | notification (tạo thông báo "Đã khép sổ tháng MM/YYYY"; bỏ qua tháng có kế hoạch và chi đều bằng 0). insights chưa nghe | `eventId` (UUIDv7), `userId`, `month` (`YYYY-MM`), `summary[{jarId, jarName, planned, spent}]` cho mọi hũ có dòng trong tháng (kể cả hũ đã archive). Mỗi user mỗi tháng phát **tối đa một lần** | Không |
 | `AnomalyDetected` | insights | notification | `eventId`, `anomalyId`, `userId`, `jarId`, `jarName`, `detector` (MAD/CUSUM), `direction`, `severity`, `score`, `threshold`, `transactionId`, `amount` | **Có** → `jars-insights-events.fifo` |
-| `StatementImportCompleted` | imports | notification | `importId`, `rowsOk`, `rowsFailed` | Không |
+| `StatementImportCompleted` | imports | notification (thông báo `IMPORT_COMPLETED`) | `eventId`, `importId`, `userId`, `fileName`, `succeeded`, `postedRows`, `skippedRows`, `failureReason`, `completedAt` | Không. Từng dòng nhập được vẫn phát `TransactionPosted` (source `IMPORT`) như mọi bút toán |
 | `GoalCreated` | goals | (dự phòng) | `goalId`, `targetAmount`, `targetDate` | Không |
 
 ## 4. Platform event

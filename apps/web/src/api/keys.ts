@@ -13,6 +13,7 @@ export const qk = {
   notifications: ["notifications"] as const,
   goals: ["goals"] as const,
   budget: ["budget"] as const,
+  imports: ["imports"] as const,
 };
 
 /** Everything a posted transaction, a jar transfer or an income allocation can change. */

@@ -34,8 +34,15 @@ import software.amazon.awscdk.services.rds.PostgresEngineVersion;
 import software.amazon.awscdk.services.rds.PostgresInstanceEngineProps;
 import software.amazon.awscdk.services.rds.ServerlessV2ClusterInstanceProps;
 import software.amazon.awscdk.services.rds.StorageType;
+import software.amazon.awscdk.services.s3.BlockPublicAccess;
+import software.amazon.awscdk.services.s3.Bucket;
+import software.amazon.awscdk.services.s3.BucketEncryption;
+import software.amazon.awscdk.services.s3.CorsRule;
+import software.amazon.awscdk.services.s3.HttpMethods;
+import software.amazon.awscdk.services.s3.LifecycleRule;
 import software.amazon.awscdk.services.secretsmanager.ISecret;
 import software.constructs.Construct;
+import software.constructs.IConstruct;
 
 /**
  * JarsData: the database (docs/02-architecture/aws-infrastructure.md section 5, ADR-0008).
@@ -121,6 +128,71 @@ public final class DataStack extends Stack {
                 .description("Secrets Manager secret with the JSON keys username and password")
                 .value(secret.getSecretArn())
                 .build();
+
+        Bucket statements = statementsBucket(cfg);
+        CfnOutput.Builder.create(this, "StatementsBucketName")
+                .description("Uploaded bank statements (presigned PUT from the browser; uploads/ expires after 7 days)")
+                .value(statements.getBucketName())
+                .build();
+    }
+
+    /**
+     * Fixed and derived from the environment and the account (bucket names are global), so that JarsMessaging (event
+     * rule) and JarsApp (task role, environment) can name it without a cross-stack export.
+     */
+    public static String statementsBucketName(EnvConfig cfg, String account) {
+        return cfg.name("statements") + "-" + account;
+    }
+
+    /**
+     * Bank statements uploaded for import (aws-infrastructure.md section 12). The browser PUTs the file with a
+     * presigned URL, so the bucket answers CORS for the CloudFront domains and the local dev server; S3 reports new
+     * objects to EventBridge, which starts the import. Files are input, not records: they expire after 7 days.
+     */
+    private Bucket statementsBucket(EnvConfig cfg) {
+        Bucket bucket = Bucket.Builder.create(this, "StatementsBucket")
+                .bucketName(statementsBucketName(cfg, getAccount()))
+                .blockPublicAccess(BlockPublicAccess.BLOCK_ALL)
+                .encryption(BucketEncryption.S3_MANAGED)
+                .enforceSsl(true)
+                .eventBridgeEnabled(true)
+                .lifecycleRules(List.of(LifecycleRule.builder()
+                        .id("expire-uploads")
+                        .prefix("uploads/")
+                        .expiration(Duration.days(7))
+                        .abortIncompleteMultipartUploadAfter(Duration.days(1))
+                        .build()))
+                .cors(List.of(CorsRule.builder()
+                        .allowedMethods(List.of(HttpMethods.PUT))
+                        // the CloudFront domain of JarsApp changes with every create; the presigned URL is the
+                        // authorization, CORS only lets the browser send it
+                        .allowedOrigins(List.of("https://*.cloudfront.net", "http://localhost:5173"))
+                        .allowedHeaders(List.of("Content-Type"))
+                        .maxAge(3000)
+                        .build()))
+                // emptied by the lifecycle rule; a stack delete keeps it rather than failing on a non-empty bucket
+                .removalPolicy(RemovalPolicy.RETAIN)
+                .build();
+        Validations.of(bucket)
+                .acknowledge(Acknowledgment.builder()
+                        .id("AwsSolutions-S1")
+                        .reason("Server access logs would need a second bucket; uploads are short-lived input files,"
+                                + " and who uploaded what is recorded by the API (statement_imports, CloudTrail for"
+                                + " the task role).")
+                        .build());
+        // eventBridgeEnabled is applied by a CDK-provided Lambda (custom resource) when the stack deploys
+        for (IConstruct child : getNode().getChildren()) {
+            if (child.getNode().getId().startsWith("BucketNotificationsHandler")) {
+                Validations.of(child)
+                        .acknowledge(Acknowledgment.builder()
+                                .id("AwsSolutions-IAM4[Policy::arn:<AWS::Partition>:iam::aws:policy/service-role/"
+                                        + "AWSLambdaBasicExecutionRole]")
+                                .reason("The CDK custom resource that turns on EventBridge notifications for the"
+                                        + " statements bucket; it only runs at deploy time and writes its own logs.")
+                                .build());
+            }
+        }
+        return bucket;
     }
 
     private DatabaseCluster auroraCluster(

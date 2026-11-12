@@ -42,7 +42,7 @@ io.github.thphuc06.jars
 | `notification` | Lưu thông báo, đẩy SSE, (tùy chọn) email SES | `notifications` | `stream(userId)` (REST/SSE) | – | `AnomalyDetected`, `MonthClosed` (đã cài), `StatementImportCompleted` | `tier1_notifications` cũ |
 | `advisor` | Chat AI: phiên chat, tool calling, guardrails, rate limit | `chat_sessions`, `chat_messages` | – (chỉ có REST/SSE) | – | – | `agent/` (Strands), `kb/*.md` |
 | `market` | Gateway tới `quant-fn`, cache giá | – | `quote(symbol)`, `history(...)`, `optimize(...)` | – | – | `vnstock_service.py`, `pypfopt_optimizer.py` (vẫn chạy bằng Python) |
-| `imports` | Import sao kê CSV: presigned URL, Spring Batch job | `statement_imports` (+ bảng metadata của Spring Batch) | `createUpload(userId)` | `StatementImportCompleted` | SQS `jars-imports` | `ingest_statement_vn` |
+| `imports` | Import sao kê CSV: presigned URL, Spring Batch job (chunk 50, skip, retry, restart) | `statement_imports`, `statement_import_errors` (+ bảng metadata của Spring Batch) | Chưa có `XxxApi`: REST `/imports` và listener SQS; ghi vào ledger qua `LedgerApi.recordImported` (tham gia transaction của chunk) | `StatementImportCompleted` | SQS `jars-imports` | `ingest_statement_vn` |
 | `shared` | Value object và tiện ích dùng chung | – | `Money`, `UserId`, `Month`, `ProblemTypes` | – | – | – |
 
 Thêm vào đó là các thành phần **hạ tầng không phải module nghiệp vụ**, nằm trong `io.github.thphuc06.jars.platform` (được Modulith đánh dấu là shared): cấu hình security, xử lý lỗi toàn cục, idempotency (bảng `idempotency_keys`), `Clock`, audit (AOP), cấu hình OpenTelemetry. `shared` (`Money`, `UserId`, `ProblemTypes`) cũng được khai báo shared trong `@Modulithic`.

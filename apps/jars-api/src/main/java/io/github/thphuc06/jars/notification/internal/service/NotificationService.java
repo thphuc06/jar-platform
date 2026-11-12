@@ -1,6 +1,7 @@
 package io.github.thphuc06.jars.notification.internal.service;
 
 import io.github.thphuc06.jars.budgeting.MonthClosed;
+import io.github.thphuc06.jars.imports.StatementImportCompleted;
 import io.github.thphuc06.jars.insights.AnomalyDetected;
 import io.github.thphuc06.jars.notification.internal.model.Notification;
 import io.github.thphuc06.jars.notification.internal.persistence.NotificationRepository;
@@ -30,6 +31,7 @@ public class NotificationService {
 
     static final String CONSUMER = "notification.anomaly-detected";
     static final String MONTH_CLOSED_CONSUMER = "notification.month-closed";
+    static final String IMPORT_CONSUMER = "notification.import-completed";
     static final int DEFAULT_PAGE_SIZE = 20;
     static final int MAX_PAGE_SIZE = 100;
     static final int MAX_REPLAY = 100;
@@ -86,6 +88,30 @@ public class NotificationService {
                 body,
                 "BUDGET_MONTH",
                 null);
+    }
+
+    /** Tells the user how their statement import ended, once per event. */
+    @Transactional
+    void createFromImport(StatementImportCompleted event) {
+        if (!inbox.firstTime(IMPORT_CONSUMER, event.eventId().toString())) {
+            return;
+        }
+        String title;
+        String body;
+        String severity;
+        if (event.succeeded()) {
+            title = "Đã nhập sao kê " + event.fileName();
+            body = "Đã ghi " + event.postedRows() + " giao dịch vào sổ."
+                    + (event.skippedRows() > 0
+                            ? " " + event.skippedRows() + " dòng không nhập được; xem lý do trong lịch sử nhập."
+                            : "");
+            severity = event.skippedRows() > 0 ? "MEDIUM" : "LOW";
+        } else {
+            title = "Không nhập được sao kê " + event.fileName();
+            body = event.failureReason();
+            severity = "MEDIUM";
+        }
+        saveAndPush(event.userId(), "IMPORT_COMPLETED", severity, title, body, "IMPORT", event.importId());
     }
 
     /** Stores the notification and pushes it to open SSE connections only once it is durable (after the commit). */

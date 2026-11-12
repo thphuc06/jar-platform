@@ -2,9 +2,13 @@ package io.github.thphuc06.jars.ledger.internal.service;
 
 import io.github.thphuc06.jars.ledger.AllocationReceipt;
 import io.github.thphuc06.jars.ledger.CategorySummary;
+import io.github.thphuc06.jars.ledger.ImportedTransaction;
 import io.github.thphuc06.jars.ledger.IncomeAllocation;
 import io.github.thphuc06.jars.ledger.JarSummary;
 import io.github.thphuc06.jars.ledger.LedgerApi;
+import io.github.thphuc06.jars.ledger.internal.domain.TransactionType;
+import io.github.thphuc06.jars.ledger.internal.service.LedgerCommandService.PostTransactionCommand;
+import io.github.thphuc06.jars.ledger.internal.service.Views.TransactionReceipt;
 import io.github.thphuc06.jars.platform.idempotency.IdempotencyService.Result;
 import io.github.thphuc06.jars.shared.UserId;
 import java.util.List;
@@ -39,5 +43,23 @@ class LedgerApiImpl implements LedgerApi {
     public Result<AllocationReceipt> allocateIncome(
             UserId userId, String idempotencyKey, String requestHash, IncomeAllocation allocation) {
         return commands.allocateIncome(userId, idempotencyKey, requestHash, allocation);
+    }
+
+    @Override
+    public ImportedTransaction.Recorded recordImported(
+            UserId userId, String idempotencyKey, String requestHash, ImportedTransaction row) {
+        Result<TransactionReceipt> result = commands.recordImported(
+                userId,
+                idempotencyKey,
+                requestHash,
+                new PostTransactionCommand(
+                        row.income() ? TransactionType.INCOME : TransactionType.EXPENSE,
+                        row.amount(),
+                        row.jarId(),
+                        row.categoryId(),
+                        row.counterparty(),
+                        null,
+                        row.occurredAt()));
+        return new ImportedTransaction.Recorded(result.body().transaction().id(), result.replayed());
     }
 }

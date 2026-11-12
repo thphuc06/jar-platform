@@ -14,9 +14,9 @@ Hạ tầng chia thành nhiều stack theo **vòng đời**: stack nào hay bị
 | `JarsFoundation` | ECR repositories (immutable tags, scan on push), GitHub OIDC provider + deploy role, SNS topic cho alarm, AWS Budget theo tag `Project=jars` | Tạo 1 lần, giữ mãi | – |
 | *(không phải stack)* account baseline | S3 Block Public Access (account), EBS default encryption, IAM Access Analyzer, Cost Anomaly Detection: làm bằng tay ở Phase 0 vì áp dụng cho cả account dùng chung ([deployment.md §1](../05-operations/deployment.md#1-chuẩn-bị-tài-khoản-làm-1-lần)) | Giữ mãi | – |
 | `JarsNetwork` | VPC 2 AZ (public / private / isolated subnets), security groups | Giữ mãi (không tốn phí giờ) | – |
-| `JarsData` | Aurora PostgreSQL Serverless v2 + secret (hoặc RDS với `-c dbMode=rds`). S3 `statements` bucket **chưa tạo**, thêm cùng luồng import | Giữ mãi (`RemovalPolicy.SNAPSHOT`) | Network |
+| `JarsData` | Aurora PostgreSQL Serverless v2 + secret (hoặc RDS với `-c dbMode=rds`). S3 `jars-dev-statements-<account>` (Phase 2 WP3: tên cố định để `JarsMessaging` và `JarsApp` không cần export; `RETAIN`; `uploads/` hết hạn sau 7 ngày; bật EventBridge; CORS `PUT` cho `https://*.cloudfront.net` và `http://localhost:5173`) | Giữ mãi (`RemovalPolicy.SNAPSHOT`) | Network |
 | `JarsAuth` | Cognito User Pool, managed login domain, resource server/scopes, app client `smoke` cho script smoke test | Giữ mãi (user không mất) | – |
-| `JarsMessaging` | SQS (jobs, imports) + DLQ, EventBridge rules, Scheduler; từ Phase 5: SNS FIFO + SQS FIFO. **Hiện có:** `jars-jobs` + DLQ, schedule `month-close`, alarm DLQ. `jars-imports` và rule `statement-uploaded` chưa tạo | Giữ mãi (gần như $0) | Foundation (alarm topic); Data (bucket) khi có |
+| `JarsMessaging` | SQS (jobs, imports) + DLQ, EventBridge rules, Scheduler; từ Phase 5: SNS FIFO + SQS FIFO. **Hiện có:** `jars-jobs` + DLQ, schedule `month-close`, `jars-imports` + DLQ, rule `statement-uploaded`, alarm cho 3 DLQ | Giữ mãi (gần như $0) | Foundation (alarm topic). Tên bucket statements suy ra từ env + account, không phụ thuộc stack Data |
 | `JarsApp` | ECS cluster, task definition, service, internal ALB, CloudFront + VPC origin, web bucket, Cognito app client, alarm Aurora không pause, (Phase 4) Valkey. Chỉ được synth khi có context `imageTag` | **Xóa khi không demo lâu ngày** | Foundation, Network, Data, Auth, Messaging |
 | `JarsQuant` | Lambda `quant-fn` (container image) | Giữ (chỉ tính tiền khi gọi) | Foundation (ECR) |
 | ~~`JarsObservability`~~ | Gộp vào `JarsApp` (construct `ApiObservability`, Phase 2 WP2): collector ADOT, dashboard `jars-dev`, alarm 5xx và p95. Xem [§11](#11-observability) | Theo `JarsApp` | – |
@@ -147,12 +147,12 @@ Docs: [Cognito pricing](https://aws.amazon.com/cognito/pricing/). Tier Lite/Esse
 |---|---|---|---|---|
 | `jars-jobs` | SQS standard + DLQ | EventBridge Scheduler → jars-api | visibility 5 phút, `maxReceiveCount=5` | 3 |
 | `jars-jobs-scheduler-dlq` | SQS standard | EventBridge Scheduler (gửi lỗi) | retention 14 ngày; alarm khi có message | 3 |
-| `jars-imports` | SQS standard + DLQ | S3 → EventBridge rule → jars-api | visibility 15 phút | 3 (chưa tạo) |
+| `jars-imports` | SQS standard + DLQ (`jars-imports-dlq`, alarm khi có message) | S3 → EventBridge rule → jars-api | visibility 15 phút, `maxReceiveCount=3` | 2 ✅ |
 | `jars-ledger-events.fifo` | **SNS FIFO** | jars-api (outbox) → subscribers | content-based dedup, message group = `userId` | 5 |
 | `jars-insights-ledger.fifo` | SQS FIFO + DLQ | SNS ledger → insights-worker | raw message delivery | 5 |
 | `jars-insights-events.fifo` | SNS FIFO | insights-worker → subscribers | | 5 |
 | `jars-api-notifications.fifo` | SQS FIFO + DLQ | SNS insights → jars-api | | 5 |
-| Rule `statement-uploaded` | EventBridge (default bus) | S3 `Object Created` (prefix `uploads/`) → `jars-imports` | bucket bật `eventBridgeEnabled` | 3 (chưa tạo) |
+| Rule `statement-uploaded` | EventBridge (default bus) | S3 `Object Created` (bucket statements, prefix `uploads/`) → `jars-imports` | bucket bật `eventBridgeEnabled`; queue policy chỉ cho rule này gửi. Đã kiểm thật ngày 2026-11-13: upload thử → message tới queue | 2 ✅ |
 | Schedule `month-close` | EventBridge Scheduler | → `jars-jobs` | `cron(5 0 1 * ? *)`, timezone **Asia/Ho_Chi_Minh**, flexible window off | 3 |
 
 Chi tiết schema và đảm bảo giao nhận: [event-catalog.md](event-catalog.md). Lý do không dùng Kafka/MSK: [ADR-0009](../04-adr/0009-messaging-sns-sqs-eventbridge.md).

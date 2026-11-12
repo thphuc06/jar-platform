@@ -228,6 +228,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/imports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["history"];
+        put?: never;
+        post: operations["create_1"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/imports/{importId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/jars": {
         parameters: {
             query?: never;
@@ -484,9 +516,16 @@ export interface components {
             /** Format: date */
             targetDate: string;
         };
+        CreateImportRequest: {
+            fileName: string;
+        };
         CreateJarRequest: {
             name: string;
             targetPct?: number;
+        };
+        CreatedImport: {
+            statementImport?: components["schemas"]["ImportView"];
+            upload?: components["schemas"]["UploadTarget"];
         };
         CurrentCapacity: {
             amount?: number;
@@ -569,6 +608,26 @@ export interface components {
             service?: string;
             status?: string;
             version?: string;
+        };
+        ImportView: {
+            /** Format: date-time */
+            completedAt?: string;
+            /** Format: date-time */
+            createdAt?: string;
+            errors?: components["schemas"]["RowError"][];
+            failureReason?: string;
+            fileName?: string;
+            /** Format: uuid */
+            id?: string;
+            /** Format: int32 */
+            postedRows?: number;
+            /** Format: int32 */
+            skippedRows?: number;
+            /** Format: date-time */
+            startedAt?: string;
+            status?: string;
+            /** Format: int32 */
+            totalRows?: number;
         };
         JarBalance: {
             balance?: components["schemas"]["Money"];
@@ -846,6 +905,11 @@ export interface components {
             status?: string;
             uiExplanation?: components["schemas"]["UiExplanation"];
         };
+        RowError: {
+            /** Format: int32 */
+            line?: number;
+            reason?: string;
+        };
         SavingsCapacity: {
             amountMonthly?: number;
             label?: string;
@@ -998,6 +1062,16 @@ export interface components {
         UpdateMeRequest: {
             displayName?: string;
             locale?: string;
+        };
+        UploadTarget: {
+            /** Format: date-time */
+            expiresAt?: string;
+            headers?: {
+                [key: string]: string;
+            };
+            method?: string;
+            sameOrigin?: boolean;
+            url?: string;
         };
         VisualizationSupport: {
             keyMetrics?: components["schemas"]["KeyMetrics"];
@@ -1380,6 +1454,72 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["HealthResponse"];
+                };
+            };
+        };
+    };
+    history: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ImportView"][];
+                };
+            };
+        };
+    };
+    create_1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateImportRequest"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["CreatedImport"];
+                };
+            };
+        };
+    };
+    get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                importId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ImportView"];
                 };
             };
         };

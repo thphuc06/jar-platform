@@ -49,6 +49,16 @@ spring:
       sqs:
         # only the aws profile talks to SQS (it turns this on); local runs and tests never create an SQS client
         enabled: false
+      s3:
+        # same for S3 (statement uploads): locally the files go to a folder (jars.imports.storage=local)
+        enabled: false
+  batch:
+    job:
+      # jobs run when a statement arrives (ImportLauncher), never at startup
+      enabled: false
+    jdbc:
+      # the metadata tables are part of Flyway V9
+      initialize-schema: never
   modulith:
     events:
       # a finished listener deletes its row from event_publication; unfinished rows stay as the outbox
@@ -70,6 +80,12 @@ jars:
   seed:
     # --jars.seed.enabled=true creates demo data for the token subject "demo" (local profile only)
     enabled: false
+  imports:
+    # local: files in ${java.io.tmpdir}/jars-statements, uploaded through PUT /api/v1/imports/{id}/file;
+    # the aws profile switches to s3 (presigned upload to the statements bucket)
+    storage: local
+    max-file-size: 5MB
+    upload-ttl: 10m
   jobs:
     # name of the SQS queue the EventBridge Scheduler sends jobs to (month close). Only used in the aws profile, where
     # the listener is created; blank everywhere else (nothing connects to AWS locally or in tests)
