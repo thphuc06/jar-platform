@@ -36,8 +36,12 @@ function backend(overrides: (call: Call) => Response | undefined = () => undefin
       if (pathname === "/api/v1/goals") return json(fx.goals);
       if (pathname.endsWith("/feasibility")) return json(fx.feasibility);
       if (pathname.endsWith("/roadmap")) return json(fx.roadmap);
-      // the budgeting endpoints are not deployed yet (WP5)
-      if (pathname.startsWith("/api/v1/budget/")) return problem(404, "Không tìm thấy");
+      if (pathname.startsWith("/api/v1/budget/periods/")) return json(fx.budgetPeriod);
+    }
+    if (method === "POST") {
+      if (pathname === "/api/v1/budget/allocation-suggestions") return json(fx.suggestion);
+      if (pathname === "/api/v1/budget/allocations") return json(fx.allocationResult, 201, { "Idempotency-Replayed": "false" });
+      if (pathname.endsWith("/scenarios")) return json(fx.scenarios);
     }
     return undefined;
   });
@@ -127,7 +131,7 @@ describe("Money Inbox", () => {
 });
 
 describe("Budget jars", () => {
-  it("shows the jars from /jars with exact totals, and hides the monthly plan while that endpoint is missing", async () => {
+  it("shows the jars from /jars with exact totals and the month's plan against spending", async () => {
     backend();
     renderPage(<BudgetJars />);
 
@@ -135,8 +139,34 @@ describe("Budget jars", () => {
     // 11.000.000 + 2.000.000 * 3 + 1.200.000 + 0 = 18.200.000, summed on minor units
     expect(plain(screen.getByText(/18\.200\.000/).textContent)).toBe("18.200.000 ₫");
     expect(screen.getByText(/Tỷ lệ đã phân bổ: 100%/)).toBeInTheDocument();
-    expect(screen.getByText("Thiết yếu")).toBeInTheDocument();
-    expect(screen.queryByText(/Kế hoạch tháng/)).not.toBeInTheDocument();
+    // GET /budget/periods/{month}: totals of the month, then one line per jar
+    expect(await screen.findByText(/Kế hoạch tháng 2026-11/)).toBeInTheDocument();
+    expect(plain(screen.getByText(/Đã chi .* \/ kế hoạch/).textContent)).toBe("Đã chi 5.000.000 ₫ / kế hoạch 13.000.000 ₫");
+    expect(plain(screen.getByText(/4\.000\.000 ₫ \/ 11\.000\.000 ₫/).textContent)).toContain("4.000.000 ₫ / 11.000.000 ₫");
+    expect(screen.getAllByText("Thiết yếu").length).toBeGreaterThanOrEqual(2); // the jar card and its line of the plan
+  });
+
+  it("splits an income into amounts that add up to it to the dong, with one Idempotency-Key", async () => {
+    backend();
+    renderPage(<BudgetJars />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /Phân bổ thu nhập/ }));
+    fireEvent.change(await screen.findByLabelText("Khoản thu nhập (VND)"), { target: { value: "20000001" } });
+    fireEvent.click(screen.getByRole("button", { name: /Gợi ý phân bổ/ }));
+    // the suggestion fills the shares the server proposed (sharePct)
+    await waitFor(() => expect(screen.getByLabelText("Thiết yếu")).toHaveValue("55"));
+    expect(screen.getByText(/Tổng: 100% \(đủ 100%\)/)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Áp dụng phân bổ" }));
+    await waitFor(() => expect(calls().some((c) => c.pathname === "/api/v1/budget/allocations")).toBe(true));
+
+    const post = calls().find((c) => c.pathname === "/api/v1/budget/allocations")!;
+    const body = (await post.request.clone().json()) as { amount: string; splits: Array<{ jarId: string; amount: string }> };
+    expect(body.amount).toBe("20000001");
+    // amounts, not percentages: 55 % of 20.000.001 is 11.000.000,55 and the leftover dong are handed out, none lost
+    expect(body.splits).toHaveLength(6);
+    expect(body.splits.reduce((sum, split) => sum + BigInt(split.amount), 0n)).toBe(20000001n);
+    expect(post.request.headers.get("Idempotency-Key")).toMatch(/^[0-9a-f-]{36}$/);
   });
 
   it("expands a jar and cannot archive one that still holds money", async () => {
@@ -182,16 +212,32 @@ describe("Alerts", () => {
   });
 });
 
-describe("Goal planner (hand-written types until WP5 is in the OpenAPI file)", () => {
+describe("Goal planner", () => {
   it("renders goals, their feasibility and the roadmap payload", async () => {
     backend();
     renderPage(<GoalPlanner />);
 
     expect(await screen.findByText("Quỹ khẩn cấp")).toBeInTheDocument();
+    // GET /goals/{id}/feasibility: required monthly saving, the verdict and the probability of success
     expect(await screen.findByText(/Cần tiết kiệm ~/)).toBeInTheDocument();
+    expect(plain(screen.getByText(/Cần tiết kiệm ~/).textContent)).toContain("3.769.231 ₫/tháng");
+    expect(screen.getByText("chưa kịp tiến độ")).toBeInTheDocument();
+    expect(screen.getByText(/khoảng 41% khả năng đạt/)).toBeInTheDocument();
     // the status banner of the roadmap (its title also appears in the overview card)
     expect((await screen.findAllByText("Cần thận trọng")).length).toBeGreaterThan(0);
     expect(screen.getByText("Lộ trình theo giai đoạn")).toBeInTheDocument();
+  });
+
+  it("tries a what-if and compares the chance of success with keeping things as they are", async () => {
+    backend();
+    renderPage(<GoalPlanner />);
+
+    fireEvent.change(await screen.findByLabelText("Tiết kiệm thêm mỗi tháng (VND)"), { target: { value: "1000000" } });
+    fireEvent.click(screen.getByRole("button", { name: "Tính thử" }));
+
+    expect(await screen.findByText("Khả năng đạt mục tiêu: 63% (giữ nguyên: 41%)")).toBeInTheDocument();
+    const post = calls().find((c) => c.pathname.endsWith("/scenarios"))!;
+    expect(await post.request.clone().json()).toEqual({ monthlySavingDelta: "1000000" });
   });
 
   it("shows a neutral message when a goal has no roadmap yet", async () => {

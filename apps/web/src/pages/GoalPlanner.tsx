@@ -64,8 +64,9 @@ const GoalCard = ({ goal, selected, progress, onSelect }: { goal: Goal; selected
           <div className="text-xs text-muted-foreground">
             {feasibility.data ? (
               <>
-                Cần tiết kiệm ~{formatMoney(feasibility.data.requiredMonthlySaving)}/tháng •{" "}
-                <span className={feasibility.data.feasible ? "text-success" : "text-destructive"}>{feasibility.data.feasible ? "khả thi" : "chưa khả thi"}</span>
+                Cần tiết kiệm ~{formatMoney(feasibility.data.requiredMonthly)}/tháng •{" "}
+                <span className={verdictView(feasibility.data.verdict).className}>{verdictView(feasibility.data.verdict).label}</span>
+                {typeof feasibility.data.probabilityOfSuccess === "number" && <> • khoảng {Math.round(feasibility.data.probabilityOfSuccess * 100)}% khả năng đạt</>}
               </>
             ) : feasibility.isPending ? (
               "Đang tính mức cần tiết kiệm..."
@@ -110,6 +111,20 @@ const GoalCard = ({ goal, selected, progress, onSelect }: { goal: Goal; selected
       </CardContent>
     </Card>
   );
+};
+
+/** What the server's `verdict` of a feasibility check means on screen. */
+const verdictView = (verdict: string): { label: string; className: string } => {
+  switch (verdict) {
+    case "ACHIEVED":
+      return { label: "đã đủ tiền", className: "text-success" };
+    case "ON_TRACK":
+      return { label: "đang đúng tiến độ", className: "text-success" };
+    case "OFF_TRACK":
+      return { label: "chưa kịp tiến độ", className: "text-destructive" };
+    default:
+      return { label: "chưa đủ dữ liệu để đánh giá", className: "text-muted-foreground" };
+  }
 };
 
 const BalanceVsTarget = ({ goal }: { goal: Goal }) => {

@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { AlertTriangle, ArrowRightLeft, Archive, ChevronDown, Coins, Loader2, PencilLine, Plus, Send } from "lucide-react";
 import { CartesianGrid, Cell, Legend, Line, LineChart, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { useBudgetPeriod, type BudgetJarLine } from "@/api/budget";
+import { useBudgetPeriod, type JarPeriod } from "@/api/budget";
 import { useDashboard } from "@/api/dashboard";
 import { useArchiveJar, useJars, useUpdateJar } from "@/api/jars";
 import { describeError } from "@/api/problem";
@@ -31,7 +31,7 @@ interface JarCardProps {
   index: number;
   open: boolean;
   spend: JarSpend | undefined;
-  plan: BudgetJarLine | undefined;
+  plan: JarPeriod | undefined;
   usedPct: number;
   onToggle: () => void;
   onPay: () => void;
@@ -337,7 +337,10 @@ const BudgetJars = () => {
           <CardContent className="space-y-3 p-5">
             <div className="flex items-baseline justify-between">
               <h2 className="font-display text-sm font-semibold">Kế hoạch tháng {budget.data.month}</h2>
-              <span className="text-xs text-muted-foreground">Thu nhập: {formatMoney(budget.data.income)}</span>
+              <span className="text-xs text-muted-foreground">
+                Đã chi {formatMoney(budget.data.spent)} / kế hoạch {formatMoney(budget.data.planned)}
+                {budget.data.closed && " · đã khép sổ"}
+              </span>
             </div>
             {budget.data.jars.map((line) => (
               <div key={line.jarId} className="space-y-1">

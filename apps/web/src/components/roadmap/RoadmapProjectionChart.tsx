@@ -16,8 +16,8 @@ export const RoadmapProjectionChart = ({ chart, projectionExplanation }: Props) 
 
   const data = chart.series.map((p) => ({
     month: p.month,
-    projected: p.projected_amount,
-    target: chart.target_amount,
+    projected: p.projectedAmount,
+    target: chart.targetAmount,
   }));
 
   return (
@@ -34,15 +34,15 @@ export const RoadmapProjectionChart = ({ chart, projectionExplanation }: Props) 
             <XAxis dataKey="month" tick={{ fontSize: 9 }} tickFormatter={(m) => `T${m}`} />
             <YAxis tick={{ fontSize: 9 }} tickFormatter={(v) => formatCompact(Number(v))} />
             <Tooltip formatter={(value) => formatAmount(Number(value ?? 0))} labelFormatter={(label) => `Tháng ${label}`} contentStyle={{ fontSize: 11, borderRadius: 8 }} />
-            <ReferenceLine y={chart.target_amount} stroke="hsl(var(--success))" strokeDasharray="4 4" label={{ value: "Mục tiêu", fontSize: 9, fill: "hsl(var(--success))" }} />
+            <ReferenceLine y={chart.targetAmount} stroke="hsl(var(--success))" strokeDasharray="4 4" label={{ value: "Mục tiêu", fontSize: 9, fill: "hsl(var(--success))" }} />
             <Line type="monotone" dataKey="projected" stroke="hsl(var(--primary))" strokeWidth={2} dot={{ r: 3, fill: "hsl(var(--primary))" }} name="Dự phóng" />
           </LineChart>
         </ResponsiveContainer>
       </div>
 
       <div className="flex justify-between text-[10px] text-muted-foreground">
-        <span>Còn thiếu: {formatAmount(chart.gap_to_target)}</span>
-        <span>Cuối kỳ: {formatAmount(chart.projected_end_amount)}</span>
+        <span>Còn thiếu: {formatAmount(chart.gapToTarget)}</span>
+        <span>Cuối kỳ: {formatAmount(chart.projectedEndAmount)}</span>
       </div>
 
       {projectionExplanation && (
@@ -64,9 +64,9 @@ export const RoadmapProjectionChart = ({ chart, projectionExplanation }: Props) 
                 <div className="space-y-1.5 rounded-md bg-muted/50 p-2.5">
                   {[
                     { label: "Cơ sở", text: projectionExplanation.basis },
-                    { label: "Tốc độ", text: projectionExplanation.pace_assessment },
-                    { label: "Khoảng cách", text: projectionExplanation.target_gap_commentary },
-                    { label: "Xu hướng", text: projectionExplanation.trend_commentary },
+                    { label: "Tốc độ", text: projectionExplanation.paceAssessment },
+                    { label: "Khoảng cách", text: projectionExplanation.targetGapCommentary },
+                    { label: "Xu hướng", text: projectionExplanation.trendCommentary },
                   ].map((item) => (
                     <div key={item.label}>
                       <p className="text-[9px] font-semibold uppercase tracking-wider text-muted-foreground">{item.label}</p>

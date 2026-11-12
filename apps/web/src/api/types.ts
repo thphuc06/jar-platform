@@ -25,6 +25,21 @@ type Wire<T, M extends keyof T = never, N extends keyof T = never> = Omit<Requir
   [K in N]: Exclude<T[K], undefined> | null;
 };
 
+/**
+ * `Wire` for payloads with nested objects (roadmap, scenarios, budget periods): the same two corrections, applied at
+ * every level. Fields are all present, and every generated `Money` (`{amount, currency}` and nothing else) is the
+ * wire `Money`. A field the server can send as `null` is not representable here: widen it where the type is used
+ * (see `Goal.fundingJarId`).
+ */
+export type DeepWire<T> = DeepWireDefined<Exclude<T, undefined>>;
+type DeepWireDefined<T> = T extends readonly (infer U)[]
+  ? DeepWire<U>[]
+  : T extends object
+    ? keyof T extends "amount" | "currency"
+      ? Money
+      : { [K in keyof T]-?: DeepWire<T[K]> }
+    : T;
+
 // ---- identity -----------------------------------------------------------------------------------------------
 
 export type Me = Wire<S["MeResponse"], never, "email" | "displayName">;

@@ -21,3 +21,25 @@ export function formatPct(value: number): string {
 export function isFullAllocation(values: readonly number[]): boolean {
   return sumPct(values) === 100;
 }
+
+/**
+ * Divides a whole-VND income (`total`, digits only) by percentages that add up to exactly 100, in whole VND, so that the
+ * parts add up to exactly `total`: the server rejects an allocation that is off by even one dong.
+ *
+ * Each part is rounded down, then the leftover dong go one by one to the largest fractional remainders (ties: the
+ * earlier jar). BigInt, because `total * basisPoints` can exceed 2^53.
+ */
+export function splitByPercent(total: string, pcts: readonly number[]): string[] {
+  const whole = BigInt(total);
+  const basisPoints = pcts.map((p) => BigInt(Math.round(p * 100)));
+  const parts = basisPoints.map((bp) => (whole * bp) / 10000n);
+  const remainders = basisPoints.map((bp, i) => ({ i, remainder: (whole * bp) % 10000n }));
+  remainders.sort((a, b) => (a.remainder === b.remainder ? a.i - b.i : a.remainder > b.remainder ? -1 : 1));
+  let leftover = whole - parts.reduce((sum, part) => sum + part, 0n);
+  for (const { i } of remainders) {
+    if (leftover <= 0n) break;
+    parts[i] += 1n;
+    leftover -= 1n;
+  }
+  return parts.map(String);
+}

@@ -50,28 +50,28 @@ export const RoadmapKeyMetrics = ({ metrics, plannerState }: Props) => {
     {
       icon: Wallet,
       label: "Tiến độ",
-      value: formatAmount(metrics.current_progress_amount),
-      sub: `${(metrics.current_progress_ratio * 100).toFixed(1)}% mục tiêu`,
+      value: formatAmount(metrics.currentProgressAmount),
+      sub: `${(metrics.currentProgressRatio * 100).toFixed(1)}% mục tiêu`,
     },
     {
       icon: Activity,
       label: "Khả năng tiết kiệm",
-      value: formatAmount(metrics.current_monthly_capacity.amount),
-      sub: metrics.current_monthly_capacity.label === "none" ? "Chưa có khả năng tiết kiệm" : metrics.current_monthly_capacity.label,
-      valueClass: metrics.current_monthly_capacity.amount < 0 ? "text-destructive" : "text-success",
+      value: formatAmount(metrics.currentMonthlyCapacity.amount),
+      sub: metrics.currentMonthlyCapacity.label === "none" ? "Chưa có khả năng tiết kiệm" : metrics.currentMonthlyCapacity.label,
+      valueClass: metrics.currentMonthlyCapacity.amount < 0 ? "text-destructive" : "text-success",
     },
     {
       icon: Clock,
       label: "Thời hạn",
-      value: `${metrics.timeline_months} tháng`,
-      sub: plannerState ? `Quỹ dự phòng: ${plannerState.runway_months.toFixed(0)} tháng` : `Dự kiến: ${formatAmount(metrics.projected_end_amount)}`,
+      value: `${metrics.timelineMonths} tháng`,
+      sub: plannerState ? `Quỹ dự phòng: ${plannerState.runwayMonths.toFixed(0)} tháng` : `Dự kiến: ${formatAmount(metrics.projectedEndAmount)}`,
     },
     {
       icon: BarChart3,
       label: "Tính khả thi",
-      value: levelLabel(metrics.feasibility_hint).toUpperCase(),
-      sub: `Mức sẵn sàng: ${metrics.readiness_label}`,
-      valueClass: feasibilityColors[metrics.feasibility_hint],
+      value: levelLabel(metrics.feasibilityHint).toUpperCase(),
+      sub: `Mức sẵn sàng: ${metrics.readinessLabel}`,
+      valueClass: feasibilityColors[metrics.feasibilityHint],
     },
   ];
 
@@ -80,16 +80,16 @@ export const RoadmapKeyMetrics = ({ metrics, plannerState }: Props) => {
         {
           icon: Shield,
           label: "Quỹ đệm",
-          value: plannerState.buffer_status === "present" ? "Có" : "Chưa có",
-          sub: `Áp lực thanh khoản: ${levelLabel(plannerState.liquidity_pressure)}`,
-          valueClass: plannerState.buffer_status === "present" ? "text-success" : "text-destructive",
+          value: plannerState.bufferStatus === "present" ? "Có" : "Chưa có",
+          sub: `Áp lực thanh khoản: ${levelLabel(plannerState.liquidityPressure)}`,
+          valueClass: plannerState.bufferStatus === "present" ? "text-success" : "text-destructive",
         },
         {
           icon: Gauge,
           label: "Rủi ro",
-          value: levelLabel(plannerState.risk_band).toUpperCase(),
-          sub: plannerState.anomaly_state === "active" ? "Đang có chi tiêu bất thường" : "Không có bất thường",
-          valueClass: riskColors[plannerState.risk_band],
+          value: levelLabel(plannerState.riskBand).toUpperCase(),
+          sub: plannerState.anomalyState === "active" ? "Đang có chi tiêu bất thường" : "Không có bất thường",
+          valueClass: riskColors[plannerState.riskBand],
         },
       ]
     : [];

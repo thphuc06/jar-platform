@@ -100,6 +100,70 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/goals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listGoals"];
+        put?: never;
+        post: operations["createGoal"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/goals/{id}/scenarios": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["goalScenarios"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/budget/allocations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["apply"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/budget/allocation-suggestions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["suggest"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/anomalies/{id}/feedback": {
         parameters: {
             query?: never;
@@ -164,6 +228,22 @@ export interface paths {
         patch: operations["update_1"];
         trace?: never;
     };
+    "/api/v1/goals/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["archiveGoal"];
+        options?: never;
+        head?: never;
+        patch: operations["updateGoal"];
+        trace?: never;
+    };
     "/api/v1/notifications": {
         parameters: {
             query?: never;
@@ -212,6 +292,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/goals/{id}/roadmap": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["goalRoadmap"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/goals/{id}/feasibility": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["goalFeasibility"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/dashboard": {
         parameters: {
             query?: never;
@@ -236,6 +348,22 @@ export interface paths {
             cookie?: never;
         };
         get: operations["categories"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/budget/periods/{month}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["period"];
         put?: never;
         post?: never;
         delete?: never;
@@ -380,6 +508,145 @@ export interface components {
             amount: number;
             note?: string;
         };
+        CreateGoalRequest: {
+            name: string;
+            targetAmount: number;
+            /** Format: date */
+            targetDate: string;
+            /** Format: uuid */
+            fundingJarId?: string;
+        };
+        GoalView: {
+            /** Format: uuid */
+            id?: string;
+            name?: string;
+            targetAmount?: components["schemas"]["Money"];
+            /** Format: date */
+            targetDate?: string;
+            /** Format: uuid */
+            fundingJarId?: string;
+            status?: string;
+            /** Format: date-time */
+            createdAt?: string;
+            /** Format: date-time */
+            updatedAt?: string;
+        };
+        ScenarioRequest: {
+            monthlySavingDelta?: number;
+            incomeDelta?: number;
+            spendingDelta?: number;
+            oneOffContribution?: number;
+            /** Format: int32 */
+            horizonMonths?: number;
+            /** Format: int64 */
+            seed?: number;
+        };
+        Deltas: {
+            monthlySaving?: components["schemas"]["Money"];
+            income?: components["schemas"]["Money"];
+            spending?: components["schemas"]["Money"];
+            oneOff?: components["schemas"]["Money"];
+        };
+        Pace: {
+            /** Format: int32 */
+            monthsUsed?: number;
+            currentMonthOnly?: boolean;
+            averageIncome?: components["schemas"]["Money"];
+            averageExpense?: components["schemas"]["Money"];
+            averageNet?: components["schemas"]["Money"];
+            netStdDev?: components["schemas"]["Money"];
+        };
+        PointView: {
+            /** Format: int32 */
+            month?: number;
+            p10?: components["schemas"]["Money"];
+            p50?: components["schemas"]["Money"];
+            p90?: components["schemas"]["Money"];
+        };
+        ProjectionSummary: {
+            strategy?: string;
+            p10?: components["schemas"]["Money"];
+            p50?: components["schemas"]["Money"];
+            p90?: components["schemas"]["Money"];
+            probabilityOfSuccess?: number;
+            reachesTarget?: boolean;
+            path?: components["schemas"]["PointView"][];
+        };
+        ScenarioResult: {
+            name?: string;
+            deltas?: components["schemas"]["Deltas"];
+            monthlyNet?: components["schemas"]["Money"];
+            deterministic?: components["schemas"]["ProjectionSummary"];
+            stress?: components["schemas"]["ProjectionSummary"];
+            monteCarlo?: components["schemas"]["ProjectionSummary"];
+            medianVsBase?: components["schemas"]["Money"];
+            probabilityVsBase?: number;
+        };
+        ScenarioView: {
+            /** Format: uuid */
+            goalId?: string;
+            /** Format: int64 */
+            seed?: number;
+            /** Format: int32 */
+            horizonMonths?: number;
+            startingAmount?: components["schemas"]["Money"];
+            targetAmount?: components["schemas"]["Money"];
+            pace?: components["schemas"]["Pace"];
+            base?: components["schemas"]["ScenarioResult"];
+            scenarios?: components["schemas"]["ScenarioResult"][];
+            notes?: string[];
+        };
+        AllocationRequest: {
+            amount: number;
+            splits?: components["schemas"]["SplitRequest"][];
+            /** Format: uuid */
+            categoryId?: string;
+            counterparty?: string;
+            note?: string;
+            /** Format: date-time */
+            occurredAt?: string;
+            skip?: boolean;
+        };
+        SplitRequest: {
+            /** Format: uuid */
+            jarId: string;
+            amount: number;
+        };
+        AllocationResult: {
+            /** Format: uuid */
+            decisionId?: string;
+            decision?: string;
+            /** Format: uuid */
+            transactionId?: string;
+            amount?: components["schemas"]["Money"];
+            month?: string;
+            splits?: components["schemas"]["AppliedSplit"][];
+        };
+        AppliedSplit: {
+            /** Format: uuid */
+            jarId?: string;
+            amount?: components["schemas"]["Money"];
+            balance?: components["schemas"]["Money"];
+        };
+        SuggestionRequest: {
+            amount: number;
+        };
+        Line: {
+            /** Format: uuid */
+            jarId?: string;
+            code?: string;
+            name?: string;
+            targetPct?: number;
+            sharePct?: number;
+            amount?: components["schemas"]["Money"];
+        };
+        Suggestion: {
+            amount?: components["schemas"]["Money"];
+            lines?: components["schemas"]["Line"][];
+            /** Format: int32 */
+            monthsOfHistory?: number;
+            historyWeight?: number;
+        };
         FeedbackRequest: {
             label: string;
         };
@@ -425,6 +692,16 @@ export interface components {
             name?: string;
             targetPct?: number;
         };
+        UpdateGoalRequest: {
+            name?: string;
+            targetAmount?: number;
+            /** Format: date */
+            targetDate?: string;
+            /** Format: uuid */
+            fundingJarId?: string;
+            /** @enum {string} */
+            status?: "ACTIVE" | "ACHIEVED" | "ARCHIVED";
+        };
         TransactionListItem: {
             /** Format: uuid */
             id?: string;
@@ -463,6 +740,202 @@ export interface components {
             status?: string;
             service?: string;
             version?: string;
+        };
+        CurrentCapacity: {
+            amount?: number;
+            label?: string;
+        };
+        Explanation: {
+            summary?: string;
+            projectionExplanation?: components["schemas"]["ProjectionExplanation"];
+            cautions?: string[];
+            confidenceNote?: string;
+        };
+        KeyMetrics: {
+            currentMonthlyCapacity?: components["schemas"]["CurrentCapacity"];
+            currentProgressAmount?: number;
+            currentProgressRatio?: number;
+            targetAmount?: number;
+            /** Format: int32 */
+            timelineMonths?: number;
+            projectedEndAmount?: number;
+            feasibilityHint?: string;
+            readinessLabel?: string;
+        };
+        MaturityEvent: {
+            eventType?: string;
+            title?: string;
+            condition?: string;
+        };
+        MilestoneData: {
+            milestoneId?: string;
+            phaseType?: string;
+            title?: string;
+            unlockRule?: string;
+            expectedResult?: string;
+            status?: string;
+        };
+        NextActionCard: {
+            title?: string;
+            why?: string;
+            timeframe?: string;
+            expectedOutcome?: string;
+            successSignal?: string;
+            followOnTransition?: string;
+        };
+        PhaseData: {
+            phaseType?: string;
+            title?: string;
+            objective?: string;
+            entryConditions?: string[];
+            exitConditions?: string[];
+            expectedResults?: string[];
+            serviceIds?: string[];
+            status?: string;
+        };
+        PlannerState: {
+            cashflowStatus?: string;
+            savingsCapacity?: components["schemas"]["SavingsCapacity"];
+            runwayMonths?: number;
+            liquidityPressure?: string;
+            anomalyState?: string;
+            readinessLabel?: string;
+            feasibilityHint?: string;
+            riskBand?: string;
+            goalProgressRatio?: number;
+            bufferStatus?: string;
+            source?: string;
+        };
+        Projection: {
+            confidenceLabel?: string;
+            basis?: string;
+            targetAmount?: number;
+            projectedEndAmount?: number;
+            /** Format: int32 */
+            targetTimelineMonths?: number;
+            series?: components["schemas"]["ProjectionPoint"][];
+            caution?: string;
+        };
+        ProjectionChart: {
+            confidenceLabel?: string;
+            series?: components["schemas"]["ProjectionPoint"][];
+            targetAmount?: number;
+            projectedEndAmount?: number;
+            gapToTarget?: number;
+            trend?: string;
+        };
+        ProjectionExplanation: {
+            basis?: string;
+            paceAssessment?: string;
+            targetGapCommentary?: string;
+            trendCommentary?: string;
+        };
+        ProjectionPoint: {
+            /** Format: int32 */
+            month?: number;
+            projectedAmount?: number;
+        };
+        Result: {
+            summary?: string;
+            roadmapStatus?: string;
+            journeyPattern?: string;
+            currentPhase?: string;
+            phaseSequence?: string[];
+        };
+        RoadmapContract: {
+            schemaVersion?: string;
+            status?: string;
+            missingFields?: string[];
+            warnings?: string[];
+            goal?: components["schemas"]["RoadmapGoal"];
+            plannerState?: components["schemas"]["PlannerState"];
+            journeyPattern?: string;
+            currentPhase?: string;
+            phaseSequence?: string[];
+            phases?: components["schemas"]["PhaseData"][];
+            milestones?: components["schemas"]["MilestoneData"][];
+            projection?: components["schemas"]["Projection"];
+            nextBestAction?: components["schemas"]["NextActionCard"];
+            maturityEvents?: components["schemas"]["MaturityEvent"][];
+            visualizationSupport?: components["schemas"]["VisualizationSupport"];
+        };
+        RoadmapGoal: {
+            goalType?: string;
+            targetAmount?: number;
+            /** Format: int32 */
+            targetTimelineMonths?: number;
+            priority?: string;
+        };
+        RoadmapResponse: {
+            schemaVersion?: string;
+            agentId?: string;
+            status?: string;
+            result?: components["schemas"]["Result"];
+            roadmapContract?: components["schemas"]["RoadmapContract"];
+            uiExplanation?: components["schemas"]["UiExplanation"];
+            explanation?: components["schemas"]["Explanation"];
+        };
+        SavingsCapacity: {
+            amountMonthly?: number;
+            label?: string;
+        };
+        StatusBanner: {
+            tone?: string;
+            title?: string;
+            message?: string;
+        };
+        TimelineNode: {
+            phaseType?: string;
+            title?: string;
+            status?: string;
+            objective?: string;
+        };
+        UiExplanation: {
+            summary?: string;
+            whyThisRoadmap?: string;
+            whyCurrentPhase?: string;
+            whatHasToChangeNext?: string;
+        };
+        UnlockCondition: {
+            phaseType?: string;
+            status?: string;
+            conditions?: string[];
+        };
+        VisualizationSupport: {
+            timelineNodes?: components["schemas"]["TimelineNode"][];
+            phaseCards?: components["schemas"]["PhaseData"][];
+            milestoneCards?: components["schemas"]["MilestoneData"][];
+            projectionChart?: components["schemas"]["ProjectionChart"];
+            nextActionCard?: components["schemas"]["NextActionCard"];
+            statusBanner?: components["schemas"]["StatusBanner"];
+            keyMetrics?: components["schemas"]["KeyMetrics"];
+            unlockConditions?: components["schemas"]["UnlockCondition"][];
+        };
+        FeasibilityView: {
+            /** Format: uuid */
+            goalId?: string;
+            goalName?: string;
+            verdict?: string;
+            targetAmount?: components["schemas"]["Money"];
+            /** Format: date */
+            targetDate?: string;
+            currentAmount?: components["schemas"]["Money"];
+            fundingJarLinked?: boolean;
+            /** Format: int32 */
+            monthsLeft?: number;
+            remaining?: components["schemas"]["Money"];
+            requiredMonthly?: components["schemas"]["Money"];
+            currentMonthlyPace?: components["schemas"]["Money"];
+            projectedAtDeadline?: components["schemas"]["Money"];
+            gap?: components["schemas"]["Money"];
+            monthlyShortfall?: components["schemas"]["Money"];
+            probabilityOfSuccess?: number;
+            grade?: string;
+            feasibilityHint?: string;
+            pace?: components["schemas"]["Pace"];
+            /** Format: int64 */
+            seed?: number;
+            notes?: string[];
         };
         CategorySpend: {
             /** Format: uuid */
@@ -508,6 +981,24 @@ export interface components {
             /** Format: uuid */
             parentId?: string;
             system?: boolean;
+        };
+        JarPeriodView: {
+            /** Format: uuid */
+            jarId?: string;
+            code?: string;
+            name?: string;
+            planned?: components["schemas"]["Money"];
+            spent?: components["schemas"]["Money"];
+            remaining?: components["schemas"]["Money"];
+            /** Format: date-time */
+            closedAt?: string;
+        };
+        PeriodView: {
+            month?: string;
+            closed?: boolean;
+            planned?: components["schemas"]["Money"];
+            spent?: components["schemas"]["Money"];
+            jars?: components["schemas"]["JarPeriodView"][];
         };
         DailyBalanceView: {
             /** Format: date */
@@ -743,6 +1234,126 @@ export interface operations {
             };
         };
     };
+    listGoals: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["GoalView"][];
+                };
+            };
+        };
+    };
+    createGoal: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateGoalRequest"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["GoalView"];
+                };
+            };
+        };
+    };
+    goalScenarios: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ScenarioRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ScenarioView"];
+                };
+            };
+        };
+    };
+    apply: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AllocationRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["AllocationResult"];
+                };
+            };
+        };
+    };
+    suggest: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SuggestionRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["Suggestion"];
+                };
+            };
+        };
+    };
     feedback: {
         parameters: {
             query?: never;
@@ -885,6 +1496,52 @@ export interface operations {
             };
         };
     };
+    archiveGoal: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    updateGoal: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateGoalRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["GoalView"];
+                };
+            };
+        };
+    };
     list_2: {
         parameters: {
             query?: {
@@ -951,6 +1608,50 @@ export interface operations {
             };
         };
     };
+    goalRoadmap: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["RoadmapResponse"];
+                };
+            };
+        };
+    };
+    goalFeasibility: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["FeasibilityView"];
+                };
+            };
+        };
+    };
     dashboard: {
         parameters: {
             query?: {
@@ -989,6 +1690,28 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["CategoryView"][];
+                };
+            };
+        };
+    };
+    period: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                month: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["PeriodView"];
                 };
             };
         };

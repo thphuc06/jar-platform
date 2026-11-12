@@ -1,46 +1,34 @@
 /**
- * Goals: list, create, change, archive, feasibility, what-if scenario and roadmap.
+ * Goals: list, create, change, archive, feasibility, what-if scenarios and the roadmap.
  *
- * TODO(WP5-openapi): `/api/v1/goals/**` is NOT in contracts/openapi/jars-api.yaml yet (the goals module is built in
- * WP5). Everything marked "hand-written" below is written from docs/03-api/api-contract.md section 2 "Goals", the
- * `goals` table in docs/02-architecture/data-model.md and the hackathon UI's `src/types/roadmap.ts`. Money is
- * `{amount, currency}` and field names are camelCase, per api-contract section 1; the roadmap payload keeps the
- * snake_case names of `src/types/roadmap.ts`, because the doc says `GET /goals/{id}/roadmap` must match that type.
- *
- * When the spec contains the endpoints:
- *   1. `npm run gen:api`;
- *   2. delete `GoalsPaths` and its use in client.ts, and the hand-written interfaces below;
- *   3. derive `Goal`, `GoalFeasibility`, `RoadmapResponse`... from `components["schemas"]` with `Wire<>` in types.ts;
- *   4. check the open questions marked "confirm" (field names, whether roadmap amounts are numbers or Money).
- * The hooks keep their code: they already call the typed client with the final paths.
+ * Response types come from the generated `schema.d.ts` (contracts/openapi/jars-api.yaml) through `DeepWire`, so a
+ * field the backend renames fails `npm run typecheck` here instead of showing up as an empty screen. JSON names are
+ * camelCase everywhere, including the roadmap (the hackathon prototype used snake_case; the backend does not).
  */
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "./client";
-import type { Operation, PathItem } from "./handwritten";
 import { unwrap, unwrapEmpty, wireBody } from "./http";
 import { qk } from "./keys";
-import type { Money } from "./types";
+import type { DeepWire } from "./types";
+import type { components } from "./schema";
 
-// ---- hand-written DTOs --------------------------------------------------------------------------------------
+type S = components["schemas"];
+
+// ---- goals --------------------------------------------------------------------------------------------------
 
 export type GoalStatus = "ACTIVE" | "ACHIEVED" | "ARCHIVED";
 
-/** hand-written: `goals` table (name, target_amount, target_date, funding_jar_id, status) as camelCase JSON */
-export interface Goal {
-  id: string;
-  name: string;
-  targetAmount: Money;
-  /** YYYY-MM-DD */
-  targetDate: string;
-  /** The jar whose balance counts as progress; null when the goal is not tied to a jar. */
-  fundingJarId: string | null;
+/** `fundingJarId` is null when the goal is not tied to a jar. */
+export type Goal = Omit<DeepWire<S["GoalView"]>, "status" | "fundingJarId"> & {
   status: GoalStatus;
-}
+  fundingJarId: string | null;
+};
 
 export interface CreateGoalBody {
   name: string;
   /** whole VND as a decimal string */
   targetAmount: string;
+  /** YYYY-MM-DD */
   targetDate: string;
   fundingJarId?: string;
 }
@@ -53,209 +41,43 @@ export interface UpdateGoalBody {
   status?: GoalStatus;
 }
 
-/** hand-written, confirm: "Khả thi? Cần tiết kiệm bao nhiêu mỗi tháng?" (GET /goals/{id}/feasibility) */
-export interface GoalFeasibility {
-  feasible: boolean;
-  requiredMonthlySaving: Money;
-  monthsRemaining: number;
-}
+/** "Is it feasible, and how much must be saved per month?" (GET /goals/{id}/feasibility) */
+export type GoalFeasibility = DeepWire<S["FeasibilityView"]>;
 
-/** hand-written, confirm: what-if `{monthlySavingDelta, incomeDelta, ...}`; the answer is the feasibility under the change */
+/** What-if (POST /goals/{id}/scenarios): every field is optional; amounts are decimal strings of whole VND. */
 export interface GoalScenarioBody {
   monthlySavingDelta?: string;
   incomeDelta?: string;
+  spendingDelta?: string;
+  oneOffContribution?: string;
+  horizonMonths?: number;
+  /** Same seed, same answer: the Monte Carlo run is reproducible. */
+  seed?: number;
 }
 
-// ---- hand-written roadmap contract (legacy src/types/roadmap.ts) ---------------------------------------------
-// Amounts are plain numbers here, as in the hackathon type. confirm: the backend may send Money instead.
+export type GoalScenarios = DeepWire<S["ScenarioView"]>;
+export type ScenarioResult = DeepWire<S["ScenarioResult"]>;
+export type ProjectionSummary = DeepWire<S["ProjectionSummary"]>;
 
-export type PhaseStatus = "current" | "upcoming" | "completed";
+// ---- roadmap ------------------------------------------------------------------------------------------------
+// Amounts here are plain numbers (not Money), as the backend sends them.
 
-export interface RoadmapGoal {
-  goal_type: string;
-  target_amount: number;
-  target_timeline_months: number;
-  priority: string;
-}
-
-export interface PlannerState {
-  cashflow_status: string;
-  savings_capacity: { amount_monthly: number; label: string };
-  runway_months: number;
-  liquidity_pressure: string;
-  anomaly_state: string;
-  readiness_label: string;
-  feasibility_hint: string;
-  risk_band: string;
-  goal_progress_ratio: number;
-  buffer_status: string;
-  source: string;
-}
-
-export interface PhaseData {
-  phase_type: string;
-  title: string;
-  objective: string;
-  entry_conditions: string[];
-  exit_conditions: string[];
-  expected_results: string[];
-  service_ids: string[];
-  status: PhaseStatus;
-}
-
-export interface MilestoneData {
-  milestone_id: string;
-  phase_type: string;
-  title: string;
-  unlock_rule: string;
-  expected_result: string;
-  status: PhaseStatus;
-}
-
-export interface ProjectionPoint {
-  month: number;
-  projected_amount: number;
-}
-
-export interface ProjectionChart {
-  confidence_label: string;
-  series: ProjectionPoint[];
-  target_amount: number;
-  projected_end_amount: number;
-  gap_to_target: number;
-  trend: string;
-}
-
-export interface NextActionCard {
-  title: string;
-  why: string;
-  timeframe: string;
-  expected_outcome: string;
-  success_signal: string;
-  follow_on_transition: string;
-}
-
-export interface StatusBanner {
-  tone: string;
-  title: string;
-  message: string;
-}
-
-export interface KeyMetrics {
-  current_monthly_capacity: { amount: number; label: string };
-  current_progress_amount: number;
-  current_progress_ratio: number;
-  target_amount: number;
-  timeline_months: number;
-  projected_end_amount: number;
-  feasibility_hint: string;
-  readiness_label: string;
-}
-
-export interface TimelineNode {
-  phase_type: string;
-  title: string;
-  status: PhaseStatus;
-  objective: string;
-}
-
-export interface UnlockCondition {
-  phase_type: string;
-  status: string;
-  conditions: string[];
-}
-
-export interface VisualizationSupport {
-  timeline_nodes: TimelineNode[];
-  phase_cards: PhaseData[];
-  milestone_cards: MilestoneData[];
-  projection_chart: ProjectionChart;
-  next_action_card: NextActionCard;
-  status_banner: StatusBanner;
-  key_metrics: KeyMetrics;
-  unlock_conditions: UnlockCondition[];
-}
-
-export interface ProjectionExplanation {
-  basis: string;
-  pace_assessment: string;
-  target_gap_commentary: string;
-  trend_commentary: string;
-}
-
-export interface RoadmapContract {
-  schema_version: string;
-  status: string;
-  goal: RoadmapGoal;
-  planner_state: PlannerState;
-  journey_pattern: string;
-  current_phase: string;
-  phase_sequence: string[];
-  phases: PhaseData[];
-  milestones: MilestoneData[];
-  projection: {
-    confidence_label: string;
-    basis: string;
-    target_amount: number;
-    projected_end_amount: number;
-    target_timeline_months: number;
-    series: ProjectionPoint[];
-    caution: string;
-  };
-  next_best_action: NextActionCard;
-  visualization_support: VisualizationSupport;
-  /** confirm: present in the hackathon's saved-roadmap preview, not in the base type */
-  maturity_events?: Array<{ event_type: string; title: string; condition: string }>;
-}
-
-export interface RoadmapResponse {
-  schema_version: string;
-  agent_id: string;
-  status: string;
-  result: {
-    summary: string;
-    roadmap_status: string;
-    journey_pattern: string;
-    current_phase: string;
-    phase_sequence: string[];
-  };
-  roadmap_contract: RoadmapContract;
-  ui_explanation: {
-    summary: string;
-    why_this_roadmap: string;
-    why_current_phase: string;
-    what_has_to_change_next: string;
-  };
-  explanation: {
-    summary: string;
-    projection_explanation: ProjectionExplanation;
-    cautions: string[];
-    confidence_note: string;
-    /** confirm: present in the hackathon's saved-roadmap preview, not in the base type */
-    next_action_service_explanation?: {
-      selected_service: { service_id: string; display_name_vi: string; why_this_service_now?: string };
-      explanation: string;
-    };
-  };
-}
-
-// ---- hand-written path description, in the shape of the generated `paths` ------------------------------------
-
-type IdPath = { path: { id: string } };
-
-export interface GoalsPaths {
-  "/api/v1/goals": PathItem<{
-    get: Operation<Goal[]>;
-    post: Operation<Goal, { body: CreateGoalBody; status: 201 }>;
-  }>;
-  "/api/v1/goals/{id}": PathItem<{
-    patch: Operation<Goal, IdPath & { body: UpdateGoalBody }>;
-    delete: Operation<never, IdPath & { status: 204 }>;
-  }>;
-  "/api/v1/goals/{id}/feasibility": PathItem<{ get: Operation<GoalFeasibility, IdPath> }>;
-  "/api/v1/goals/{id}/scenarios": PathItem<{ post: Operation<GoalFeasibility, IdPath & { body: GoalScenarioBody }> }>;
-  "/api/v1/goals/{id}/roadmap": PathItem<{ get: Operation<RoadmapResponse, IdPath> }>;
-}
+export type RoadmapResponse = DeepWire<S["RoadmapResponse"]>;
+export type RoadmapContract = RoadmapResponse["roadmapContract"];
+export type RoadmapGoal = DeepWire<S["RoadmapGoal"]>;
+export type PlannerState = DeepWire<S["PlannerState"]>;
+/** `status` is "current", "upcoming" or "completed". */
+export type PhaseData = DeepWire<S["PhaseData"]>;
+export type MilestoneData = DeepWire<S["MilestoneData"]>;
+export type ProjectionPoint = DeepWire<S["ProjectionPoint"]>;
+export type ProjectionChart = DeepWire<S["ProjectionChart"]>;
+export type NextActionCard = DeepWire<S["NextActionCard"]>;
+export type StatusBanner = DeepWire<S["StatusBanner"]>;
+export type KeyMetrics = DeepWire<S["KeyMetrics"]>;
+export type TimelineNode = DeepWire<S["TimelineNode"]>;
+export type UnlockCondition = DeepWire<S["UnlockCondition"]>;
+export type VisualizationSupport = DeepWire<S["VisualizationSupport"]>;
+export type ProjectionExplanation = DeepWire<S["ProjectionExplanation"]>;
 
 // ---- hooks ---------------------------------------------------------------------------------------------------
 
@@ -311,11 +133,11 @@ export function useGoalRoadmap(goalId: string | undefined) {
   });
 }
 
-/** What-if: how does the feasibility change with a different monthly saving or income. Nothing is saved. */
+/** What-if: the same goal under a different monthly saving, income, spending or one-off sum. Nothing is saved. */
 export function useGoalScenario() {
   return useMutation({
     mutationFn: ({ id, ...body }: GoalScenarioBody & { id: string }) =>
-      unwrap<GoalFeasibility>(
+      unwrap<GoalScenarios>(
         api.POST("/api/v1/goals/{id}/scenarios", { params: { path: { id } }, body: wireBody(body) }),
       ),
   });

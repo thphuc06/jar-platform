@@ -12,47 +12,47 @@ import { RoadmapTimeline } from "./RoadmapTimeline";
 
 /** The roadmap of a goal (GET /goals/{id}/roadmap), laid out as the cards of the hackathon UI. */
 const RoadmapMessage = ({ data }: { data: RoadmapResponse }) => {
-  const { roadmap_contract: contract, ui_explanation, explanation } = data;
-  const viz = contract.visualization_support;
+  const { roadmapContract: contract, uiExplanation, explanation } = data;
+  const viz = contract.visualizationSupport;
   const [expandedPhase, setExpandedPhase] = useState<string | null>(null);
 
-  const requiredMonthly = (contract.goal.target_amount - viz.key_metrics.current_progress_amount) / contract.goal.target_timeline_months;
-  const currentMonthly = viz.key_metrics.current_monthly_capacity.amount;
+  const requiredMonthly = (contract.goal.targetAmount - viz.keyMetrics.currentProgressAmount) / contract.goal.targetTimelineMonths;
+  const currentMonthly = viz.keyMetrics.currentMonthlyCapacity.amount;
   const paceGap = currentMonthly - requiredMonthly;
-  const offTrackPercent = ((contract.goal.target_amount - viz.projection_chart.projected_end_amount) / contract.goal.target_amount) * 100;
+  const offTrackPercent = ((contract.goal.targetAmount - viz.projectionChart.projectedEndAmount) / contract.goal.targetAmount) * 100;
 
   return (
     <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="w-full space-y-3">
-      <RoadmapStatusBanner banner={viz.status_banner} />
-      <RoadmapGoalHeader goal={contract.goal} progress={viz.key_metrics.current_progress_ratio} />
+      <RoadmapStatusBanner banner={viz.statusBanner} />
+      <RoadmapGoalHeader goal={contract.goal} progress={viz.keyMetrics.currentProgressRatio} />
       <RoadmapRealityGap
         requiredMonthly={requiredMonthly}
         currentMonthly={currentMonthly}
         paceGap={paceGap}
         offTrackPercent={offTrackPercent}
-        trend={viz.projection_chart.trend}
+        trend={viz.projectionChart.trend}
       />
-      <RoadmapKeyMetrics metrics={viz.key_metrics} plannerState={contract.planner_state} />
+      <RoadmapKeyMetrics metrics={viz.keyMetrics} plannerState={contract.plannerState} />
       <RoadmapTimeline
-        nodes={viz.timeline_nodes}
+        nodes={viz.timelineNodes}
         milestones={contract.milestones}
         expandedPhase={expandedPhase}
         onTogglePhase={(phase) => setExpandedPhase(expandedPhase === phase ? null : phase)}
-        phaseCards={viz.phase_cards}
-        unlockConditions={viz.unlock_conditions}
-        whyCurrentPhase={ui_explanation.why_current_phase}
+        phaseCards={viz.phaseCards}
+        unlockConditions={viz.unlockConditions}
+        whyCurrentPhase={uiExplanation.whyCurrentPhase}
       />
-      <RoadmapProjectionChart chart={viz.projection_chart} projectionExplanation={explanation.projection_explanation} />
-      <RoadmapConfidence label={viz.projection_chart.confidence_label} note={explanation.confidence_note} cautions={explanation.cautions} />
-      <RoadmapNextAction action={viz.next_action_card} />
+      <RoadmapProjectionChart chart={viz.projectionChart} projectionExplanation={explanation.projectionExplanation} />
+      <RoadmapConfidence label={viz.projectionChart.confidenceLabel} note={explanation.confidenceNote} cautions={explanation.cautions} />
+      <RoadmapNextAction action={viz.nextActionCard} />
 
       <div className="space-y-2 rounded-lg bg-muted/50 p-3">
         <p className="text-[11px] font-medium text-muted-foreground">Vì sao có lộ trình này</p>
-        <p className="text-xs leading-relaxed text-muted-foreground">{ui_explanation.why_this_roadmap}</p>
-        {ui_explanation.what_has_to_change_next && (
+        <p className="text-xs leading-relaxed text-muted-foreground">{uiExplanation.whyThisRoadmap}</p>
+        {uiExplanation.whatHasToChangeNext && (
           <div className="border-t border-border pt-1.5">
             <p className="text-[11px] font-medium text-muted-foreground">Cần thay đổi điều gì</p>
-            <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">{ui_explanation.what_has_to_change_next}</p>
+            <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">{uiExplanation.whatHasToChangeNext}</p>
           </div>
         )}
       </div>

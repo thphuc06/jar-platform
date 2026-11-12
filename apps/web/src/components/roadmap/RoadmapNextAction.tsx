@@ -39,14 +39,14 @@ export const RoadmapNextAction = ({ action }: { action: NextActionCard }) => {
                 <Target className="mt-0.5 h-3 w-3 shrink-0 text-primary" aria-hidden="true" />
                 <div>
                   <p className="text-[9px] font-medium uppercase tracking-wider text-muted-foreground">Kết quả kỳ vọng</p>
-                  <p className="mt-0.5 text-[10px] leading-relaxed text-foreground">{action.expected_outcome}</p>
+                  <p className="mt-0.5 text-[10px] leading-relaxed text-foreground">{action.expectedOutcome}</p>
                 </div>
               </div>
               <div className="flex items-start gap-1.5">
                 <CheckCircle2 className="mt-0.5 h-3 w-3 shrink-0 text-success" aria-hidden="true" />
                 <div>
                   <p className="text-[9px] font-medium uppercase tracking-wider text-muted-foreground">Dấu hiệu thành công</p>
-                  <p className="mt-0.5 text-[10px] leading-relaxed text-foreground">{action.success_signal}</p>
+                  <p className="mt-0.5 text-[10px] leading-relaxed text-foreground">{action.successSignal}</p>
                 </div>
               </div>
             </div>
@@ -56,7 +56,7 @@ export const RoadmapNextAction = ({ action }: { action: NextActionCard }) => {
 
       <div className="flex items-center gap-1.5 border-t border-primary/10 pt-1">
         <ArrowRight className="h-3 w-3 text-primary" aria-hidden="true" />
-        <p className="text-[10px] text-primary">{action.follow_on_transition}</p>
+        <p className="text-[10px] text-primary">{action.followOnTransition}</p>
       </div>
     </div>
   );

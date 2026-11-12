@@ -1,11 +1,38 @@
 import { useState } from "react";
 import { Calculator, Loader2 } from "lucide-react";
-import { useGoalScenario, type Goal } from "@/api/goals";
+import { useGoalScenario, type Goal, type GoalScenarios } from "@/api/goals";
 import { describeError } from "@/api/problem";
 import AmountField from "@/components/AmountField";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { formatMoney, parseVndInput } from "@/lib/money";
+
+const percent = (fraction: number) => `${Math.round(fraction * 100)}%`;
+
+/** The answer: the Monte Carlo odds of reaching the target with the extra saving, against keeping things as they are. */
+const Outcome = ({ data }: { data: GoalScenarios }) => {
+  const custom = data.scenarios[0];
+  if (!custom) return <p className="mt-3 text-xs text-muted-foreground">Chưa có kết quả cho mức này.</p>;
+  const before = data.base.monteCarlo.probabilityOfSuccess;
+  const after = custom.monteCarlo.probabilityOfSuccess;
+  const better = after >= before;
+  return (
+    <div className="mt-4 rounded-lg border bg-muted/30 p-3 text-sm">
+      <p className={better ? "font-semibold text-success" : "font-semibold text-destructive"}>
+        Khả năng đạt mục tiêu: {percent(after)} (giữ nguyên: {percent(before)})
+      </p>
+      <p className="mt-1 text-xs text-muted-foreground">
+        Sau {data.horizonMonths} tháng, số tiền ở mức trung vị khoảng {formatMoney(custom.monteCarlo.p50)}, mục tiêu {formatMoney(data.targetAmount)}.
+        So với giữ nguyên, thêm khoảng {formatMoney(custom.medianVsBase)}.
+      </p>
+      {data.notes.map((note) => (
+        <p key={note} className="mt-1 text-xs text-muted-foreground">
+          {note}
+        </p>
+      ))}
+    </div>
+  );
+};
 
 /** "What if I save this much more every month?" (POST /goals/{id}/scenarios). Nothing is saved. */
 const WhatIfPanel = ({ goal }: { goal: Goal }) => {
@@ -35,16 +62,7 @@ const WhatIfPanel = ({ goal }: { goal: Goal }) => {
         </form>
         <div role="status" aria-live="polite">
           {scenario.isError && <p className="mt-3 text-xs text-destructive">{describeError(scenario.error)}</p>}
-          {scenario.data && (
-            <div className="mt-4 rounded-lg border bg-muted/30 p-3 text-sm">
-              <p className={scenario.data.feasible ? "font-semibold text-success" : "font-semibold text-destructive"}>
-                {scenario.data.feasible ? "Khả thi" : "Chưa khả thi"}
-              </p>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Cần tiết kiệm {formatMoney(scenario.data.requiredMonthlySaving)}/tháng trong {scenario.data.monthsRemaining} tháng còn lại.
-              </p>
-            </div>
-          )}
+          {scenario.data && <Outcome data={scenario.data} />}
         </div>
       </CardContent>
     </Card>

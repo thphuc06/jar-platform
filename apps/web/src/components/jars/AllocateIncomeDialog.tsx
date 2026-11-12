@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { formatAmount, formatMoney, parseVndInput } from "@/lib/money";
-import { formatPct, isFullAllocation, parsePct, sumPct } from "@/lib/percent";
+import { formatPct, isFullAllocation, parsePct, splitByPercent, sumPct } from "@/lib/percent";
 import { jarColor } from "@/lib/jars";
 
 interface Props {
@@ -20,9 +20,10 @@ interface Props {
 }
 
 /**
- * Split an income over the jars. The server suggests percentages (POST /budget/allocation-suggestions), the user can
- * edit them, and applying books the income and the split in one request (POST /budget/allocations, Idempotency-Key).
- * The shares must add up to exactly 100 %.
+ * Split an income over the jars. The server suggests shares (POST /budget/allocation-suggestions), the user can edit
+ * them as percentages, and applying books the income and the split in one request (POST /budget/allocations,
+ * Idempotency-Key). The shares must add up to exactly 100 %. The server wants **amounts**, not percentages, and the
+ * amounts must add up to the income to the dong, so the percentages are converted with `splitByPercent`.
  */
 const AllocateIncomeDialog = ({ open, jars, onClose }: Props) => (
   <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
@@ -43,7 +44,10 @@ const AllocateForm = ({ jars, onClose }: { jars: Jar[]; onClose: () => void }) =
   const parsed = lines ? jars.map((j) => parsePct(lines[j.id] ?? "0")) : [];
   const allValid = parsed.length > 0 && parsed.every((p) => p !== null);
   const total = sumPct(parsed.map((p) => p ?? 0));
-  const canApply = Boolean(value && lines && allValid && isFullAllocation(parsed as number[]));
+  const full = allValid && isFullAllocation(parsed as number[]);
+  const canApply = Boolean(value && lines && full);
+  // the exact amount per jar (same order as `jars`) once the shares are valid; they are what will be booked
+  const exact = value && lines && full ? splitByPercent(value, parsed as number[]) : null;
 
   const askSuggestion = () => {
     if (!value) return;
@@ -51,7 +55,7 @@ const AllocateForm = ({ jars, onClose }: { jars: Jar[]; onClose: () => void }) =
       { amount: value },
       {
         onSuccess: (suggestion) =>
-          setLines(Object.fromEntries(jars.map((j) => [j.id, String(suggestion.lines.find((l) => l.jarId === j.id)?.pct ?? 0)]))),
+          setLines(Object.fromEntries(jars.map((j) => [j.id, String(suggestion.lines.find((l) => l.jarId === j.id)?.sharePct ?? 0)]))),
         onError: (error) => toast({ title: "Không lấy được gợi ý phân bổ", description: describeError(error), variant: "destructive" }),
       },
     );
@@ -61,10 +65,11 @@ const AllocateForm = ({ jars, onClose }: { jars: Jar[]; onClose: () => void }) =
 
   const submit = (event: React.FormEvent) => {
     event.preventDefault();
-    if (!value || !lines || !canApply) return;
+    if (!value || !exact) return;
     const body: ApplyAllocationBody = {
       amount: value,
-      lines: jars.map((j) => ({ jarId: j.id, pct: parsePct(lines[j.id] ?? "0") ?? 0 })).filter((l) => l.pct > 0),
+      // a jar with a 0 % share gets no split (the server wants every amount above zero)
+      splits: jars.map((j, i) => ({ jarId: j.id, amount: exact[i] })).filter((split) => split.amount !== "0"),
     };
     apply.mutate(
       { body, idempotencyKey: intent.get(JSON.stringify(body)) },
@@ -74,7 +79,7 @@ const AllocateForm = ({ jars, onClose }: { jars: Jar[]; onClose: () => void }) =
           toast(
             replayed
               ? { title: "Lần phân bổ này đã được ghi trước đó" }
-              : { title: "Đã phân bổ thu nhập", description: `${formatMoney({ amount: value, currency: "VND" })} đã chia vào ${body.lines.length} hũ` },
+              : { title: "Đã phân bổ thu nhập", description: `${formatMoney({ amount: value, currency: "VND" })} đã chia vào ${body.splits?.length ?? 0} hũ` },
           );
           onClose();
         },
@@ -117,7 +122,7 @@ const AllocateForm = ({ jars, onClose }: { jars: Jar[]; onClose: () => void }) =
                     {jar.name}
                   </label>
                   <span className="w-28 text-right text-xs tabular-nums text-muted-foreground">
-                    {value && pct !== null ? formatAmount(Math.round((Number(value) * pct) / 100)) : ""}
+                    {exact ? formatAmount(Number(exact[i])) : value && pct !== null ? `~${formatAmount(Math.round((Number(value) * pct) / 100))}` : ""}
                   </span>
                   <div className="relative w-20">
                     <Input
@@ -133,8 +138,8 @@ const AllocateForm = ({ jars, onClose }: { jars: Jar[]; onClose: () => void }) =
                 </div>
               );
             })}
-            <p role="status" className={`pt-1 text-xs ${isFullAllocation(parsed.map((p) => p ?? 0)) && allValid ? "text-success" : "text-destructive"}`}>
-              Tổng: {formatPct(total)} {allValid && isFullAllocation(parsed as number[]) ? "(đủ 100%)" : "(cần đúng 100%)"}
+            <p role="status" className={`pt-1 text-xs ${full ? "text-success" : "text-destructive"}`}>
+              Tổng: {formatPct(total)} {full ? "(đủ 100%)" : "(cần đúng 100%)"}
             </p>
           </fieldset>
         )}

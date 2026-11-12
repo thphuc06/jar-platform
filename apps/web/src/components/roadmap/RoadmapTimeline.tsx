@@ -39,16 +39,16 @@ export const RoadmapTimeline = ({ nodes, milestones, expandedPhase, onTogglePhas
     <p className="mb-3 text-xs font-semibold">Lộ trình theo giai đoạn</p>
     <div className="relative">
       {nodes.map((node, i) => {
-        const milestone = milestones.find((m) => m.phase_type === node.phase_type);
-        const phaseCard = phaseCards?.find((p) => p.phase_type === node.phase_type);
-        const unlock = unlockConditions?.find((u) => u.phase_type === node.phase_type);
-        const isExpanded = expandedPhase === node.phase_type;
+        const milestone = milestones.find((m) => m.phaseType === node.phaseType);
+        const phaseCard = phaseCards?.find((p) => p.phaseType === node.phaseType);
+        const unlock = unlockConditions?.find((u) => u.phaseType === node.phaseType);
+        const isExpanded = expandedPhase === node.phaseType;
         const isLast = i === nodes.length - 1;
         const isCurrent = node.status === "current";
-        const detailsId = `phase-${node.phase_type}`;
+        const detailsId = `phase-${node.phaseType}`;
 
         return (
-          <div key={node.phase_type} className="relative flex gap-3">
+          <div key={node.phaseType} className="relative flex gap-3">
             {!isLast && (
               <div className={cn("absolute bottom-0 left-[7px] top-5 w-0.5", node.status === "completed" ? "bg-success" : isCurrent ? "bg-primary/30" : "bg-border")} />
             )}
@@ -60,7 +60,7 @@ export const RoadmapTimeline = ({ nodes, milestones, expandedPhase, onTogglePhas
             <div className={cn("flex-1 pb-4", isLast && "pb-0")}>
               <button
                 type="button"
-                onClick={() => onTogglePhase(node.phase_type)}
+                onClick={() => onTogglePhase(node.phaseType)}
                 aria-expanded={isExpanded}
                 aria-controls={detailsId}
                 className="flex w-full items-center gap-1 rounded text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
@@ -91,9 +91,9 @@ export const RoadmapTimeline = ({ nodes, milestones, expandedPhase, onTogglePhas
 
                       {phaseCard && (
                         <div className="space-y-1.5">
-                          <ConditionList title="Điều kiện bắt đầu" items={phaseCard.entry_conditions} bullet="→" bulletClass="text-primary" />
-                          <ConditionList title="Điều kiện hoàn thành" items={phaseCard.exit_conditions} bullet="✓" bulletClass="text-success" />
-                          <ConditionList title="Kết quả kỳ vọng" items={phaseCard.expected_results} bullet="•" />
+                          <ConditionList title="Điều kiện bắt đầu" items={phaseCard.entryConditions} bullet="→" bulletClass="text-primary" />
+                          <ConditionList title="Điều kiện hoàn thành" items={phaseCard.exitConditions} bullet="✓" bulletClass="text-success" />
+                          <ConditionList title="Kết quả kỳ vọng" items={phaseCard.expectedResults} bullet="•" />
                         </div>
                       )}
 
@@ -117,8 +117,8 @@ export const RoadmapTimeline = ({ nodes, milestones, expandedPhase, onTogglePhas
                       {milestone && (
                         <div className="border-t border-border pt-1.5">
                           <p className="text-[10px] font-medium">Cột mốc: {milestone.title}</p>
-                          <p className="mt-0.5 text-[9px] text-muted-foreground">Mở khóa khi: {milestone.unlock_rule}</p>
-                          <p className="text-[9px] text-muted-foreground">Kết quả: {milestone.expected_result}</p>
+                          <p className="mt-0.5 text-[9px] text-muted-foreground">Mở khóa khi: {milestone.unlockRule}</p>
+                          <p className="text-[9px] text-muted-foreground">Kết quả: {milestone.expectedResult}</p>
                         </div>
                       )}
                     </div>
