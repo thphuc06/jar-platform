@@ -85,11 +85,11 @@
 | Method | Path | Mô tả | Phase |
 |---|---|---|---|
 | GET | `/dashboard?month=YYYY-MM` | Một request trả đủ: số dư, thu/chi tháng, chi theo danh mục, chi theo hũ, xu hướng 6 tháng | 1–2 |
-| GET | `/anomalies?status=OPEN` | Danh sách cảnh báo | 2 |
-| POST | `/anomalies/{id}/feedback` | `{label: CONFIRMED / EXPECTED / FALSE_POSITIVE}` | 2 |
-| GET | `/notifications?limit&cursor` | Danh sách thông báo | 2 |
+| GET | `/anomalies?status&limit&cursor` | `{items, nextCursor}`, mới nhất trước; `status` = OPEN / CONFIRMED / EXPECTED / FALSE_POSITIVE | 2 |
+| POST | `/anomalies/{id}/feedback` | `{label: CONFIRMED / EXPECTED / FALSE_POSITIVE}` (nhãn khác, kể cả OPEN, trả 422; cảnh báo của người khác trả 404) | 2 |
+| GET | `/notifications?limit&cursor&unreadOnly` | `{items, nextCursor, unreadCount}`, mới nhất trước | 2 |
 | POST | `/notifications/{id}/read` | Đánh dấu đã đọc | 2 |
-| GET | `/notifications/stream` | **SSE** thông báo realtime | 2 |
+| GET | `/notifications/stream` | **SSE** thông báo realtime. Gửi comment `: connected` khi mở, `: heartbeat` mỗi 15 s; header `Last-Event-ID` phát lại tối đa 100 thông báo mới hơn id đó | 2 |
 
 ### Imports
 | Method | Path | Mô tả | Phase |

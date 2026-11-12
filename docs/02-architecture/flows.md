@@ -127,7 +127,7 @@ sequenceDiagram
     Note over R: Sau COMMIT
     R->>I: @ApplicationModuleListener (async, REQUIRES_NEW)
     I->>DB: SELECT anomaly_detector_state FOR jar (version)
-    I->>I: CUSUM: S+ = max(0, S+ + (x - mu)/sigma - k)
+    I->>I: MAD (outlier đơn lẻ) rồi CUSUM: S+ = max(0, S+ + (x - mu)/sigma - k)
     alt S+ > h
         I->>DB: INSERT anomalies + reset state + event_publication(AnomalyDetected)
     else
@@ -139,6 +139,15 @@ sequenceDiagram
     N->>DB: INSERT notifications
     N-->>W: SSE event: notification {title, severity, anomalyId}
 ```
+
+**Thuật toán đã cài (`SpendingDetector`)**, chạy trên mỗi khoản chi của một hũ:
+
+1. 5 khoản chi đầu tiên chỉ để học baseline (trung bình/độ lệch chuẩn chạy bằng Welford).
+2. **MAD:** với trung vị m và MAD d của tối đa 30 khoản gần nhất, điểm z hiệu chỉnh = 0.6745 (x - m) / d; lớn hơn 3.5 là *spike* (HIGH nếu > 7). Spike **không** được đưa vào baseline hay CUSUM để không làm nhiễm chúng.
+3. **CUSUM** trên z = (x - mean)/sigma với k = 0.5, h = 5: S+ vượt h là chi tăng kéo dài, S- dưới -h là chi giảm kéo dài (LOW). Sigma có sàn 10% của mean và MAD có sàn 5% của trung vị, để hũ có lịch sử toàn khoản bằng nhau không coi chênh lệch 1 đồng là vô cùng bất thường.
+4. Trạng thái của hũ bị khóa bi quan (`SELECT ... FOR UPDATE`) trong lúc xử lý, nên các event của một hũ được áp dụng lần lượt.
+
+Dữ liệu chuẩn của test lấy từ `test_cusum_sliding_window_local.py` của bản hackathon (baseline 100k, sigma 52k: lệch tăng dần báo ở khoản thứ 10, không đổi 200k báo ở khoản thứ 4).
 
 ### Phase 5 (externalized, qua SNS/SQS)
 

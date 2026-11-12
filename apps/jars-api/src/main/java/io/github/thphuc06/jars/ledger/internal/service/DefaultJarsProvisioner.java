@@ -6,6 +6,7 @@ import io.github.thphuc06.jars.ledger.internal.domain.Jar;
 import io.github.thphuc06.jars.ledger.internal.domain.JarCode;
 import io.github.thphuc06.jars.ledger.internal.persistence.JarRepository;
 import io.github.thphuc06.jars.shared.Money;
+import io.github.thphuc06.jars.shared.Uuids;
 import java.time.Clock;
 import java.time.temporal.ChronoUnit;
 import org.springframework.context.ApplicationEventPublisher;
@@ -36,7 +37,7 @@ class DefaultJarsProvisioner {
         for (JarCode code : JarCode.defaults()) {
             Jar jar = jars.save(
                     new Jar(event.userId().value(), code, code.displayName(), code.defaultPct(), Money.VND, now));
-            events.publishEvent(new JarCreated(jar.getId(), event.userId(), code.name()));
+            events.publishEvent(new JarCreated(Uuids.v7(), jar.getId(), event.userId(), code.name()));
         }
     }
 }

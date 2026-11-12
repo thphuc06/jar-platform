@@ -1,5 +1,6 @@
 package io.github.thphuc06.jars.ledger.internal.service;
 
+import io.github.thphuc06.jars.ledger.CategorySummary;
 import io.github.thphuc06.jars.ledger.JarSummary;
 import io.github.thphuc06.jars.ledger.LedgerApi;
 import io.github.thphuc06.jars.shared.UserId;
@@ -19,6 +20,13 @@ class LedgerApiImpl implements LedgerApi {
     public List<JarSummary> jars(UserId userId) {
         return queries.jars(userId).stream()
                 .map(j -> new JarSummary(j.id(), j.code(), j.name(), j.targetPct(), j.balance()))
+                .toList();
+    }
+
+    @Override
+    public List<CategorySummary> categories(UserId userId) {
+        return queries.categories(userId).stream()
+                .map(c -> new CategorySummary(c.id(), c.name(), c.kind()))
                 .toList();
     }
 }

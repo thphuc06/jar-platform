@@ -10,6 +10,7 @@ import io.github.thphuc06.jars.ledger.internal.service.Views.JarView;
 import io.github.thphuc06.jars.ledger.internal.service.Views.TransactionListItem;
 import io.github.thphuc06.jars.ledger.internal.service.Views.TransactionPage;
 import io.github.thphuc06.jars.shared.DomainException;
+import io.github.thphuc06.jars.shared.KeysetCursor;
 import io.github.thphuc06.jars.shared.Money;
 import io.github.thphuc06.jars.shared.ProblemTypes;
 import io.github.thphuc06.jars.shared.UserId;
@@ -72,14 +73,14 @@ public class LedgerQueryService {
         if (pageSize < 1 || pageSize > MAX_PAGE_SIZE) {
             throw new DomainException(ProblemTypes.BAD_REQUEST, "limit phải từ 1 đến " + MAX_PAGE_SIZE + ".");
         }
-        Cursor position = cursor == null || cursor.isBlank() ? null : Cursor.decode(cursor);
+        KeysetCursor position = cursor == null || cursor.isBlank() ? null : KeysetCursor.decode(cursor);
         LedgerQueries.Filter filter = new LedgerQueries.Filter(jarId, categoryId, type, from, to);
 
         // ask for one row more than the page to learn whether there is a next page without a second query
         List<LedgerQueries.TransactionRow> rows = queries.page(
                 userId.value(),
                 filter,
-                position == null ? null : position.occurredAt(),
+                position == null ? null : position.at(),
                 position == null ? null : position.id(),
                 pageSize + 1);
         boolean hasMore = rows.size() > pageSize;
@@ -87,7 +88,10 @@ public class LedgerQueryService {
         List<TransactionListItem> items =
                 pageRows.stream().map(TransactionListItem::of).toList();
         String next = hasMore
-                ? new Cursor(pageRows.getLast().occurredAt(), pageRows.getLast().id()).encode()
+                ? new KeysetCursor(
+                                pageRows.getLast().occurredAt(),
+                                pageRows.getLast().id())
+                        .encode()
                 : null;
         return new TransactionPage(items, next);
     }

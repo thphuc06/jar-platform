@@ -8,4 +8,7 @@ public interface LedgerApi {
 
     /** The user's active (not archived) jars, oldest first. */
     List<JarSummary> jars(UserId userId);
+
+    /** System categories plus the user's own. */
+    List<CategorySummary> categories(UserId userId);
 }

@@ -9,6 +9,8 @@
 |---|---|---|---|
 | V1 | `V1__baseline_users.sql` | Bảng `users`: `id` UUID (app sinh), `cognito_sub` UNIQUE, `email` UNIQUE **không phân biệt hoa/thường** (unique index trên `lower(email)`), `locale` mặc định `vi-VN`, `created_at`/`updated_at` | P0.6 |
 | V2 | `V2__idempotency_keys.sql` | Bảng `idempotency_keys` (PK `user_id` + `key`), chủ sở hữu là `platform` | WP1 |
+| V5 | `V5__modulith_event_publication.sql` | `event_publication` (+ `_archive`): outbox của Spring Modulith (cột theo bản 2.1; chế độ hoàn tất `delete`, listener xong thì xóa dòng) | WP4 |
+| V6 | `V6__insights_notifications.sql` | `processed_messages` (inbox), `anomaly_detector_state`, `anomalies`, `monthly_jar_spend`, `monthly_category_spend`, `monthly_cashflow`, `notifications`. Không có khóa ngoại sang bảng của ledger (module chỉ tham chiếu nhau bằng id) | WP4 |
 | V4 | `V4__ledger.sql` | `jars` (có `version`, `balance` cache, index unique `(user_id, code)` cho 6 hũ mặc định), `categories` (+ 19 danh mục hệ thống, id cố định), `transactions` (có `to_jar_id` cho chuyển hũ và các CHECK ràng buộc loại giao dịch), `jar_entries` (chỉ ghi thêm). `currency` là `VARCHAR(3)` thay vì `CHAR(3)` để Hibernate `validate` khớp kiểu. `jar_entries.created_at` là thời điểm **phát sinh** của giao dịch (để vẽ số dư theo ngày), còn `balance_after` là số dư chạy theo **thứ tự ghi sổ** | WP3 |
 | V3 | `V3__identity.sql` | Bỏ unique index email và cho phép `email` NULL (danh tính chỉ dựa trên `cognito_sub`; access token Cognito không có claim email); thêm `risk_assessments` (một dòng mỗi lần nộp bảng hỏi, dòng mới nhất là hồ sơ hiện tại) | WP2 |
 
@@ -128,13 +130,13 @@ erDiagram
     }
     anomaly_detector_state {
         uuid jar_id PK
-        numeric cusum_pos
-        numeric cusum_neg
-        numeric ref_mean
-        numeric ref_sigma
-        numeric k_param
-        numeric h_param
+        uuid user_id
         int sample_count
+        double mean "Welford: trung bình chạy"
+        double m2 "Welford: tổng bình phương độ lệch"
+        double cusum_pos
+        double cusum_neg
+        jsonb recent_amounts "cửa sổ cho kiểm định MAD"
         bigint version
     }
     anomalies {
@@ -144,8 +146,11 @@ erDiagram
         uuid transaction_id FK
         text detector "CUSUM|MAD"
         text direction "UP|DOWN"
+        text severity "LOW|MEDIUM|HIGH"
         numeric score
         numeric threshold
+        numeric amount
+        timestamptz feedback_at
         text status "OPEN|CONFIRMED|EXPECTED|FALSE_POSITIVE"
         timestamptz detected_at
     }
@@ -192,7 +197,7 @@ erDiagram
 | `idempotency_keys` (`user_id`, `key`) PK, `request_hash`, `status_code`, `response_body JSONB`, `expires_at` | platform (dùng chung cho ledger, budgeting) | Header `Idempotency-Key` cho các POST làm thay đổi tiền ([api-contract.md](../03-api/api-contract.md#4-idempotency)). Thuộc `platform` vì nhiều module nghiệp vụ cùng dùng, và `platform` không được phụ thuộc module nghiệp vụ |
 | `processed_messages` (`consumer`, `message_id`) PK, `processed_at` | platform | **Inbox**: bỏ qua message SQS trùng (at-least-once) |
 | `event_publication` (+ `_archive`) | Spring Modulith tự quản lý | **Outbox**: event được ghi cùng transaction nghiệp vụ |
-| `monthly_jar_spend` (`user_id`, `jar_id`, `month`) PK, `spent`, `txn_count` | insights | **Read model** cho dashboard (CQRS-lite), cập nhật từ event |
+| `monthly_jar_spend` (`user_id`, `jar_id`, `month`) PK, `spent`, `txn_count`; `monthly_category_spend` (`category_id` = UUID toàn số 0 cho khoản chi chưa phân loại); `monthly_cashflow` (`income`, `expense`) | insights | **Read model** cho dashboard (CQRS-lite), cập nhật từ event bằng upsert cộng dồn (delta), nên chuyển một khoản chi sang hũ/danh mục khác chỉ là delta âm và dương |
 | `allocation_decisions` | budgeting | Lưu user chấp nhận, sửa hay bỏ qua gợi ý phân bổ, dùng để cải thiện gợi ý |
 | `audit_log` | platform | `actor`, `action`, `entity_type`, `entity_id`, `trace_id`, `payload JSONB` |
 | `BATCH_*` | Spring Batch tự quản lý | Metadata của job import |

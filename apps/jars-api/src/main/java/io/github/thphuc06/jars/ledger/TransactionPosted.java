@@ -7,12 +7,14 @@ import java.util.UUID;
 
 /**
  * Money was recorded (income, expense or jar transfer). Published inside the posting transaction, so listeners that
- * use {@code @TransactionalEventListener}/{@code @ApplicationModuleListener} only see it after a commit.
+ * use {@code @ApplicationModuleListener} only see it after a commit, and a rolled-back posting is never announced.
  *
+ * @param eventId unique per publication (UUIDv7); consumers use it to ignore a redelivered event
  * @param type {@code INCOME}, {@code EXPENSE} or {@code JAR_TRANSFER}
  * @param jarId the jar spent from or credited; null for income that is not assigned to a jar
  */
 public record TransactionPosted(
+        UUID eventId,
         UUID transactionId,
         UserId userId,
         String type,

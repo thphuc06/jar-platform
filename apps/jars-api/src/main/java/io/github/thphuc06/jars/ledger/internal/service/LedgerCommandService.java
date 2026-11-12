@@ -24,6 +24,7 @@ import io.github.thphuc06.jars.platform.idempotency.IdempotencyService.Result;
 import io.github.thphuc06.jars.shared.DomainException;
 import io.github.thphuc06.jars.shared.Money;
 import io.github.thphuc06.jars.shared.UserId;
+import io.github.thphuc06.jars.shared.Uuids;
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Duration;
@@ -228,7 +229,16 @@ public class LedgerCommandService {
         boolean changed = t.recategorize(categoryId, targetJarId);
         if (changed) {
             events.publishEvent(new TransactionRecategorized(
-                    t.getId(), userId, oldCategoryId, t.getCategoryId(), oldJarId, t.getJarId()));
+                    Uuids.v7(),
+                    t.getId(),
+                    userId,
+                    t.getType().name(),
+                    t.money(),
+                    t.getOccurredAt(),
+                    oldCategoryId,
+                    t.getCategoryId(),
+                    oldJarId,
+                    t.getJarId()));
         }
         return TransactionView.of(t);
     }
@@ -241,8 +251,8 @@ public class LedgerCommandService {
             BigDecimal pct = targetPct == null ? BigDecimal.ZERO : targetPct;
             requireBudgetRoom(userId, pct, BigDecimal.ZERO);
             Jar jar = jars.save(new Jar(userId.value(), JarCode.CUSTOM, name.trim(), pct, Money.VND, now()));
-            events.publishEvent(
-                    new JarCreated(jar.getId(), userId, jar.getCode().name()));
+            events.publishEvent(new JarCreated(
+                    Uuids.v7(), jar.getId(), userId, jar.getCode().name()));
             return JarView.of(jar);
         }));
     }
@@ -314,6 +324,7 @@ public class LedgerCommandService {
 
     private void publishPosted(UserId userId, LedgerTransaction t) {
         events.publishEvent(new TransactionPosted(
+                Uuids.v7(),
                 t.getId(),
                 userId,
                 t.getType().name(),
