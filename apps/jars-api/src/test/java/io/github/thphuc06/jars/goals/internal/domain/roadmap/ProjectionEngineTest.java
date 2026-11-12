@@ -22,13 +22,16 @@ class ProjectionEngineTest {
     }
 
     private static List<String> amounts(Projection p) {
-        return p.series().stream().map(point -> point.projectedAmount().toPlainString()).toList();
+        return p.series().stream()
+                .map(point -> point.projectedAmount().toPlainString())
+                .toList();
     }
 
     @Test
     void theLegacyMockRoadmap_isReproducedToTheCent() {
         // ui/src/lib/mock-roadmap.ts: 94,380,000 saved of 1.5 billion, 36 months, a capacity of about -1,609,776.54 a
-        // month. The series there is 94,380,000 / 75,062,681.56 / 55,745,363.13 / 36,428,044.69, so the unrounded capacity
+        // month. The series there is 94,380,000 / 75,062,681.56 / 55,745,363.13 / 36,428,044.69, so the unrounded
+        // capacity
         // is (94,380,000 - 36,428,044.69) / 36.
         BigDecimal capacity = new BigDecimal("-1609776.536388888888888888889");
 
@@ -55,20 +58,24 @@ class ProjectionEngineTest {
     }
 
     @ParameterizedTest(name = "timeline {0} months -> checkpoints {1}")
-    @CsvSource(delimiter = '|', value = {
-        "1|0,1", // 0, 1, 1, 1: coinciding checkpoints are listed once
-        "2|0,1,2",
-        "3|0,1,2,3",
-        "4|0,1,2,4",
-        "6|0,2,4,6",
-        "10|0,3,6,10",
-        "36|0,12,24,36"
-    })
+    @CsvSource(
+            delimiter = '|',
+            value = {
+                "1|0,1", // 0, 1, 1, 1: coinciding checkpoints are listed once
+                "2|0,1,2",
+                "3|0,1,2,3",
+                "4|0,1,2,4",
+                "6|0,2,4,6",
+                "10|0,3,6,10",
+                "36|0,12,24,36"
+            })
     void checkpoints_areZeroThirdTwoThirdsAndTheEnd_withoutDuplicates(int timeline, String expected) {
         Projection p = ProjectionEngine.build(d("1000"), timeline, d("10"), BigDecimal.ZERO, "ready", "high");
 
-        assertThat(months(p)).containsExactlyElementsOf(
-                java.util.Arrays.stream(expected.split(",")).map(Integer::valueOf).toList());
+        assertThat(months(p))
+                .containsExactlyElementsOf(java.util.Arrays.stream(expected.split(","))
+                        .map(Integer::valueOf)
+                        .toList());
     }
 
     @Test
@@ -120,8 +127,10 @@ class ProjectionEngineTest {
 
     @Test
     void maturityEvents_sayWhetherTheProjectionReachesTheTarget() {
-        MaturityEvent reaches = ProjectionEngine.maturityEvents(d("1000"), d("1000")).getFirst();
-        MaturityEvent falls = ProjectionEngine.maturityEvents(d("1000"), d("999.99")).getFirst();
+        MaturityEvent reaches =
+                ProjectionEngine.maturityEvents(d("1000"), d("1000")).getFirst();
+        MaturityEvent falls =
+                ProjectionEngine.maturityEvents(d("1000"), d("999.99")).getFirst();
         MaturityEvent unknown = ProjectionEngine.maturityEvents(d("1000"), null).getFirst();
         MaturityEvent noTarget = ProjectionEngine.maturityEvents(null, d("5")).getFirst();
 

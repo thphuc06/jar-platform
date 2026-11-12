@@ -55,8 +55,8 @@ class CashflowStatsTest {
 
     @Test
     void theRunningMonthIsLeftOut_whenThereAreCompleteMonths() {
-        List<MonthFlow> flows = List.of(
-                flow(2026, 10, "10000000", "4000000"), flow(2026, 11, "999", "0")); // November has just started
+        List<MonthFlow> flows =
+                List.of(flow(2026, 10, "10000000", "4000000"), flow(2026, 11, "999", "0")); // November has just started
 
         CashflowStats stats = CashflowStats.of(flows, NOW);
 
@@ -123,8 +123,8 @@ class CashflowStatsTest {
 
     @Test
     void identicalMonths_haveNoSpread_butTheVolatilityNeverDropsBelowOne() {
-        List<MonthFlow> flows = List.of(
-                flow(2026, 8, "5000000", "0"), flow(2026, 9, "5000000", "0"), flow(2026, 10, "5000000", "0"));
+        List<MonthFlow> flows =
+                List.of(flow(2026, 8, "5000000", "0"), flow(2026, 9, "5000000", "0"), flow(2026, 10, "5000000", "0"));
 
         CashflowStats stats = CashflowStats.of(flows, NOW);
 

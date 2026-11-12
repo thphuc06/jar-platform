@@ -15,7 +15,13 @@ import org.junit.jupiter.api.Test;
 class VisualizationMapperTest {
 
     private static PlannerState state(
-            String cashflow, String capacity, String runway, String liquidity, String anomaly, String hint, String buffer) {
+            String cashflow,
+            String capacity,
+            String runway,
+            String liquidity,
+            String anomaly,
+            String hint,
+            String buffer) {
         return RoadmapFixtures.state(
                 cashflow, capacity, "x", runway, liquidity, anomaly, "cautious", hint, "moderate", "0.1", buffer);
     }
@@ -57,9 +63,7 @@ class VisualizationMapperTest {
 
         assertThat(banner.tone()).isEqualTo("cautious"); // as in the mock
         assertThat(banner.title()).isEqualTo("Bảo vệ dòng tiền trước khi dồn sức cho mục tiêu");
-        assertThat(banner.message())
-                .contains("bảo vệ thanh khoản trước")
-                .contains("Bạn vẫn còn đệm từ quỹ đang có");
+        assertThat(banner.message()).contains("bảo vệ thanh khoản trước").contains("Bạn vẫn còn đệm từ quỹ đang có");
     }
 
     @Test
@@ -68,7 +72,8 @@ class VisualizationMapperTest {
                 state("positive", "5000000", "6", "critical", "none", "high", "present"),
                 state("positive", "5000000", "6", "high", "none", "high", "present"),
                 state("positive", "5000000", "2.5", "low", "none", "high", "present"))) {
-            StatusBanner banner = VisualizationMapper.statusBanner(planner, phases(PhaseType.PROTECT_LIQUIDITY), "protect_liquidity");
+            StatusBanner banner =
+                    VisualizationMapper.statusBanner(planner, phases(PhaseType.PROTECT_LIQUIDITY), "protect_liquidity");
 
             assertThat(banner.tone()).isEqualTo("urgent");
             assertThat(banner.title()).isEqualTo("Củng cố nền tảng trước khi dồn sức cho mục tiêu");
@@ -79,7 +84,8 @@ class VisualizationMapperTest {
     void urgencyWinsOverTheOtherWarnings() {
         PlannerState planner = state("negative", "-1", "0.5", "critical", "active", "low", "present");
 
-        assertThat(VisualizationMapper.statusBanner(planner, phases(PhaseType.PROTECT_LIQUIDITY), "protect_liquidity").tone())
+        assertThat(VisualizationMapper.statusBanner(planner, phases(PhaseType.PROTECT_LIQUIDITY), "protect_liquidity")
+                        .tone())
                 .isEqualTo("urgent");
     }
 
@@ -92,7 +98,8 @@ class VisualizationMapperTest {
                 state("positive", "5000000", "9", "low", "none", "low", "present"),
                 state("positive", "5000000", "9", "low", "none", "stretch", "present"));
         for (PlannerState planner : warnings) {
-            assertThat(VisualizationMapper.statusBanner(planner, phases(PhaseType.STABILIZE), "stabilize").tone())
+            assertThat(VisualizationMapper.statusBanner(planner, phases(PhaseType.STABILIZE), "stabilize")
+                            .tone())
                     .isEqualTo("cautious");
         }
     }
@@ -104,12 +111,14 @@ class VisualizationMapperTest {
         PlannerState neither = state("negative", "-1", "4", "medium", "none", "high", "missing");
         PlannerState unknownRunway = state("negative", "-1", null, "unknown", "none", "high", "missing");
 
-        assertThat(VisualizationMapper.statusBanner(withBuffer, phases(PhaseType.STABILIZE), "stabilize").message())
+        assertThat(VisualizationMapper.statusBanner(withBuffer, phases(PhaseType.STABILIZE), "stabilize")
+                        .message())
                 .contains("quỹ đang có");
         assertThat(VisualizationMapper.statusBanner(longRunwayNoBuffer, phases(PhaseType.STABILIZE), "stabilize")
                         .message())
                 .contains("thời gian dự phòng");
-        assertThat(VisualizationMapper.statusBanner(neither, phases(PhaseType.STABILIZE), "stabilize").message())
+        assertThat(VisualizationMapper.statusBanner(neither, phases(PhaseType.STABILIZE), "stabilize")
+                        .message())
                 .doesNotContain("đệm");
         assertThat(VisualizationMapper.statusBanner(unknownRunway, phases(PhaseType.STABILIZE), "stabilize")
                         .message())
@@ -118,8 +127,8 @@ class VisualizationMapperTest {
 
     @Test
     void aHealthyUserWhoIsAccumulating_isEncouraged() {
-        StatusBanner banner = VisualizationMapper.statusBanner(
-                RoadmapFixtures.healthy(), phases(PhaseType.ACCUMULATE), "accumulate");
+        StatusBanner banner =
+                VisualizationMapper.statusBanner(RoadmapFixtures.healthy(), phases(PhaseType.ACCUMULATE), "accumulate");
 
         assertThat(banner.tone()).isEqualTo("encouraging");
     }

@@ -136,7 +136,17 @@ class ReadinessClassifierTest {
     @Test
     void aMissingSavingsCapacityObject_isMissingAmount() {
         PlannerState planner = new PlannerState(
-                "positive", null, BigDecimal.ONE, "low", "none", "ready", "high", "low", BigDecimal.ZERO, "present", "test");
+                "positive",
+                null,
+                BigDecimal.ONE,
+                "low",
+                "none",
+                "ready",
+                "high",
+                "low",
+                BigDecimal.ZERO,
+                "present",
+                "test");
 
         assertThat(classify(planner).missingFields()).containsExactly("planner_state.savings_capacity.amount_monthly");
     }

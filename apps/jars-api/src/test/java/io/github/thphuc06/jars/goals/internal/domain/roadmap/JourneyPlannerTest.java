@@ -22,7 +22,8 @@ class JourneyPlannerTest {
 
     private static PlannerState state(
             String cashflow, String capacity, String liquidity, String anomaly, String readiness) {
-        return RoadmapFixtures.state(cashflow, capacity, "x", "6", liquidity, anomaly, readiness, "medium", "low", "0", "present");
+        return RoadmapFixtures.state(
+                cashflow, capacity, "x", "6", liquidity, anomaly, readiness, "medium", "low", "0", "present");
     }
 
     @Test
@@ -100,10 +101,12 @@ class JourneyPlannerTest {
                 .isEqualTo(STABILIZE);
         assertThat(JourneyPlanner.currentPhase(state("positive", "1", "medium", "none", "ready"), full))
                 .isEqualTo(ACCUMULATE);
-        assertThat(JourneyPlanner.currentPhase(state("positive", "1", "low", "none", "ready"), List.of(READINESS_REVIEW)))
+        assertThat(JourneyPlanner.currentPhase(
+                        state("positive", "1", "low", "none", "ready"), List.of(READINESS_REVIEW)))
                 .as("no accumulate in the sequence: the first stage")
                 .isEqualTo(READINESS_REVIEW);
-        assertThat(JourneyPlanner.currentPhase(state("negative", "-1", "low", "active", "cautious"), List.of(ACCUMULATE)))
+        assertThat(JourneyPlanner.currentPhase(
+                        state("negative", "-1", "low", "active", "cautious"), List.of(ACCUMULATE)))
                 .as("protect and stabilize are not in this sequence")
                 .isEqualTo(ACCUMULATE);
     }
@@ -121,7 +124,8 @@ class JourneyPlannerTest {
 
     @Test
     void statusOf_marksTheStagesBeforeAsCompleted_andAfterAsUpcoming() {
-        List<PhaseType> sequence = List.of(PROTECT_LIQUIDITY, STABILIZE, ACCUMULATE, READINESS_REVIEW, MATURITY_TRANSITION);
+        List<PhaseType> sequence =
+                List.of(PROTECT_LIQUIDITY, STABILIZE, ACCUMULATE, READINESS_REVIEW, MATURITY_TRANSITION);
 
         assertThat(sequence.stream()
                         .map(p -> JourneyPlanner.statusOf(p, sequence, STABILIZE))
@@ -155,7 +159,10 @@ class JourneyPlannerTest {
                                 assertThat(seq.indexOf(READINESS_REVIEW))
                                         .as(where)
                                         .isLessThan(seq.indexOf(MATURITY_TRANSITION));
-                                assertThat(seq).as(where).doesNotHaveDuplicates().contains(journey.current());
+                                assertThat(seq)
+                                        .as(where)
+                                        .doesNotHaveDuplicates()
+                                        .contains(journey.current());
 
                                 // active_anomaly_ignored: an anomaly means protect liquidity, and before anything else
                                 if ("active".equals(anomaly)) {
@@ -167,9 +174,7 @@ class JourneyPlannerTest {
                                 }
                                 // negative_cashflow_without_early_stabilization
                                 if ("negative".equals(cashflow)) {
-                                    assertThat(seq.subList(0, 2))
-                                            .as(where)
-                                            .containsAnyOf(STABILIZE, PROTECT_LIQUIDITY);
+                                    assertThat(seq.subList(0, 2)).as(where).containsAnyOf(STABILIZE, PROTECT_LIQUIDITY);
                                 }
                                 // non_positive_capacity_with_immediate_accumulate
                                 if (capacity != null && Long.parseLong(capacity) <= 0) {

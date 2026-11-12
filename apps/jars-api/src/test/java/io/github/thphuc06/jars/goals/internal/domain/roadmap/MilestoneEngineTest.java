@@ -26,7 +26,8 @@ class MilestoneEngineTest {
 
     @Test
     void milestonesFollowThePhaseProgress_likeTheLegacyTest() {
-        // legacy test_milestones_follow_phase_progress_statuses: protect completed, stabilize current, accumulate upcoming
+        // legacy test_milestones_follow_phase_progress_statuses: protect completed, stabilize current, accumulate
+        // upcoming
         Map<String, String> statuses = statuses(MilestoneEngine.build(FULL, STABILIZE));
 
         assertThat(statuses)
@@ -42,15 +43,19 @@ class MilestoneEngineTest {
     void thereIsOneMilestonePerPhase_numbered_withTheTextsOfItsPhase() {
         List<MilestoneData> milestones = MilestoneEngine.build(FULL, PROTECT_LIQUIDITY);
 
-        assertThat(milestones).extracting(MilestoneData::milestoneId).containsExactly("ms_1", "ms_2", "ms_3", "ms_4", "ms_5");
-        assertThat(milestones).extracting(MilestoneData::phaseType).containsExactlyElementsOf(
-                FULL.stream().map(PhaseType::wire).toList());
+        assertThat(milestones)
+                .extracting(MilestoneData::milestoneId)
+                .containsExactly("ms_1", "ms_2", "ms_3", "ms_4", "ms_5");
+        assertThat(milestones)
+                .extracting(MilestoneData::phaseType)
+                .containsExactlyElementsOf(FULL.stream().map(PhaseType::wire).toList());
         MilestoneData first = milestones.getFirst();
         assertThat(first.status()).isEqualTo("current");
         assertThat(first.title()).isEqualTo(PROTECT_LIQUIDITY.milestoneTitle());
         assertThat(first.unlockRule()).isEqualTo(PROTECT_LIQUIDITY.unlockRule());
         assertThat(first.expectedResult()).isEqualTo(PROTECT_LIQUIDITY.milestoneResult());
-        assertThat(milestones.stream().filter(m -> m.status().equals("current"))).hasSize(1);
+        assertThat(milestones.stream().filter(m -> m.status().equals("current")))
+                .hasSize(1);
     }
 
     @Test
@@ -61,7 +66,8 @@ class MilestoneEngineTest {
 
     @Test
     void aCurrentPhaseThatIsNotInTheSequence_isTreatedAsTheFirst() {
-        List<MilestoneData> milestones = MilestoneEngine.build(List.of(ACCUMULATE, READINESS_REVIEW), PROTECT_LIQUIDITY);
+        List<MilestoneData> milestones =
+                MilestoneEngine.build(List.of(ACCUMULATE, READINESS_REVIEW), PROTECT_LIQUIDITY);
 
         assertThat(milestones.getFirst().status()).isEqualTo("upcoming");
         assertThat(milestones.get(1).status()).isEqualTo("upcoming");
@@ -88,14 +94,16 @@ class MilestoneEngineTest {
         }
         assertThat(PhaseType.fromWire("nope")).isEmpty();
         assertThat(MATURITY_TRANSITION.serviceIds()).isEmpty();
-        assertThat(PROTECT_LIQUIDITY.serviceIds()).containsExactly("anomaly_review", "liquidity_guardrails", "emergency_buffer_setup");
+        assertThat(PROTECT_LIQUIDITY.serviceIds())
+                .containsExactly("anomaly_review", "liquidity_guardrails", "emergency_buffer_setup");
     }
 
     @Test
     void theWireNamesAndPatternWordsAreTheLegacyOnes() {
         assertThat(PhaseType.values())
                 .extracting(PhaseType::wire)
-                .containsExactly("protect_liquidity", "stabilize", "accumulate", "readiness_review", "maturity_transition");
+                .containsExactly(
+                        "protect_liquidity", "stabilize", "accumulate", "readiness_review", "maturity_transition");
         assertThat(PhaseType.values())
                 .extracting(PhaseType::shortName)
                 .containsExactly("protect", "stabilize", "accumulate", "review", "maturity");

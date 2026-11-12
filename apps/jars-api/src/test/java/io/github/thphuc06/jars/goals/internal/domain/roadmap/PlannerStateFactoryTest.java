@@ -77,8 +77,10 @@ class PlannerStateFactoryTest {
         assertThat(PlannerStateFactory.runwayMonths(stats("10000000", "5000000"), d("-100")))
                 .as("overdrawn jars last no months")
                 .isEqualByComparingTo("0");
-        assertThat(PlannerStateFactory.runwayMonths(stats("10000000", "0"), d("1000"))).isNull();
-        assertThat(PlannerStateFactory.runwayMonths(CashflowStats.none(), d("1000"))).isNull();
+        assertThat(PlannerStateFactory.runwayMonths(stats("10000000", "0"), d("1000")))
+                .isNull();
+        assertThat(PlannerStateFactory.runwayMonths(CashflowStats.none(), d("1000")))
+                .isNull();
     }
 
     @ParameterizedTest(name = "capacity {0}, runway {1}, anomaly {2} -> {3}")
@@ -117,11 +119,18 @@ class PlannerStateFactoryTest {
         "5000000, 8, false, low"
     })
     void riskBand(String capacity, String runway, boolean anomaly, String band) {
-        assertThat(PlannerStateFactory.riskBand(d(capacity), d(runway), anomaly)).isEqualTo(band);
+        assertThat(PlannerStateFactory.riskBand(d(capacity), d(runway), anomaly))
+                .isEqualTo(band);
     }
 
     @ParameterizedTest
-    @CsvSource({"94380000, 1500000000, 0.06292", "0, 1000, 0.00000", "1000, 1000, 1.00000", "5000, 1000, 1.00000", "-5, 1000, 0.00000"})
+    @CsvSource({
+        "94380000, 1500000000, 0.06292",
+        "0, 1000, 0.00000",
+        "1000, 1000, 1.00000",
+        "5000, 1000, 1.00000",
+        "-5, 1000, 0.00000"
+    })
     void progressRatio_isClampedBetweenZeroAndOne(String funding, String target, String expected) {
         assertThat(PlannerStateFactory.progressRatio(d(funding), d(target))).isEqualByComparingTo(expected);
     }
@@ -135,11 +144,10 @@ class PlannerStateFactoryTest {
     void build_labelsAStateLikeTheLegacyMockRoadmap() {
         // the mock: -1,609,776.54 a month, 68.78 months of runway (343.9M in the jars, 5M spent a month), 94.38M saved
         // of 1.5B, an open anomaly
-        CashflowStats stats = new CashflowStats(
-                3, false, d("3390223.46"), d("5000000.00"), d("-1609776.54"), d("250000.00"));
+        CashflowStats stats =
+                new CashflowStats(3, false, d("3390223.46"), d("5000000.00"), d("-1609776.54"), d("250000.00"));
 
-        PlannerState state = PlannerStateFactory.build(
-                stats, d("343900000"), d("94380000"), d("1500000000"), 1, "low");
+        PlannerState state = PlannerStateFactory.build(stats, d("343900000"), d("94380000"), d("1500000000"), 1, "low");
 
         assertThat(state.cashflowStatus()).isEqualTo("negative");
         assertThat(state.savingsCapacity().amountMonthly()).isEqualByComparingTo("-1609776.54");
@@ -152,14 +160,15 @@ class PlannerStateFactoryTest {
         assertThat(state.bufferStatus()).isEqualTo("present");
         assertThat(state.source()).isEqualTo("jars_ledger");
         // where this system defines the label differently from the mock's planner agent:
-        assertThat(state.readinessLabel()).as("two problems: no surplus and an open anomaly").isEqualTo("not_ready");
+        assertThat(state.readinessLabel())
+                .as("two problems: no surplus and an open anomaly")
+                .isEqualTo("not_ready");
         assertThat(state.riskBand()).as("a negative pace with a long runway").isEqualTo("high");
     }
 
     @Test
     void build_withoutHistory_leavesEverythingThatCannotBeKnownUnknown() {
-        PlannerState state = PlannerStateFactory.build(
-                CashflowStats.none(), d("0"), d("0"), d("1000000"), 0, null);
+        PlannerState state = PlannerStateFactory.build(CashflowStats.none(), d("0"), d("0"), d("1000000"), 0, null);
 
         assertThat(state.cashflowStatus()).isEqualTo("unknown");
         assertThat(state.savingsCapacity().amountMonthly()).isNull();

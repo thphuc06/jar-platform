@@ -34,8 +34,7 @@ class GoalTest {
     void create_startsActive_withTheGivenValues_andATrimmedName() {
         UUID jar = UUID.randomUUID();
 
-        Goal g = Goal.create(
-                USER, "  Mua nhà  ", Money.vnd("1500000000"), LocalDate.of(2029, 11, 12), jar, TODAY, NOW);
+        Goal g = Goal.create(USER, "  Mua nhà  ", Money.vnd("1500000000"), LocalDate.of(2029, 11, 12), jar, TODAY, NOW);
 
         assertThat(g.getName()).isEqualTo("Mua nhà");
         assertThat(g.target()).isEqualTo(Money.vnd("1500000000"));
@@ -52,15 +51,13 @@ class GoalTest {
     @ParameterizedTest
     @ValueSource(strings = {"", "   ", "\t\n"})
     void create_rejectsABlankName(String name) {
-        assertInvalid(() -> Goal.create(
-                USER, name, Money.vnd("1000"), TODAY.plusDays(30), null, TODAY, NOW));
+        assertInvalid(() -> Goal.create(USER, name, Money.vnd("1000"), TODAY.plusDays(30), null, TODAY, NOW));
     }
 
     @Test
     void create_rejectsANullName_andANameOverEightyCharacters() {
         assertInvalid(() -> Goal.create(USER, null, Money.vnd("1000"), TODAY.plusDays(30), null, TODAY, NOW));
-        assertInvalid(() -> Goal.create(
-                USER, "x".repeat(81), Money.vnd("1000"), TODAY.plusDays(30), null, TODAY, NOW));
+        assertInvalid(() -> Goal.create(USER, "x".repeat(81), Money.vnd("1000"), TODAY.plusDays(30), null, TODAY, NOW));
         assertThat(Goal.create(USER, "x".repeat(80), Money.vnd("1000"), TODAY.plusDays(30), null, TODAY, NOW)
                         .getName())
                 .hasSize(80);

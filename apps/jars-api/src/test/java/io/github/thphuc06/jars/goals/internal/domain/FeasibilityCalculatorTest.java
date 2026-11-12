@@ -120,8 +120,7 @@ class FeasibilityCalculatorTest {
 
     @Test
     void whenTheDateHasCome_theWholeRemainderIsNeededNow() {
-        Result r = FeasibilityCalculator.evaluate(
-                d("10000000.00"), d("25000000.00"), TODAY, TODAY, d("1000000.00"));
+        Result r = FeasibilityCalculator.evaluate(d("10000000.00"), d("25000000.00"), TODAY, TODAY, d("1000000.00"));
 
         assertThat(r.monthsLeft()).isZero();
         assertThat(r.requiredMonthly()).isEqualByComparingTo("15000000");
@@ -132,8 +131,8 @@ class FeasibilityCalculatorTest {
 
     @Test
     void theRequiredAmountIsRoundedUpToTheCent_soTheTargetIsActuallyReached() {
-        Result r = FeasibilityCalculator.evaluate(
-                d("0.00"), d("100000.01"), TODAY, LocalDate.of(2027, 2, 12), d("0.00"));
+        Result r =
+                FeasibilityCalculator.evaluate(d("0.00"), d("100000.01"), TODAY, LocalDate.of(2027, 2, 12), d("0.00"));
 
         assertThat(r.requiredMonthly()).isEqualByComparingTo("33333.34"); // 3 x 33,333.34 >= 100,000.01
     }

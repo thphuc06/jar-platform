@@ -60,12 +60,24 @@ final class RoadmapFixtures {
 
     /** A user with a surplus, a long runway and no anomaly. */
     static PlannerState healthy() {
-        return state("positive", "9000000.00", "strong", "9.10", "low", "none", "ready", "high", "low", "0.40000", "present");
+        return state(
+                "positive",
+                "9000000.00",
+                "strong",
+                "9.10",
+                "low",
+                "none",
+                "ready",
+                "high",
+                "low",
+                "0.40000",
+                "present");
     }
 
     /** Nothing is known: a user without history. */
     static PlannerState unknown() {
         return state(
-                "unknown", null, "unknown", null, "unknown", "none", "unknown", "unknown", "unknown", "0.00000", "missing");
+                "unknown", null, "unknown", null, "unknown", "none", "unknown", "unknown", "unknown", "0.00000",
+                "missing");
     }
 }
