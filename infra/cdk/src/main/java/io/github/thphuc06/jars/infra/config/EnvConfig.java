@@ -46,6 +46,11 @@ public record EnvConfig(
 
     public static EnvConfig from(Node node) {
         String region = text(node, "region", "ap-southeast-1");
+        // looked up only when not given: the default fails for regions without a known id
+        String prefixList = text(node, "cloudFrontPrefixListId", "");
+        if (prefixList.isEmpty()) {
+            prefixList = defaultPrefixListId(region);
+        }
         return new EnvConfig(
                 text(node, "env", "dev"),
                 text(node, "account", "626212071763"),
@@ -56,7 +61,7 @@ public record EnvConfig(
                 DbMode.valueOf(text(node, "dbMode", "aurora").toUpperCase(Locale.ROOT)),
                 bool(node, "deployWeb", false),
                 text(node, "webDistDir", "../../apps/web/dist"),
-                text(node, "cloudFrontPrefixListId", defaultPrefixListId(region)));
+                prefixList);
     }
 
     /** Resource name prefix, for example {@code jars-dev}. */
