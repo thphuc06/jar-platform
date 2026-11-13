@@ -38,6 +38,8 @@ Mọi số dưới đây lấy từ một lần chạy thật, không phải ư�
 | Tải (k6, 20 VU, 2 phút 45 giây, qua CloudFront) | **p95 đọc 117 ms, p95 ghi 200 ms, p99 toàn bộ 202 ms, 0% lỗi** trên 7.840 request (47 req/s) với 1 task Fargate 0,5 vCPU | `scripts/load-test.ps1` |
 | AI advisor (Bedrock Haiku 4.5) | Byte đầu tiên sau 1,3–2,1 giây; trả lời bằng số lấy từ tool; guardrail từ chối "nên mua FPT không?" trong 0,4 giây, trước khi gọi model | `probe-advisor`, smoke test |
 | Observability | Trace trong X-Ray có các node `jars-api`, SQS và `spring_ai chat_client`; 4 metric nghiệp vụ (`jars.transactions.posted`, `jars.anomalies.detected`, `jars.advisor.messages`, `jars.advisor.tokens`) trong namespace `Jars/Api` qua EMF | X-Ray service graph, CloudWatch |
+| CD không dùng access key | `deploy-dev.yml` qua GitHub OIDC: build image ARM64 → ECR → `cdk deploy JarsApp` → smoke 14/14, 28 phút từ đầu tới cuối; `destroy` một nút bấm | GitHub Actions run |
+| Đăng nhập trình duyệt | Cognito managed login, Authorization Code + PKCE `S256`, kiểm bằng Playwright | `login.mjs` (scratch) |
 | Lỗi chỉ lộ ra trên AWS | 3 lỗi: SSE ghi thêm một body `401` vào cuối stream, guardrail coi mã hũ `NEC` là mã cổ phiếu, Flyway không chờ Aurora resume. Đã sửa, có test cho cả 3 | [runbook](../05-operations/runbook.md#sự-cố-đã-gặp) |
 
 **Bullet CV thêm** (tiếng Anh):
@@ -46,7 +48,7 @@ Mọi số dưới đây lấy từ một lần chạy thật, không phải ư�
 - Built **CSV bank-statement import** with **Spring Batch** (chunked, skip-with-reason, restartable, idempotent per row): presigned S3 upload → EventBridge → SQS → batch job → ledger, with a live notification when the import finishes.
 - Instrumented the service with **OpenTelemetry** (ADOT sidecar → X-Ray and CloudWatch EMF), a dashboard and alarms; load-tested through CloudFront with k6 at **p95 117 ms (reads) / 200 ms (writes), 0% errors** on a single 0.5 vCPU Fargate task.
 
-**Vẫn chưa được ghi:** CD qua GitHub OIDC (workflow có rồi nhưng chưa chạy lần nào), tách microservice, chi phí theo hóa đơn tháng (Cost Explorer chưa có đủ dữ liệu).
+**Vẫn chưa được ghi:** tách microservice, chi phí theo hóa đơn tháng (Cost Explorer chưa có đủ dữ liệu).
 
 ## 1. Khi code xong (hết Phase 6), hệ thống làm được gì
 

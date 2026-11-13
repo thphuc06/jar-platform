@@ -33,7 +33,7 @@ Code nằm trên GitHub. Bản cũ dùng CodeBuild + script PowerShell chạy ta
 ## Hệ quả
 - ✅ Không có long-lived credential; mọi lần deploy đều truy vết được theo commit.
 - ✅ Miễn phí với repo public.
-- ⚠️ Trust policy phải giới hạn đúng `repo:thphuc06/jar-platform:ref:refs/heads/main` (hoặc environment `dev`), không dùng wildcard `*`.
+- ⚠️ Trust policy phải giới hạn đúng subject của nhánh `main` (hoặc environment `dev`), không dùng wildcard `*`. Cập nhật 13/11/2026: repo dùng định dạng subject bất biến `repo:thphuc06@185325027/jar-platform@1431052736:ref:refs/heads/main` (xem `gh api repos/<owner>/<repo>/actions/oidc/customization/sub`); trust policy theo định dạng cũ chỉ có tên làm lần chạy đầu bị từ chối.
 - ⚠️ Testcontainers trên runner `ubuntu-latest` có sẵn Docker. LocalStack cần `LOCALSTACK_AUTH_TOKEN` trong GitHub secrets (gói Hobby/Student miễn phí, chỉ dùng phi thương mại).
 
 ## Xem lại khi
