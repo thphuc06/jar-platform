@@ -18,6 +18,8 @@
 | V9 | `V9__imports.sql` | `statement_imports` (`status` AWAITING_UPLOAD / PROCESSING / COMPLETED / FAILED, `file_sha256` để chặn nhập cùng tệp hai lần), `statement_import_errors` (PK `(import_id, line_number)`) và các bảng metadata `BATCH_*` của Spring Batch 6.0 (chép nguyên từ `spring-batch-core`). Không có khóa ngoại sang ledger | Phase 2 WP3 |
 | V10 | `V10__advisor.sql` | `chat_sessions`, `chat_messages` (FK `session_id` → `chat_sessions`, `ON DELETE CASCADE`; `role` USER / ASSISTANT; cột `guardrail`) và `advisor_usage` (bộ đếm cửa sổ cố định HOUR / DAY cho rate limit, [ADR-0023](../04-adr/0023-advisor-guardrail-and-rate-limit.md)) | Phase 2 WP4 |
 | V11 | `V11__audit_log.sql` | `audit_log` (append-only: trigger từ chối `UPDATE`, `DELETE`, `TRUNCATE`; index `(actor, occurred_at DESC, id DESC)`), chủ sở hữu là `platform` ([ADR-0025](../04-adr/0025-audit-log-aop-same-transaction.md)) | F14 |
+| V12 | `V12__product_catalog.sql` | `catalog_products`: 18 sản phẩm của danh mục **hư cấu** Ngân hàng TMCP Lục Bình, dữ liệu tham chiếu giống nhau cho mọi user (cột có kiểu cho phần danh sách gọn và các quy tắc: nhóm, mức rủi ro 1 đến 5 và loại rủi ro, hồ sơ phù hợp, mức tối thiểu, thu nhập tối thiểu; văn bản dài và số liệu ở cột text hoặc JSONB; `as_of` và `illustrative`), chủ sở hữu là `advisor` ([ADR-0027](../04-adr/0027-advisor-product-catalog-and-profile.md)) | Advisor sản phẩm |
+| V13 | `V13__profile_facts.sql` | `users.age_band` và `users.income_situation` (nullable, CHECK theo mã): hai câu hỏi onboarding mới, không thuộc điểm rủi ro. User cũ để NULL = "chưa trả lời" | Advisor sản phẩm |
 
 ## 1. Quy ước
 
@@ -63,6 +65,8 @@ erDiagram
         text email "nullable, không unique (V3)"
         text display_name
         text locale "vi-VN"
+        text age_band "nullable: UNDER_25|AGE_25_34|AGE_35_44|AGE_45_54|AGE_55_PLUS (V13)"
+        text income_situation "nullable: REGULAR_SALARY|IRREGULAR_INCOME|NO_INCOME_YET (V13)"
         timestamptz created_at
     }
     risk_assessments {
@@ -194,7 +198,7 @@ erDiagram
         uuid id PK "UUIDv7"
         uuid session_id FK
         text role "USER|ASSISTANT"
-        text content
+        text content "đã qua guardrail: PII được che, ADR-0026"
         int input_tokens
         int output_tokens
         text guardrail "INPUT|OUTPUT khi guardrail can thiệp"
@@ -224,6 +228,7 @@ erDiagram
 | `allocation_decisions` (`user_id`, `idempotency_key`) UNIQUE | budgeting | Lưu user chấp nhận (`ACCEPTED`), sửa (`EDITED`) hay bỏ qua (`SKIPPED`) gợi ý phân bổ, kèm gợi ý và phần đã áp dụng (JSONB) để cải thiện gợi ý sau này. Unique theo khóa idempotency nên gửi lại cùng request không ghi dòng thứ hai và không cộng `planned_amount` hai lần |
 | `jar_periods` (`jar_id`, `period_month`) UNIQUE | budgeting | Kế hoạch và thực chi của hũ theo tháng. `planned_amount` cộng khi áp dụng một lần phân bổ; `spent_amount` cộng dồn (delta) từ `TransactionPosted` / `TransactionRecategorized`, nên chi tiêu chuyển sang hũ khác chỉ là delta âm và dương. Job khép sổ đặt `closed_at` (không bao giờ dời) và tạo dòng tháng sau |
 | `advisor_usage` (`user_id`, `window_kind`, `window_start`) PK, `count` | advisor | Rate limit trợ lý AI theo cửa sổ cố định giờ/ngày ([ADR-0023](../04-adr/0023-advisor-guardrail-and-rate-limit.md)); cửa sổ cũ của user bị xóa ở tin nhắn kế tiếp (V10) |
+| `catalog_products` (`code` PK, `sort_order`, `name`, `product_group`, `category`, `risk_kind`, `risk_level`, `risk_level_max`, `suitable_profiles JSONB`, `profile_note`, `min_amount_vnd`, `min_amount_unit`, `min_monthly_income_vnd`, `headline`, `tenor`, `liquidity`, `summary`, `description`, `figures JSONB`, `rate_table JSONB`, `eligibility`, `suits`, `not_suits`, `cautions JSONB`, `as_of`, `illustrative`) | advisor | Danh mục sản phẩm **hư cấu** (V12, [ADR-0027](../04-adr/0027-advisor-product-catalog-and-profile.md)): 18 dòng, chỉ đọc với ứng dụng, giống nhau cho mọi user, nên không có `user_id`. Hai tool `listProducts` (cột ngắn) và `getProductDetails` (cả dòng) đọc bảng này. Ngân hàng, công ty quỹ, công ty bảo hiểm và mọi số liệu đều là minh họa, tính đến `as_of`. Đổi số liệu = migration mới |
 | `audit_log` (`id` UUIDv7 PK, `occurred_at`, `actor`, `action`, `entity_type`, `entity_id`, `trace_id`, `payload JSONB`) | platform | Ai làm gì, lúc nào ([ADR-0025](../04-adr/0025-audit-log-aop-same-transaction.md), V11). Aspect `@Audited` ghi **một dòng** trong cùng transaction với thay đổi nghiệp vụ: rollback hay retry thua cuộc đua thì không còn dòng nào, request `Idempotency-Key` phát lại không thêm dòng. `actor` là user id (UUID dạng text) hoặc `system` cho job không có người gọi; `action` và `entity_type` là tên ổn định (`TRANSACTION_POSTED`, `JAR_TRANSFERRED`, `MONTH_CLOSED`... ); `trace_id` là `traceId` của log; `payload` chỉ có id, số tiền dạng chuỗi, enum, cờ, không bao giờ có ghi chú, tên, email, prompt hay nội dung LLM. **Append-only**: trigger từ chối `UPDATE`, `DELETE`, `TRUNCATE`; không có khóa ngoại |
 | `statement_import_errors` (`import_id`, `line_number`) PK, `reason` | imports | Các dòng sao kê bị bỏ qua và lý do (tiếng Việt, cho user xem). Ghi cùng transaction với chunk của nó, nên import chạy lại không ghi trùng (V9) |
 | `BATCH_*` | Spring Batch 6.0 (schema chép nguyên từ `spring-batch-core`, tạo bằng Flyway V9) | Metadata của job import: job instance theo `importId`, vị trí đọc trong `BATCH_STEP_EXECUTION_CONTEXT`, nhờ đó import thất bại chạy lại từ chunk cuối đã commit |

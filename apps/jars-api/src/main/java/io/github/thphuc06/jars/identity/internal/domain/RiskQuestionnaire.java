@@ -1,5 +1,6 @@
 package io.github.thphuc06.jars.identity.internal.domain;
 
+import io.github.thphuc06.jars.identity.InvestorProfile;
 import io.github.thphuc06.jars.shared.DomainException;
 import io.github.thphuc06.jars.shared.ProblemTypes;
 import java.util.List;
@@ -12,12 +13,16 @@ import java.util.List;
  * explicit rather than "index × k" because some questions are not ordered by risk (for example the objective
  * "save for a specific goal" is more cautious than "grow wealth").
  *
- * <p>This only describes the user's stated attitude to risk. The product gives no investment advice (vision-and-scope).
+ * <p>This only describes the user's stated attitude to risk. The advisor uses it to choose which illustrative products
+ * to talk about (ADR-0027); it is not an advice or a suitability assessment by a licensed adviser.
  */
 public final class RiskQuestionnaire {
 
-    /** A question with the points awarded for each option, in option order. */
-    public record Question(String key, List<Integer> pointsPerOption) {
+    /**
+     * A question with the points awarded for each option, in option order, and what choosing each option says about the
+     * user in words (for the advisor's prompt, ADR-0027). The topic and the meanings are fixed texts, never user input.
+     */
+    public record Question(String key, String topic, List<Integer> pointsPerOption, List<String> meanings) {
         int optionCount() {
             return pointsPerOption.size();
         }
@@ -26,12 +31,39 @@ public final class RiskQuestionnaire {
     public record Result(int score, RiskLevel level) {}
 
     public static final List<Question> QUESTIONS = List.of(
-            new Question("RISK_TOLERANCE", List.of(0, 2, 4)), // conservative, moderate, aggressive
-            new Question("HORIZON", List.of(0, 1, 3, 4)), // <2y, 2-5y, 5-10y, 10y+
-            new Question("LIQUIDITY", List.of(0, 2, 4)), // immediate, within a month, flexible
-            new Question("EXPERIENCE", List.of(0, 2, 4)), // beginner, intermediate, advanced
             new Question(
-                    "OBJECTIVE", List.of(0, 4, 1, 2))); // emergency fund, grow wealth, specific goal, passive income
+                    "RISK_TOLERANCE",
+                    "Khẩu vị rủi ro",
+                    List.of(0, 2, 4),
+                    List.of("thận trọng, tránh thua lỗ", "vừa phải, cân bằng", "mạo hiểm, tối đa hóa lợi nhuận")),
+            new Question(
+                    "HORIZON",
+                    "Thời gian đầu tư",
+                    List.of(0, 1, 3, 4),
+                    List.of(
+                            "cần dùng tiền trong dưới 2 năm",
+                            "cần dùng tiền sau 2-5 năm",
+                            "cần dùng tiền sau 5-10 năm",
+                            "cần dùng tiền sau hơn 10 năm")),
+            new Question(
+                    "LIQUIDITY",
+                    "Nhu cầu rút tiền",
+                    List.of(0, 2, 4),
+                    List.of("có thể cần rút ngay", "có thể cần rút trong vòng một tháng", "linh hoạt, không gấp")),
+            new Question(
+                    "EXPERIENCE",
+                    "Kinh nghiệm đầu tư",
+                    List.of(0, 2, 4),
+                    List.of("mới bắt đầu", "có một ít kinh nghiệm", "nhiều kinh nghiệm")),
+            new Question(
+                    "OBJECTIVE",
+                    "Mục tiêu tài chính chính",
+                    List.of(0, 4, 1, 2),
+                    List.of(
+                            "xây quỹ khẩn cấp",
+                            "gia tăng tài sản dài hạn",
+                            "tiết kiệm cho một mục tiêu cụ thể",
+                            "tạo thu nhập thụ động")));
 
     private static final int MAX_POINTS = QUESTIONS.stream()
             .mapToInt(q -> q.pointsPerOption().stream().mapToInt(i -> i).max().orElse(0))
@@ -58,6 +90,23 @@ public final class RiskQuestionnaire {
         }
         int score = Math.round(total * 100f / MAX_POINTS);
         return new Result(score, levelFor(score));
+    }
+
+    /**
+     * What each stored answer says, in question order, for the advisor's prompt. An answer that is not a valid option of
+     * its question (it cannot happen for what {@link #score} accepted) is left out rather than guessed.
+     */
+    public static List<InvestorProfile.Answer> describe(List<Integer> answers) {
+        List<InvestorProfile.Answer> described = new java.util.ArrayList<>();
+        for (int i = 0; i < QUESTIONS.size() && answers != null && i < answers.size(); i++) {
+            Question question = QUESTIONS.get(i);
+            Integer choice = answers.get(i);
+            if (choice != null && choice >= 0 && choice < question.optionCount()) {
+                described.add(new InvestorProfile.Answer(
+                        question.topic(), question.meanings().get(choice)));
+            }
+        }
+        return described;
     }
 
     static RiskLevel levelFor(int score) {

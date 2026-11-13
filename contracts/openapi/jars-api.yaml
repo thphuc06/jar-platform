@@ -1372,6 +1372,8 @@ components:
     MeResponse:
       type: object
       properties:
+        ageBand:
+          type: string
         displayName:
           type: string
         email:
@@ -1379,6 +1381,8 @@ components:
         id:
           type: string
           format: uuid
+        incomeSituation:
+          type: string
         locale:
           type: string
         onboardingCompleted:
@@ -2140,10 +2144,16 @@ components:
     UpdateMeRequest:
       type: object
       properties:
+        ageBand:
+          type: string
+          pattern: UNDER_25|AGE_25_34|AGE_35_44|AGE_45_54|AGE_55_PLUS
         displayName:
           type: string
           maxLength: 80
           minLength: 0
+        incomeSituation:
+          type: string
+          pattern: REGULAR_SALARY|IRREGULAR_INCOME|NO_INCOME_YET
         locale:
           type: string
           pattern: vi-VN|en-US

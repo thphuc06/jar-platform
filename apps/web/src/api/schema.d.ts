@@ -759,10 +759,12 @@ export interface components {
             title?: string;
         };
         MeResponse: {
+            ageBand?: string;
             displayName?: string;
             email?: string;
             /** Format: uuid */
             id?: string;
+            incomeSituation?: string;
             locale?: string;
             onboardingCompleted?: boolean;
         };
@@ -1149,7 +1151,9 @@ export interface components {
             targetPct?: number;
         };
         UpdateMeRequest: {
+            ageBand?: string;
             displayName?: string;
+            incomeSituation?: string;
             locale?: string;
         };
         UploadTarget: {

@@ -258,23 +258,82 @@ describe("Profile", () => {
     expect(await screen.findByText("Cân bằng")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Đăng xuất/ })).toBeInTheDocument();
   });
+
+  it("shows the age band and the income situation the user gave", async () => {
+    backend();
+    renderPage(<Profile />);
+
+    expect(await screen.findByText("25-34 tuổi")).toBeInTheDocument();
+    expect(screen.getByText("Lương đều đặn hằng tháng")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Sửa thông tin" })).toBeInTheDocument();
+  });
+
+  it("shows the two answers of a user who registered before the questions as missing, and lets them fill them in", async () => {
+    backend(({ method, pathname }) => {
+      if (method === "GET" && pathname === "/api/v1/me") return json(fx.meWithoutFacts);
+      if (method === "PATCH" && pathname === "/api/v1/me") return json({ ...fx.meWithoutFacts, ageBand: "AGE_35_44", incomeSituation: "IRREGULAR_INCOME" });
+      return undefined;
+    });
+    renderPage(<Profile />);
+
+    expect(await screen.findAllByText("Chưa cung cấp")).toHaveLength(2);
+    fireEvent.click(screen.getByRole("button", { name: "Bổ sung thông tin" }));
+    const save = screen.getByRole("button", { name: /Lưu/ });
+    expect(save).toBeDisabled(); // both are needed
+    fireEvent.click(within(screen.getByRole("radiogroup", { name: "Độ tuổi" })).getByRole("radio", { name: "35-44 tuổi" }));
+    fireEvent.click(within(screen.getByRole("radiogroup", { name: "Thu nhập" })).getByRole("radio", { name: /Thu nhập không đều/ }));
+    fireEvent.click(save);
+
+    await waitFor(() => expect(calls().some((c) => c.method === "PATCH")).toBe(true));
+    const patch = calls().find((c) => c.method === "PATCH")!;
+    expect(await patch.request.clone().json()).toEqual({ ageBand: "AGE_35_44", incomeSituation: "IRREGULAR_INCOME" });
+    expect(await screen.findByText("35-44 tuổi")).toBeInTheDocument();
+  });
 });
 
 describe("Onboarding", () => {
-  it("sends the chosen option INDEX of each of the five questions to PUT /me/risk-profile", async () => {
-    backend(({ method, pathname }) => (method === "PUT" && pathname === "/api/v1/me/risk-profile" ? json(fx.riskProfile) : undefined));
+  it("asks seven questions and sends the facts to PATCH /me, then the five option INDEXES to PUT /me/risk-profile", async () => {
+    backend(({ method, pathname }) => {
+      if (method === "PUT" && pathname === "/api/v1/me/risk-profile") return json(fx.riskProfile);
+      if (method === "PATCH" && pathname === "/api/v1/me") return json(fx.me);
+      return undefined;
+    });
     renderPage(<Onboarding />);
 
     fireEvent.click(screen.getByRole("button", { name: /Bắt đầu/ }));
-    // option index per question; the last question has four options
-    for (const index of [2, 3, 2, 2, 1]) {
+    // option index per question: five risk questions (the fourth has three options, the last four), then age band (five
+    // options) and income situation (three)
+    for (const index of [2, 3, 2, 2, 1, 1, 2]) {
       const group = screen.getByRole("radiogroup");
       fireEvent.click(within(group).getAllByRole("radio")[index]);
       fireEvent.click(screen.getByRole("button", { name: /Tiếp tục|Hoàn tất hồ sơ/ }));
     }
 
     expect(await screen.findByText(/Cân bằng/)).toBeInTheDocument();
-    const put = calls().find((c) => c.method === "PUT")!;
-    expect(await put.request.clone().json()).toEqual({ answers: [2, 3, 2, 2, 1] });
+    const sent = calls().filter((c) => c.method === "PUT" || c.method === "PATCH");
+    // the facts first, the questionnaire last: a user is never "onboarded" without them
+    expect(sent.map((c) => `${c.method} ${c.pathname}`)).toEqual(["PATCH /api/v1/me", "PUT /api/v1/me/risk-profile"]);
+    expect(await sent[0].request.clone().json()).toEqual({ ageBand: "AGE_25_34", incomeSituation: "NO_INCOME_YET" });
+    expect(await sent[1].request.clone().json()).toEqual({ answers: [2, 3, 2, 2, 1] });
+  });
+
+  it("shows the progress over seven steps and the two new questions", async () => {
+    backend();
+    renderPage(<Onboarding />);
+
+    fireEvent.click(screen.getByRole("button", { name: /Bắt đầu/ }));
+    for (let step = 0; step < 5; step++) {
+      fireEvent.click(within(screen.getByRole("radiogroup")).getAllByRole("radio")[0]);
+      fireEvent.click(screen.getByRole("button", { name: "Tiếp tục" }));
+    }
+
+    expect(screen.getByText("Bước 6 / 7")).toBeInTheDocument();
+    expect(screen.getByText("Bạn thuộc nhóm tuổi nào?")).toBeInTheDocument();
+    expect(within(screen.getByRole("radiogroup")).getAllByRole("radio")).toHaveLength(5);
+    fireEvent.click(within(screen.getByRole("radiogroup")).getAllByRole("radio")[0]);
+    fireEvent.click(screen.getByRole("button", { name: "Tiếp tục" }));
+    expect(screen.getByText("Bước 7 / 7")).toBeInTheDocument();
+    expect(within(screen.getByRole("radiogroup")).getAllByRole("radio")).toHaveLength(3);
+    expect(screen.getByRole("button", { name: /Hoàn tất hồ sơ/ })).toBeDisabled(); // nothing chosen yet
   });
 });

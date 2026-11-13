@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { Check, ChevronRight, LogOut, Monitor, Moon, Pencil, Shield, Smartphone, Sun, User, X } from "lucide-react";
+import { Check, ChevronRight, ListChecks, LogOut, Monitor, Moon, Pencil, Shield, Smartphone, Sun, User, X } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useTheme } from "next-themes";
 import { useMe, useRiskProfile, useUpdateMe } from "@/api/me";
@@ -15,6 +15,15 @@ import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { formatDate } from "@/lib/dates";
+import {
+  AGE_BANDS,
+  ageBandLabel,
+  INCOME_SITUATIONS,
+  incomeSituationLabel,
+  type AgeBand,
+  type FactOption,
+  type IncomeSituation,
+} from "@/lib/profileFacts";
 import { riskLevelLabel } from "@/lib/riskQuestionnaire";
 
 const container = {
@@ -94,6 +103,123 @@ const ProfileCard = ({ me, signInEmail }: { me: Me; signInEmail?: string }) => {
             </div>
             <div className="flex gap-2 pt-2">
               <Button type="submit" size="sm" className="flex-1 gap-1.5" disabled={update.isPending}>
+                <Check className="h-3.5 w-3.5" aria-hidden="true" /> Lưu
+              </Button>
+              <Button type="button" size="sm" variant="outline" className="flex-1 gap-1.5" onClick={() => setEditing(false)} disabled={update.isPending}>
+                <X className="h-3.5 w-3.5" aria-hidden="true" /> Hủy
+              </Button>
+            </div>
+          </form>
+        )}
+      </CardContent>
+    </Card>
+  );
+};
+
+/** One radio group of a profile fact, with the same look as the theme chooser. */
+function FactChoice<T extends string>({
+  label,
+  options,
+  value,
+  onChange,
+}: {
+  label: string;
+  options: readonly FactOption<T>[];
+  value: T | null;
+  onChange: (value: T) => void;
+}) {
+  return (
+    <div className="space-y-1.5">
+      <p className="text-xs text-muted-foreground">{label}</p>
+      <div role="radiogroup" aria-label={label} className="space-y-1.5">
+        {options.map((o) => (
+          <button
+            key={o.value}
+            type="button"
+            role="radio"
+            aria-checked={value === o.value}
+            onClick={() => onChange(o.value)}
+            className={`w-full rounded-lg border px-3 py-2 text-left text-sm transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+              value === o.value ? "border-primary bg-primary/5 font-medium" : "border-border hover:border-muted-foreground/30"
+            }`}
+          >
+            {o.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Age band and income situation: facts the advisor reads next to the risk profile. Users who answered the
+ * questionnaire before these questions existed see them as missing and fill them in here.
+ */
+const FactsCard = ({ me }: { me: Me }) => {
+  const { toast } = useToast();
+  const update = useUpdateMe();
+  const [editing, setEditing] = useState(false);
+  const [age, setAge] = useState<AgeBand | null>(null);
+  const [income, setIncome] = useState<IncomeSituation | null>(null);
+
+  const ageLabel = ageBandLabel(me.ageBand);
+  const incomeLabel = incomeSituationLabel(me.incomeSituation);
+  const missing = !ageLabel || !incomeLabel;
+
+  const startEditing = () => {
+    setAge(AGE_BANDS.find((o) => o.value === me.ageBand)?.value ?? null);
+    setIncome(INCOME_SITUATIONS.find((o) => o.value === me.incomeSituation)?.value ?? null);
+    setEditing(true);
+  };
+
+  const save = (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!age || !income) return;
+    update.mutate(
+      { ageBand: age, incomeSituation: income },
+      {
+        onSuccess: () => {
+          setEditing(false);
+          toast({ title: "Đã cập nhật", description: "Trợ lý sẽ dùng thông tin mới ở tin nhắn tiếp theo." });
+        },
+        onError: (error) => toast({ title: "Không lưu được thông tin", description: describeError(error), variant: "destructive" }),
+      },
+    );
+  };
+
+  return (
+    <Card>
+      <CardContent className="p-5">
+        <div className="mb-3 flex items-center gap-2">
+          <ListChecks className="h-5 w-5 text-primary" aria-hidden="true" />
+          <h2 className="font-display font-semibold">Hoàn cảnh của bạn</h2>
+        </div>
+        {!editing && (
+          <>
+            <div className="grid grid-cols-2 gap-3 text-sm">
+              <div>
+                <p className="text-xs text-muted-foreground">Độ tuổi</p>
+                <p className={ageLabel ? "font-medium" : "text-muted-foreground"}>{ageLabel ?? "Chưa cung cấp"}</p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Thu nhập</p>
+                <p className={incomeLabel ? "font-medium" : "text-muted-foreground"}>{incomeLabel ?? "Chưa cung cấp"}</p>
+              </div>
+            </div>
+            {missing && (
+              <p className="mt-3 text-xs text-muted-foreground">Bổ sung để trợ lý chọn sản phẩm phù hợp với hoàn cảnh của bạn.</p>
+            )}
+            <Button variant="outline" size="sm" className="mt-4 w-full" onClick={startEditing}>
+              {missing ? "Bổ sung thông tin" : "Sửa thông tin"}
+            </Button>
+          </>
+        )}
+        {editing && (
+          <form onSubmit={save} className="space-y-4">
+            <FactChoice label="Độ tuổi" options={AGE_BANDS} value={age} onChange={setAge} />
+            <FactChoice label="Thu nhập" options={INCOME_SITUATIONS} value={income} onChange={setIncome} />
+            <div className="flex gap-2 pt-1">
+              <Button type="submit" size="sm" className="flex-1 gap-1.5" disabled={!age || !income || update.isPending}>
                 <Check className="h-3.5 w-3.5" aria-hidden="true" /> Lưu
               </Button>
               <Button type="button" size="sm" variant="outline" className="flex-1 gap-1.5" onClick={() => setEditing(false)} disabled={update.isPending}>
@@ -194,6 +320,8 @@ const Profile = () => {
       <motion.div variants={item}>
         <RiskCard />
       </motion.div>
+
+      <motion.div variants={item}>{me.data && <FactsCard me={me.data} />}</motion.div>
 
       <motion.div variants={item}>
         <Card>

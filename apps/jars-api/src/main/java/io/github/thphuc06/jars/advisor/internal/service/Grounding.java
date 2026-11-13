@@ -9,11 +9,16 @@ import java.util.regex.Pattern;
  * "Every number in the answer comes from a tool" (ADR-0011), checked after the fact: the amounts in an answer
  * (numbers of four digits or more, with or without thousands separators) must appear in the tool results or in the
  * user's own message. A violation is counted (metric {@code jars.advisor.ungrounded}) and logged, not blocked: the
- * check is a signal for prompt tuning, and a model may legitimately round ("khoảng 15 triệu").
+ * check is a signal for prompt tuning, and a model may legitimately round ("khoảng 15 triệu"). A number followed by "%" is
+ * a percentage, not an amount: the model derives those (the tools give some as {@code changePercent}), and a big one such
+ * as "tăng 1250%" must not count as an invented amount.
  */
 final class Grounding {
 
     private static final Pattern AMOUNT = Pattern.compile("\\d{1,3}(?:[.,]\\d{3})+|\\d{4,}");
+
+    /** What follows a percentage: optional spaces, then the percent sign. */
+    private static final Pattern PERCENT = Pattern.compile("\\s*%");
 
     private Grounding() {}
 
@@ -31,8 +36,12 @@ final class Grounding {
 
     static Set<String> amounts(String text) {
         Set<String> found = new LinkedHashSet<>();
-        Matcher m = AMOUNT.matcher(text == null ? "" : text);
+        String input = text == null ? "" : text;
+        Matcher m = AMOUNT.matcher(input);
         while (m.find()) {
+            if (PERCENT.matcher(input).region(m.end(), input.length()).lookingAt()) {
+                continue;
+            }
             String digits = m.group().replace(".", "").replace(",", "");
             // years and months ("2026", "2026-10") are not amounts
             if (!(digits.length() == 4 && digits.startsWith("20"))) {

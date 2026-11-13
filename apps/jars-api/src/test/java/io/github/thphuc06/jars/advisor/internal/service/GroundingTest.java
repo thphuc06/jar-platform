@@ -27,6 +27,13 @@ class GroundingTest {
     }
 
     @Test
+    void aPercentageIsNotAnAmount_howeverLarge() {
+        assertThat(Grounding.ungrounded("Ăn uống tăng 1250% so với thường lệ, hay 1.250 %, còn 12500%.", ""))
+                .isEmpty();
+        assertThat(Grounding.ungrounded("Chi 1.250 ₫ rồi 1.250%.", "")).containsExactly("1250");
+    }
+
+    @Test
     void anAmountTheUserWroteIsGrounded() {
         assertThat(Grounding.ungrounded("Với 5.000.000 ₫ bạn có thể...", "Tôi có 5000000 đồng"))
                 .isEmpty();

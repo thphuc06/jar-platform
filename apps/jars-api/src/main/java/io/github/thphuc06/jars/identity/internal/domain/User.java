@@ -1,7 +1,11 @@
 package io.github.thphuc06.jars.identity.internal.domain;
 
+import io.github.thphuc06.jars.identity.AgeBand;
+import io.github.thphuc06.jars.identity.IncomeSituation;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.time.Instant;
@@ -32,6 +36,14 @@ public class User {
     @Column(name = "locale", nullable = false)
     private String locale;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "age_band")
+    private AgeBand ageBand;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "income_situation")
+    private IncomeSituation incomeSituation;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
@@ -56,14 +68,33 @@ public class User {
         return locale;
     }
 
+    public AgeBand getAgeBand() {
+        return ageBand;
+    }
+
+    public IncomeSituation getIncomeSituation() {
+        return incomeSituation;
+    }
+
     /** Only non-null arguments are applied; a blank display name clears it. */
-    public void updateProfile(String newDisplayName, String newLocale, Instant now) {
+    public void updateProfile(
+            String newDisplayName,
+            String newLocale,
+            AgeBand newAgeBand,
+            IncomeSituation newIncomeSituation,
+            Instant now) {
         if (newDisplayName != null) {
             String trimmed = newDisplayName.trim();
             this.displayName = trimmed.isEmpty() ? null : trimmed;
         }
         if (newLocale != null) {
             this.locale = newLocale;
+        }
+        if (newAgeBand != null) {
+            this.ageBand = newAgeBand;
+        }
+        if (newIncomeSituation != null) {
+            this.incomeSituation = newIncomeSituation;
         }
         this.updatedAt = now;
     }

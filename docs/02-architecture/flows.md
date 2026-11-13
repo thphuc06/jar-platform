@@ -196,8 +196,12 @@ sequenceDiagram
     alt hết quota
         API-->>W: 429 + Retry-After
     end
-    API->>API: Nạp lịch sử chat (N tin gần nhất) + system prompt + ngữ cảnh risk profile
-    API->>B: ConverseStream (tools = [getJars, getMonthlyCashflow, getGoals, getOpenAnomalyCount], guardrail qua ApplyGuardrail)
+    API->>G: ApplyGuardrail (INPUT): che PII hoặc chặn (chủ đề cấm, prompt attack)
+    alt bị chặn
+        API-->>W: câu trả lời theo lý do chặn (không gọi model); tin nhắn lưu ở dạng đã che
+    end
+    API->>API: Nạp lịch sử chat (N tin gần nhất) + system prompt tĩnh + khối hồ sơ của user (rủi ro, độ tuổi, thu nhập; chỉ từ enum và số, ADR-0027)
+    API->>B: ConverseStream (tools = [getJars, getMonthlyCashflow, getGoals, getOpenAnomalies, getSpendingBehaviour, listProducts, getProductDetails], guardrail qua ApplyGuardrail)
     B-->>API: toolUse getMonthlyCashflow(month=2026-10)
     API->>T: Gọi Java service với userId lấy từ JWT (KHÔNG lấy từ tham số LLM)
     T-->>API: Kết quả có cấu trúc (số do Java tính)
@@ -208,13 +212,14 @@ sequenceDiagram
         API-->>W: event: token {text}
     end
     B-->>API: stop + usage (tokens in/out)
-    API->>API: Lưu chat_messages, ghi metric token
+    API->>G: ApplyGuardrail (OUTPUT): che PII trong câu trả lời (event replace nếu có)
+    API->>API: Lưu chat_messages (bản đã che), ghi metric token
     API-->>W: event: done {messageId, usage}
 ```
 
 **Điểm cần học:**
 - Tool chỉ đọc dữ liệu, và `userId` luôn lấy từ security context, nên prompt injection không đọc được dữ liệu của người khác.
-- Guardrail chặn nội dung khuyến nghị mua/bán cổ phiếu cụ thể.
+- Guardrail từ chối câu hỏi xin khuyến nghị mua/bán cụ thể và che PII (thẻ, CCCD, email, số điện thoại) **trước** khi tin nhắn được lưu hay gửi cho model ([ADR-0026](../04-adr/0026-guardrail-input-pii-masking.md)).
 - Streaming bằng `Flux` (Spring AI) chuyển sang `SseEmitter` (MVC), hoặc trả `Flux<ServerSentEvent>` trực tiếp.
 - Chi phí được kiểm soát nhờ rate limit + `max-tokens`.
 

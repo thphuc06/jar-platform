@@ -19,4 +19,10 @@ public interface IdentityApi {
      * @param limit page size, 1 to {@link #MAX_PAGE}
      */
     List<UserId> userIdsAfter(UUID cursor, int limit);
+
+    /**
+     * The user's current risk profile, age band and income situation, for the advisor's system prompt. Always returns a
+     * profile: a part the user has not answered is null in it.
+     */
+    InvestorProfile investorProfile(UserId userId);
 }

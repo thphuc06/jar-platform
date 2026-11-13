@@ -27,24 +27,54 @@ final class AdvisorResources {
 
     private AdvisorResources() {}
 
+    /** Vietnamese citizen ID (CCCD): 12 digits starting with 0. */
+    static final String CITIZEN_ID_PATTERN = "\\b0\\d{11}\\b";
+
+    /**
+     * Vietnamese mobile number: +84 or 0, then 3, 5, 7, 8 or 9 and eight more digits, written with or without single
+     * spaces, dots or dashes. The built-in PHONE entity finds the spaced and dotted forms but not "0912345678".
+     */
+    static final String PHONE_PATTERN = "(?:\\+84|\\b0)[ .-]?[35789](?:[ .-]?\\d){8}\\b";
+
+    /**
+     * A bank account number only after the words that introduce one: 6 to 16 digits alone would also match the
+     * amounts the advisor talks about, so a number without such words is not masked. Only for what the user types:
+     * the advisor's answers are full of amounts and never contain account numbers.
+     */
+    static final String BANK_ACCOUNT_PATTERN =
+            "(?i)(?:stk|số tài khoản|số tk|account (?:no|number))[^\\d\\n]{0,15}\\d(?: ?\\d){5,15}";
+
     static Guardrail guardrail(Stack stack, EnvConfig cfg) {
         CfnGuardrail guardrail = CfnGuardrail.Builder.create(stack, "AdvisorGuardrail")
                 .name(cfg.name("advisor"))
-                .description("Jars advisor: no specific buy/sell advice, no card or ID numbers, no prompt attacks")
+                .description("Jars advisor: no buy/sell tips on stocks, crypto, gold or currency asked, no card, ID, e-mail or phone numbers"
+                        + " kept, no prompt attacks")
                 .blockedInputMessaging("Xin lỗi, tôi không thể giúp với yêu cầu này. Hãy hỏi về hũ, chi tiêu hoặc"
                         + " mục tiêu của bạn.")
-                .blockedOutputsMessaging("Tôi không đưa ra khuyến nghị mua bán chứng khoán hay tài sản cụ thể. Bạn"
-                        + " có thể hỏi về ngân sách, chi tiêu và mục tiêu tiết kiệm.")
+                // one message for every output block; the investment-advice message is chosen by BedrockGuardrail
+                .blockedOutputsMessaging("Xin lỗi, tôi không thể hiển thị câu trả lời này. Bạn hãy thử hỏi theo cách"
+                        + " khác.")
                 .topicPolicyConfig(CfnGuardrail.TopicPolicyConfigProperty.builder()
                         .topicsConfig(List.of(CfnGuardrail.TopicConfigProperty.builder()
                                 .name("SpecificInvestmentAdvice")
                                 .type("DENY")
-                                .definition("Recommending to buy, sell or hold a specific stock, fund, cryptocurrency"
-                                        + " or other named financial asset, or predicting its price.")
+                                .definition("Asking or telling whether to buy, sell or hold a named listed stock, crypto,"
+                                        + " gold or foreign currency, or predicting its price. Not a bank's own"
+                                        + " savings, loans or funds (VN30 index fund included).")
                                 .examples(List.of(
                                         "Should I buy VNM shares now?",
                                         "Tôi có nên mua cổ phiếu FPT không?",
-                                        "Bitcoin sẽ lên giá bao nhiêu tháng sau?"))
+                                        "Bitcoin sẽ lên giá bao nhiêu tháng sau?",
+                                        "Có nên mua vàng SJC lúc này không?",
+                                        "Cuối năm USD tăng hay giảm, tôi có nên mua không?"))
+                                // what the user asks is refused. The answer is not checked by the topic: the system
+                                // prompt forbids advice, and the topic flagged a harmless refusal of the model as
+                                // advice (ADR-0026). The advisor recommends the bank's own products (ADR-0027), so the
+                                // definition leaves them out and asks about stocks, crypto, gold and currency only
+                                .inputEnabled(true)
+                                .inputAction("BLOCK")
+                                .outputEnabled(false)
+                                .outputAction("NONE")
                                 .build()))
                         .build())
                 .contentPolicyConfig(CfnGuardrail.ContentPolicyConfigProperty.builder()
@@ -61,21 +91,17 @@ final class AdvisorResources {
                                         .outputStrength("NONE")
                                         .build()))
                         .build())
+                // Sensitive data is masked (not blocked) in both directions, so a user who pastes a card number is
+                // still helped. Input and output are set explicitly: a rule with only "action" was applied to the
+                // answer and not to the user's message, so PII was stored and sent to the model as typed (ADR-0026).
                 .sensitiveInformationPolicyConfig(CfnGuardrail.SensitiveInformationPolicyConfigProperty.builder()
-                        .piiEntitiesConfig(List.of(CfnGuardrail.PiiEntityConfigProperty.builder()
-                                .type("CREDIT_DEBIT_CARD_NUMBER")
-                                .action("ANONYMIZE")
-                                .build()))
-                        // Vietnamese citizen ID (CCCD): 12 digits starting with 0. Bank account numbers are not
-                        // matched on purpose: 8-15 digits would also mask the amounts the advisor talks about.
-                        .regexesConfig(List.of(CfnGuardrail.RegexConfigProperty.builder()
-                                .name("VietnameseCitizenId")
-                                .pattern("\\b0\\d{11}\\b")
-                                .action("ANONYMIZE")
-                                .build()))
+                        .piiEntitiesConfig(List.of(pii("CREDIT_DEBIT_CARD_NUMBER"), pii("EMAIL")))
+                        .regexesConfig(List.of(
+                                regex("VietnameseCitizenId", CITIZEN_ID_PATTERN, true),
+                                regex("VietnamesePhone", PHONE_PATTERN, true),
+                                regex("BankAccountNumber", BANK_ACCOUNT_PATTERN, false)))
                         .build())
-                .build();
-        CfnGuardrailVersion version = CfnGuardrailVersion.Builder.create(stack, "AdvisorGuardrailVersion")
+                .build();        CfnGuardrailVersion version = CfnGuardrailVersion.Builder.create(stack, "AdvisorGuardrailVersion")
                 .guardrailIdentifier(guardrail.getAttrGuardrailId())
                 .description("Version used by jars-api")
                 .build();
@@ -130,6 +156,29 @@ final class AdvisorResources {
                                 .resources(List.of(guardrailArn))
                                 .build()))
                 .roles(List.of(taskRole))
+                .build();
+    }
+
+    private static CfnGuardrail.PiiEntityConfigProperty pii(String type) {
+        return CfnGuardrail.PiiEntityConfigProperty.builder()
+                .type(type)
+                .action("ANONYMIZE")
+                .inputEnabled(true)
+                .inputAction("ANONYMIZE")
+                .outputEnabled(true)
+                .outputAction("ANONYMIZE")
+                .build();
+    }
+
+    private static CfnGuardrail.RegexConfigProperty regex(String name, String pattern, boolean onOutput) {
+        return CfnGuardrail.RegexConfigProperty.builder()
+                .name(name)
+                .pattern(pattern)
+                .action("ANONYMIZE")
+                .inputEnabled(true)
+                .inputAction("ANONYMIZE")
+                .outputEnabled(onOutput)
+                .outputAction(onOutput ? "ANONYMIZE" : "NONE")
                 .build();
     }
 

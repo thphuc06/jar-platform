@@ -84,4 +84,33 @@ class RiskQuestionnaireTest {
                 .isInstanceOf(DomainException.class)
                 .hasMessageContaining("Câu 2");
     }
+
+    @Test
+    void everyOptionHasAMeaningInWords_forTheAdvisorsPrompt() {
+        for (RiskQuestionnaire.Question question : RiskQuestionnaire.QUESTIONS) {
+            assertThat(question.meanings()).as(question.key()).hasSameSizeAs(question.pointsPerOption());
+            assertThat(question.meanings())
+                    .allSatisfy(m -> assertThat(m).isNotBlank().doesNotContain("{"));
+            assertThat(question.topic()).isNotBlank();
+        }
+    }
+
+    @Test
+    void describe_saysWhatEachAnswerMeans_inQuestionOrder() {
+        var described = RiskQuestionnaire.describe(List.of(1, 2, 1, 1, 2));
+
+        assertThat(described).hasSize(5);
+        assertThat(described.get(0).topic()).isEqualTo("Khẩu vị rủi ro");
+        assertThat(described.get(0).meaning()).isEqualTo("vừa phải, cân bằng");
+        assertThat(described.get(1).meaning()).isEqualTo("cần dùng tiền sau 5-10 năm");
+        assertThat(described.get(4).meaning()).isEqualTo("tiết kiệm cho một mục tiêu cụ thể");
+    }
+
+    @Test
+    void describe_leavesOutAnAnswerThatIsNotAnOption_insteadOfGuessing() {
+        assertThat(RiskQuestionnaire.describe(List.of(0, 9, 0)))
+                .extracting(a -> a.topic())
+                .containsExactly("Khẩu vị rủi ro", "Nhu cầu rút tiền");
+        assertThat(RiskQuestionnaire.describe(null)).isEmpty();
+    }
 }

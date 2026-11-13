@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "./client";
 import { unwrap, wireBody } from "./http";
 import { qk } from "./keys";
+import type { AgeBand, IncomeSituation } from "@/lib/profileFacts";
 import { ApiError } from "./problem";
 import type { Me, RiskProfile } from "./types";
 
@@ -17,7 +18,7 @@ export function useMe() {
 export function useUpdateMe() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (body: { displayName?: string; locale?: "vi-VN" | "en-US" }) =>
+    mutationFn: (body: { displayName?: string; locale?: "vi-VN" | "en-US"; ageBand?: AgeBand; incomeSituation?: IncomeSituation }) =>
       unwrap<Me>(api.PATCH("/api/v1/me", { body })),
     onSuccess: (me) => queryClient.setQueryData(qk.me, me),
   });

@@ -90,7 +90,7 @@ Ký hiệu: ✅ có trong thiết kế · 🔧 bổ sung sau review này · ⚠�
 | Kiểm soát chi phí inference | Rate limit, `max-tokens`, model nhỏ mặc định (Haiku), giới hạn số vòng tool-call (điều kiện dừng của agent), (tùy chọn) prompt caching | ✅ / 🔧 4 |
 | Ghi log và giám sát lời gọi model | Ghi metadata (model, token, latency, tool đã gọi, guardrail action) qua Micrometer/log. **Không bật Bedrock model invocation logging toàn bộ prompt** vì prompt chứa dữ liệu tài chính cá nhân; nếu bật để debug thì chỉ ở dev, bucket có lifecycle ngắn | 🔧 4 |
 | Đánh giá chất lượng | Bộ eval nhỏ (20–30 câu hỏi mẫu): đúng tool, không bịa số, có disclaimer; chạy trong CI ở chế độ thủ công | ⏳ 4 |
-| Minh bạch với người dùng | Disclaimer "tham khảo, không phải khuyến nghị đầu tư" ở mọi câu trả lời liên quan đầu tư | ✅ 4 |
+| Minh bạch với người dùng | Disclaimer "tham khảo, dựa trên danh mục sản phẩm minh họa (ngân hàng hư cấu), không phải khuyến nghị đầu tư cá nhân" ở mọi câu trả lời (ADR-0027) | ✅ 4 |
 
 ## 8. Financial Services Industry Lens (những điểm áp dụng được)
 

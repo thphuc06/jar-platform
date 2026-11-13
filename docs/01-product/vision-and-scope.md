@@ -44,6 +44,7 @@ Người trẻ Việt Nam (sinh viên, người mới đi làm) có thu nhập k
 | F12 | Chat AI streaming, có tool calling vào dữ liệu thật của user và guardrails | 2 |
 | ~~F13~~ | ~~Tra cứu cổ phiếu VN + mô phỏng tối ưu danh mục~~ (đã bỏ, ADR-0024) | – |
 | F14 | Audit log: ai làm gì, lúc nào; ghi bằng AOP trong cùng transaction với nghiệp vụ ([ADR-0025](../04-adr/0025-audit-log-aop-same-transaction.md)) (đã làm) | 3+ |
+| F15 | Gợi ý sản phẩm từ danh mục **minh họa** của một ngân hàng hư cấu (18 sản phẩm: tiền gửi, quỹ, vay, thẻ, bảo hiểm): trợ lý đọc danh mục qua tool và lý giải theo hồ sơ (khẩu vị rủi ro, độ tuổi, thu nhập, hai câu hỏi onboarding mới) cùng số liệu thật của user; không có engine gợi ý ở backend ([ADR-0027](../04-adr/0027-advisor-product-catalog-and-profile.md)) | 3+ |
 
 Ngoài danh sách feature: **đối soát sổ cái hằng đêm** (kiểm `balance == SUM(entries)` của mọi hũ, chỉ phát hiện và báo, không tự sửa) là biện pháp vận hành, không phải tính năng cho người dùng ([flows.md F6](../02-architecture/flows.md#f6)).
 
@@ -52,7 +53,7 @@ Ngoài danh sách feature: **đối soát sổ cái hằng đêm** (kiểm `bala
 | Không làm | Lý do |
 |---|---|
 | Kết nối tài khoản ngân hàng thật hoặc chuyển tiền thật | Cần giấy phép và đối tác. Ở đây "chuyển tiền" chỉ là ghi sổ giữa các hũ |
-| Khuyến nghị đầu tư cá nhân hóa (mua/bán mã cụ thể) | Rủi ro pháp lý; giới hạn ở mức giáo dục, có Guardrails chặn |
+| Khuyến nghị đầu tư cá nhân hóa (mua/bán mã cụ thể) | Rủi ro pháp lý; giới hạn ở mức giáo dục, có Guardrails chặn. Trợ lý chỉ giới thiệu sản phẩm của danh mục minh họa (ngân hàng hư cấu) và nói rõ đó là thông tin tham khảo, không phải tư vấn của chuyên gia được cấp phép; cổ phiếu, tiền mã hóa, vàng, ngoại tệ vẫn ngoài phạm vi |
 | Đa tiền tệ | MVP chỉ dùng VND. Schema vẫn có cột `currency` để mở rộng sau |
 | App mobile native | PWA là đủ |
 | Đa tenant hoặc gia đình dùng chung hũ | Tăng độ phức tạp phân quyền, để sau MVP |

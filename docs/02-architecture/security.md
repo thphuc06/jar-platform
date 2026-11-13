@@ -71,11 +71,12 @@ Xem [aws-infrastructure.md §3](aws-infrastructure.md#3-network-vpc).
 | Mass assignment | DTO `record` riêng cho request; không bind thẳng vào entity |
 | Upload file độc | Presigned PUT không giới hạn được kích thước upload; `S3StatementStore` kiểm tra kích thước (≤ 5 MB) bằng HEAD trước khi đọc file; content-type `text/csv`; key do server sinh; parser CSV giới hạn số dòng và kích thước dòng |
 | SSRF | Không gọi URL do user cung cấp. Boot 4.1 có `InetAddressFilter` cho HTTP client nếu sau này cần |
-| Lạm dụng LLM (chi phí, prompt injection) | Rate limit theo user; `max-tokens`; tool chỉ đọc + scope theo user; Guardrails |
+| Lạm dụng LLM (chi phí, prompt injection) | Rate limit theo user; `max-tokens`; tool chỉ đọc + scope theo user; Guardrails. Khối hồ sơ trong system prompt chỉ dựng từ enum, số và nhãn cố định (không tên, email hay văn bản người dùng gõ), nên không phải đường tiêm prompt ([ADR-0027](../04-adr/0027-advisor-product-catalog-and-profile.md)) |
 | Lộ thông tin qua lỗi | `ProblemDetail` không chứa stack trace; log chi tiết có `traceId` |
 | Dependency có CVE | Dependabot + `mvn org.owasp:dependency-check` (hoặc GitHub dependency review); ECR scan on push |
 | Header bảo mật | CloudFront response headers policy (HSTS, CSP, nosniff, frame-ancestors none) |
 | Lộ dữ liệu cá nhân trong log | Không log body request có số tiền/ghi chú ở mức INFO; mask email trong log |
+| PII người dùng gõ vào chat (thẻ, CCCD, email, số điện thoại, số tài khoản) | Guardrail che trước khi lưu và trước khi gửi cho model; chỉ bản đã che vào `chat_messages`, tiêu đề phiên, `Grounding`; Spring AI không bật `log-prompt`/`include-content`. Phần còn lọt: [ADR-0026](../04-adr/0026-guardrail-input-pii-masking.md) |
 
 ## 7. Threat model (STRIDE rút gọn)
 

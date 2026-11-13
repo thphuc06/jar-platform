@@ -69,6 +69,31 @@ describe("Advisor", () => {
     expect(JSON.parse(await send.request.clone().text())).toEqual({ content: "Hũ NEC còn bao nhiêu?" });
   });
 
+  it("says what the model is doing while it looks at the product catalogue", async () => {
+    serve(({ method, pathname }) => {
+      if (method === "GET" && pathname === "/api/v1/chat/sessions") return json([session]);
+      if (method === "GET" && pathname === "/api/v1/chat/sessions/s1/messages") return json([]);
+      if (method === "POST")
+        // the stream stays open after the first tool event, so the indicator is on screen
+        return new Response(
+          new ReadableStream({
+            start(controller) {
+              const frame = `event:tool\ndata:${JSON.stringify({ name: "listProducts", status: "started" })}\n\n`;
+              controller.enqueue(new TextEncoder().encode(frame));
+            },
+          }),
+          { status: 200, headers: { "content-type": "text/event-stream" } },
+        );
+      return undefined;
+    });
+    renderAdvisor();
+    await screen.findByText(/Bắt đầu bằng một câu hỏi/);
+
+    ask("Sản phẩm nào hợp với tôi?");
+
+    expect(await screen.findByText("Đang xem danh mục sản phẩm…")).toBeInTheDocument();
+  });
+
   it("shows what the guardrail put in place of a masked answer", async () => {
     serve(({ method, pathname }) => {
       if (method === "GET" && pathname === "/api/v1/chat/sessions") return json([session]);
