@@ -46,18 +46,20 @@ Every row links to the code and to the test that proves it.
 
 **Backend: 578 tests, 96.7% line coverage** (the build enforces 80% on domain and service code), Spotless formatting and a secret scan (gitleaks) on every pull request. The web client has its own unit and component tests (`apps/web`).
 
-Decisions are recorded as 22 [ADRs](docs/04-adr/README.md), including the ones where the design had to change because reality disagreed (Java 21 instead of 25, no IAM Identity Center, a CloudFront Function instead of error pages for the SPA fallback).
+Decisions are recorded as 24 [ADRs](docs/04-adr/README.md), including the ones where the design had to change because reality disagreed (Java 21 instead of 25, no IAM Identity Center, a CloudFront Function instead of error pages for the SPA fallback).
 
 ## Tech stack
 
 | Layer | Technology |
 |---|---|
-| Backend | Java 21, Spring Boot 4.1, Spring Modulith 2.1, Spring Security (OAuth2 resource server), Spring Data JPA / Hibernate 7, Flyway, springdoc-openapi, Spring Cloud AWS (SQS) |
+| Backend | Java 21, Spring Boot 4.1, Spring Modulith 2.1, Spring Security (OAuth2 resource server), Spring Data JPA / Hibernate 7, Flyway, springdoc-openapi, Spring Cloud AWS (SQS, S3), Spring Batch 6 (CSV import) |
+| AI | Spring AI 2.0 with Amazon Bedrock (Converse, Claude Haiku 4.5) and Bedrock Guardrails |
 | Data | PostgreSQL 17 (Amazon Aurora Serverless v2 in AWS) |
 | Auth | Amazon Cognito (managed login, Authorization Code + PKCE) |
 | Compute / edge | ECS Fargate (ARM64), internal ALB, CloudFront with a VPC origin, S3 |
-| Infrastructure | AWS CDK v2 (Java), GitHub Actions |
-| Testing | JUnit 5, AssertJ, Testcontainers, Awaitility, ArchUnit, Modulith `Scenario`, Spring Security Test |
+| Infrastructure | AWS CDK v2 (Java), GitHub Actions (CI, manual deploy over OIDC) |
+| Observability | Micrometer + OpenTelemetry, ADOT sidecar to X-Ray and CloudWatch (EMF), dashboard and alarms in CDK |
+| Testing | JUnit 5, AssertJ, Testcontainers, Awaitility, ArchUnit, Modulith `Scenario`, Spring Security Test, k6 (load test) |
 | Web | React, Vite, TypeScript, Tailwind / shadcn-ui |
 
 ## Run it locally
@@ -92,4 +94,4 @@ docs/              architecture, API contract, 24 ADRs, operations, roadmap
 
 ## Status
 
-Phase 1 ("core to cloud") and most of Phase 2 (CSV import, AI advisor, observability, a manual deploy workflow over GitHub OIDC) are implemented and were verified on AWS (smoke test 14/14). Stock quotes and the portfolio optimizer are on hold because of the data source's license. What is built, what is left out and why: [docs/06-plan/roadmap.md](docs/06-plan/roadmap.md).
+Phase 1 ("core to cloud") and Phase 2 (CSV import, AI advisor, observability, a manual deploy workflow over GitHub OIDC) are implemented and were verified on AWS (smoke test 14/14). Stock quotes and the portfolio optimizer were dropped because of the data source's license ([ADR-0024](docs/04-adr/0024-drop-market-and-quant-fn.md)); splitting out an `insights-worker` service is unscheduled backlog (Phase 3+). What is built, what is left out and why: [docs/06-plan/roadmap.md](docs/06-plan/roadmap.md).

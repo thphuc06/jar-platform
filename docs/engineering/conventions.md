@@ -9,7 +9,7 @@
 | PR | Một PR ứng với một bước roadmap; có checklist (bên dưới); squash merge |
 | Không bao giờ | Commit secret, commit file build (`target/`, `dist/`, `*.zip`), force-push lên `main` |
 
-## 2. Java (`apps/jars-api`, `apps/insights-worker`, `infra/cdk`)
+## 2. Java (`apps/jars-api`, `infra/cdk`; `apps/insights-worker` khi được tách ở Phase 3+, backlog)
 
 | Chủ đề | Quy ước |
 |---|---|
@@ -36,7 +36,7 @@
 | Integration | `@SpringBootTest` + Testcontainers (Postgres, LocalStack) | Luồng F2, F3, SQS listener | mỗi build (CI) |
 | Architecture | Modulith `verify()` + ArchUnit | Ranh giới module; cấm `double` cho tiền | mỗi build |
 | Infra | CDK assertions + cdk-nag | Không có NAT; SG không mở 0.0.0.0/0 | mỗi build |
-| Load | k6 | Dashboard, POST transaction | Phase 6, chạy tay |
+| Load | k6 | Dashboard, POST transaction | chạy tay, `scripts/load-test.ps1` (Phase 2 WP2) |
 
 **Mục tiêu coverage:** ≥ 80% line coverage cho `*/internal/domain` và `*/internal/service` (JaCoCo). Không chạy theo coverage cho controller hay config.
 

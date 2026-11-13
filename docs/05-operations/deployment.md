@@ -31,11 +31,12 @@ Tham chiếu đầy đủ: [well-architected-review.md](../02-architecture/well-
 | Lần | Lệnh | Khi nào |
 |---|---|---|
 | Phase 1 | `cdk deploy JarsAuth` | Cần Cognito để có JWT thật khi chạy local |
-| Phase 3, lần đầu | `cdk deploy JarsFoundation JarsNetwork JarsData JarsMessaging` | Hạ tầng nền (ECR, VPC, Aurora, SQS) |
-| Phase 3 | Push image đầu tiên lên ECR (bằng CI hoặc tay), rồi `cdk deploy JarsApp -c imageTag=<sha>` | Lên app |
-| Phase 4 | `cdk deploy JarsApp` | Thêm Valkey (nếu cần) |
-| Phase 5 | `cdk deploy JarsMessaging JarsApp` (+ service worker) | SNS/SQS FIFO + insights-worker |
-| Phase 6 | `cdk deploy JarsObservability` | Dashboard, alarm |
+| Phase 1 (WP9), lần đầu | `cdk deploy JarsFoundation JarsNetwork JarsData JarsMessaging` | Hạ tầng nền (ECR, VPC, Aurora, SQS) |
+| Phase 1 (WP9) | Push image đầu tiên lên ECR (bằng CI hoặc tay), rồi `cdk deploy JarsApp -c imageTag=<sha>` | Lên app (đã gồm dashboard, alarm và sidecar ADOT từ Phase 2 WP2: không có stack `JarsObservability`, xem [aws-infrastructure §11](../02-architecture/aws-infrastructure.md#11-observability)) |
+| Phase 2 (WP1) | Workflow `deploy-dev.yml` (`workflow_dispatch`, input `deploy`/`destroy`) | Deploy và dọn `JarsApp` qua GitHub OIDC thay cho chạy tay |
+| Phase 3+ (backlog, chưa lên lịch) | `cdk deploy JarsMessaging JarsApp` (+ service worker) | SNS/SQS FIFO + `insights-worker`; chưa có code, chưa có stack |
+
+Chỉ có sáu stack: `JarsFoundation`, `JarsNetwork`, `JarsAuth`, `JarsData`, `JarsMessaging`, `JarsApp`. Không có Valkey/ElastiCache (rate limit của advisor nằm trong PostgreSQL, [ADR-0023](../04-adr/0023-advisor-guardrail-and-rate-limit.md)).
 
 Tất cả lệnh chạy trong `infra/cdk` với `--profile jars-dev`. Trước mỗi lần deploy nên chạy `cdk diff` để xem thay đổi.
 
@@ -80,7 +81,6 @@ Một điều chưa giải thích được: lượt 2 cũng đăng ký task defi
 | `imageTag` | (trống; bắt buộc với `JarsApp`) | Git SHA của image jars-api. Khi trống, `JarsApp` **không** được synth (các stack khác vẫn deploy được), `cdk deploy JarsApp` báo "No stacks match" |
 | `apiDesiredCount` | `1` | `0` = chế độ SLEEP |
 | `dbMode` | `aurora` | `rds` = chuyển sang RDS t4g.micro dự phòng (ADR-0008) |
-| `enableCache` | `false` (Phase 3) / `true` (Phase 4+) | Tạo Valkey Serverless |
 | `customDomain` | (trống) | Nếu có domain riêng: tạo ACM ở us-east-1 + bản ghi Route 53 |
 | `alertEmail` | (trống, không bao giờ commit email thật) | Nhận budget alarm và CloudWatch alarm. Truyền `-c alertEmail=<địa chỉ>` hoặc đặt biến môi trường `JARS_ALERT_EMAIL`; trống thì topic không có người đăng ký và synth in cảnh báo. SNS gửi email xác nhận, phải bấm xác nhận một lần |
 | `deployWeb` | `false` | `true` = `BucketDeployment` upload `apps/web/dist` (build bởi người khác) và invalidate CloudFront |
@@ -138,7 +138,7 @@ Các bước của `deploy` (runner `ubuntu-24.04-arm`, build image không cần
 | `minimumHealthyPercent=100`, `maximumPercent=200` | Task mới healthy rồi mới tắt task cũ (zero-downtime với 1 task) |
 | Rollback thủ công | `cdk deploy JarsApp -c imageTag=<sha-cũ>` |
 | DB migration | Flyway chạy lúc app khởi động. **Migration phải backward-compatible** (expand → migrate → contract) để rollback image không làm hỏng DB |
-| Blue/green (Phase 6) | Thử ECS native blue/green với test listener + lifecycle hook (Lambda smoke test) |
+| Blue/green (Phase 3+, backlog) | Thử ECS native blue/green với test listener + lifecycle hook (Lambda smoke test) |
 
 ## 6. Checklist sau deploy
 

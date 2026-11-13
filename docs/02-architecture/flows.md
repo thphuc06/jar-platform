@@ -1,17 +1,17 @@
 # Luồng chính (Runtime flows)
 
-Mỗi luồng ghi rõ **có từ phase nào** và **điểm kỹ thuật cần học**. Ký hiệu: `CF` = CloudFront, `ALB` = internal ALB, `API` = jars-api.
+Mỗi luồng ghi rõ **có từ phase nào** (đánh số theo [roadmap](../06-plan/roadmap.md) hiện tại) và **điểm kỹ thuật cần học**. Ký hiệu: `CF` = CloudFront, `ALB` = internal ALB, `API` = jars-api.
 
 | ID | Luồng | Phase |
 |---|---|---|
 | [F1](#f1) | Đăng nhập + request đầu tiên (tạo user lazy) | 1 |
 | [F2](#f2) | Ghi một khoản chi (idempotency, optimistic lock, outbox) | 1 |
-| [F3](#f3) | Phát hiện bất thường → thông báo realtime (SSE) | 2 (in-process), 5 (qua SNS/SQS) |
-| [F4](#f4) | Chat AI streaming với tool calling + guardrails | 4 |
-| [F5](#f5) | Import sao kê CSV | 2 (local), 3 (S3 + EventBridge) |
-| [F6](#f6) | Khép sổ cuối tháng theo lịch | 3 |
-| [F7](#f7) | Định tuyến request ở edge | 3 |
-| [F8](#f8) | Aurora auto-pause / resume | 3 |
+| [F3](#f3) | Phát hiện bất thường → thông báo realtime (SSE) | 1 (in-process, đã có), 3+ (qua SNS/SQS, backlog) |
+| [F4](#f4) | Chat AI streaming với tool calling + guardrails | 2 |
+| [F5](#f5) | Import sao kê CSV | 2 |
+| [F6](#f6) | Khép sổ cuối tháng theo lịch | 1 |
+| [F7](#f7) | Định tuyến request ở edge | 1 |
+| [F8](#f8) | Aurora auto-pause / resume | 1 |
 
 ---
 
@@ -110,7 +110,7 @@ sequenceDiagram
 <a id="f3"></a>
 ## F3. Phát hiện bất thường → thông báo realtime
 
-### Phase 2–4 (in-process)
+### In-process (đang chạy)
 
 ```mermaid
 sequenceDiagram
@@ -149,7 +149,7 @@ sequenceDiagram
 
 Dữ liệu chuẩn của test lấy từ `test_cusum_sliding_window_local.py` của bản hackathon (baseline 100k, sigma 52k: lệch tăng dần báo ở khoản thứ 10, không đổi 200k báo ở khoản thứ 4).
 
-### Phase 5 (externalized, qua SNS/SQS)
+### Phase 3+ (externalized, qua SNS/SQS; backlog, chưa có code)
 
 ```mermaid
 sequenceDiagram
@@ -173,7 +173,7 @@ sequenceDiagram
     API-->>W: SSE notification
 ```
 
-**Fan-out SSE khi có nhiều task:** user có thể đang giữ kết nối SSE ở task A trong khi task B nhận message. Cách xử lý (Phase 4+): task nhận message publish lên kênh Valkey `notif:{userId}`, task nào đang giữ kết nối của user đó thì đẩy xuống. Khi chỉ có 1 task thì không cần.
+**Fan-out SSE khi có nhiều task:** user có thể đang giữ kết nối SSE ở task A trong khi task B nhận message. Cách xử lý (Phase 3+, chưa làm; hiện chỉ có 1 task nên không cần): task nhận message publish lên kênh Valkey (hoặc cơ chế pub/sub tương đương, hiện chưa có hạ tầng nào như vậy) `notif:{userId}`, task nào đang giữ kết nối của user đó thì đẩy xuống. Khi chỉ có 1 task thì không cần.
 
 ---
 
@@ -185,22 +185,22 @@ sequenceDiagram
     autonumber
     participant W as web
     participant API as jars-api (advisor)
-    participant RL as Valkey (rate limit)
+    participant RL as PostgreSQL (rate limit)
     participant G as Bedrock Guardrails
     participant B as Bedrock ConverseStream
     participant T as Tools (ledger, goals, insights)
 
     W->>API: POST /api/v1/chat/sessions/{id}/messages (Accept: text/event-stream)
-    API->>RL: Bucket4j: còn token cho user?
+    API->>RL: đếm tin trong giờ/ngày: user còn quota?
     alt hết quota
         API-->>W: 429 + Retry-After
     end
     API->>API: Nạp lịch sử chat (N tin gần nhất) + system prompt + ngữ cảnh risk profile
-    API->>B: ConverseStream (tools = [getJarSummary, getSpending, getGoalFeasibility, getQuote], guardrail)
-    B-->>API: toolUse getSpending(month=2026-10)
+    API->>B: ConverseStream (tools = [getJars, getMonthlyCashflow, getGoals, getOpenAnomalyCount], guardrail qua ApplyGuardrail)
+    B-->>API: toolUse getMonthlyCashflow(month=2026-10)
     API->>T: Gọi Java service với userId lấy từ JWT (KHÔNG lấy từ tham số LLM)
     T-->>API: Kết quả có cấu trúc (số do Java tính)
-    API-->>W: event: tool {name: getSpending, status: done}
+    API-->>W: event: tool {name: getMonthlyCashflow, status: done}
     API->>B: toolResult
     loop streaming
         B-->>API: text delta

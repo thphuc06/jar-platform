@@ -150,7 +150,7 @@ data: {"id":"0193b2...","type":"ANOMALY","severity":"HIGH","title":"Hũ PLAY tă
 : heartbeat              ← comment line mỗi 15 s, giữ kết nối qua CloudFront/ALB
 ```
 
-> **Khác bản hackathon:** bản cũ trộn text và metadata (`Trace:`, `Tools:`...) trong các dòng `data:`, rồi UI phải lọc theo prefix. Bản mới dùng **named events**, nên `useChat.ts` sẽ được viết lại ở Phase 4.
+> **Khác bản hackathon:** bản cũ trộn text và metadata (`Trace:`, `Tools:`...) trong các dòng `data:`, rồi UI phải lọc theo prefix. Bản mới dùng **named events**, nên `useChat.ts` đã được viết lại ở Phase 2 WP4.
 
 ## 4. Idempotency
 

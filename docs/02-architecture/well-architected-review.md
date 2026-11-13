@@ -2,7 +2,8 @@
 
 > Đối chiếu thiết kế với **AWS Well-Architected Framework** (6 trụ cột) và hai lens sát với project nhất: **Generative AI Lens** và **Financial Services Industry (FSI) Lens** (FSI Lens đã được cập nhật cho generative AI và agentic AI).
 > Mục tiêu: biết rõ **mình đang làm đúng chỗ nào, cố ý lệch chuẩn chỗ nào và vì sao**. Đây là kiểu câu hỏi interviewer thường hỏi người có chứng chỉ SAA.
-> Ngày lập: 2026-10-23. Chạy lại bằng **AWS Well-Architected Tool** (miễn phí) ở cuối Phase 3 và cuối Phase 6, sau đó cập nhật cột "Trạng thái".
+> Ngày lập: 2026-10-23. Chạy lại bằng **AWS Well-Architected Tool** (miễn phí) ở cuối Phase 2 và sau khi làm backlog Phase 3+ (chưa lên lịch), sau đó cập nhật cột "Trạng thái".
+> Cột "Phase" dưới đây giữ cách đánh số phase cũ của thiết kế (0–6) để đối chiếu. Quy đổi theo [roadmap](../06-plan/roadmap.md): phase cũ 1–3 = Phase 1 (gộp), phase cũ 4 = Phase 2 (advisor, observability, import CSV), phase cũ 5–6 = backlog Phase 3+.
 
 Ký hiệu: ✅ có trong thiết kế · 🔧 bổ sung sau review này · ⚠️ cố ý lệch chuẩn (có lý do) · ⏳ để phase sau
 
@@ -16,7 +17,7 @@ Ký hiệu: ✅ có trong thiết kế · 🔧 bổ sung sau review này · ⚠�
 | Runbook cho thao tác lặp lại | [runbook.md](../05-operations/runbook.md) | ✅ | – |
 | Học từ sự cố | Bảng "Sự cố đã gặp" trong runbook; postmortem ngắn | ✅ | – |
 | **Game day / diễn tập lỗi** | Tắt task đang chạy, đẩy message lỗi vào DLQ, chặn Bedrock; đo thời gian phát hiện và phục hồi. (AWS FIS tính phí theo action-phút, có thể dùng thử) | 🔧 | 6 |
-| Well-Architected review định kỳ | WA Tool (miễn phí) ở cuối Phase 3 và Phase 6 | 🔧 | 3, 6 |
+| Well-Architected review định kỳ | WA Tool (miễn phí) ở cuối Phase 2 và sau backlog Phase 3+ (chưa làm lần nào) | 🔧 | 3, 6 |
 
 ## 2. Security
 
@@ -28,7 +29,7 @@ Ký hiệu: ✅ có trong thiết kế · 🔧 bổ sung sau review này · ⚠�
 | **Phát hiện truy cập ngoài ý muốn** | **IAM Access Analyzer – external access analyzer** (miễn phí): báo resource bị chia sẻ public hoặc cross-account | 🔧 | 0 |
 | **Chặn S3 public ở cấp account** | Bật **S3 Block Public Access (account-level)** | 🔧 | 0 |
 | Mã hóa at rest | Aurora (KMS mặc định), S3 SSE-S3, SQS SSE, EBS default encryption (cho EC2 nếu có) | ✅ / 🔧 | 0, 3 |
-| Mã hóa in transit | CloudFront HTTPS; `rds.force_ssl=1`; Valkey TLS; S3 bucket policy **chặn non-TLS** (`enforceSSL`) | ✅ / 🔧 | 3 |
+| Mã hóa in transit | CloudFront HTTPS; `rds.force_ssl=1`; S3 bucket policy **chặn non-TLS** (`enforceSSL`) | ✅ / 🔧 | 3 |
 | Bảo vệ hạ tầng nhiều lớp | ALB internal + VPC origin; SG theo chuỗi ALB → app → DB | ✅ | 3 |
 | Bảo mật container | Image non-root; `readonlyRootFilesystem=true` (mount volume `/tmp` cho Tomcat); ECR **immutable tags** + scan on push; không đưa secret vào image | 🔧 | 3 |
 | Phát hiện mối đe dọa | CloudTrail event history (90 ngày, miễn phí). **GuardDuty: dùng thử 30 ngày** (mỗi account mỗi region) ở Phase 3, rồi tắt nếu không đủ ngân sách. Security Hub / Config: không bật (tốn phí) | ⚠️ | 3 |
@@ -53,9 +54,9 @@ Ký hiệu: ✅ có trong thiết kế · 🔧 bổ sung sau review này · ⚠�
 
 | Best practice | Áp dụng | Trạng thái |
 |---|---|---|
-| Chọn compute phù hợp | Fargate **Graviton (ARM64)**; Lambda cho quant (tải không đều) | ✅ |
+| Chọn compute phù hợp | Fargate **Graviton (ARM64)**; chỉ một workload (ECS), không có Lambda cho quant (đã bỏ, [ADR-0024](../04-adr/0024-drop-market-and-quant-fn.md)) | ✅ |
 | JVM trong container | `MaxRAMPercentage=75`; virtual threads; (tùy chọn) CDS/AOT cache để khởi động nhanh hơn | ✅ / ⏳ |
-| Cache gần người dùng | CloudFront cho static; Valkey cho dữ liệu đọc nhiều | ✅ |
+| Cache gần người dùng | CloudFront cho static; dữ liệu đọc nhiều dùng read model trong PostgreSQL (không có Valkey) | ✅ |
 | Đo trước khi tối ưu | Load test k6, ghi p95 vào README | ⏳ 6 |
 | Đúng cấu trúc dữ liệu | Index cho keyset pagination; read model cho dashboard | ✅ |
 
@@ -66,7 +67,7 @@ Ký hiệu: ✅ có trong thiết kế · 🔧 bổ sung sau review này · ⚠�
 | Đo lường và phân bổ chi phí | Tag `Project=jars` + cost allocation tag; nhật ký chi phí hằng tuần | ✅ |
 | Budget + cảnh báo | Budget theo tag ($30) | ✅ |
 | **Phát hiện chi phí bất thường** | **AWS Cost Anomaly Detection** (không tính phí; email alert hằng ngày) | 🔧 0 |
-| Trả theo mức dùng | Aurora scale-to-zero, Lambda, SQS; chế độ TEARDOWN mặc định | ✅ |
+| Trả theo mức dùng | Aurora scale-to-zero, SQS; chế độ TEARDOWN mặc định | ✅ |
 | Kiến trúc tránh phí cố định | Không NAT, không MSK, không EKS ([ADR-0013](../04-adr/0013-networking-no-nat.md), [ADR-0009](../04-adr/0009-messaging-sns-sqs-eventbridge.md)) | ✅ |
 | Log retention có hạn | 14 ngày | ✅ |
 | Kiểm tra tài nguyên bỏ quên | Dọn hằng tháng (runbook); **Trusted Advisor core checks** (miễn phí) | ✅ |

@@ -10,7 +10,7 @@ Code nằm trên GitHub. Bản cũ dùng CodeBuild + script PowerShell chạy ta
 - **CI** (`.github/workflows/ci.yml`, chạy mỗi PR, có path filter):
   - jars-api: `./mvnw verify` (unit test + Testcontainers + Modulith verify).
   - web: lint + test + build.
-  - quant-fn: `pytest`.
+  - ~~quant-fn: `pytest`.~~ (job này không bao giờ có, xem ghi chú 2026-11-13 bên dưới)
   - infra: `cdk synth` + cdk-nag.
   - Toàn repo: gitleaks.
 - **CD** (`deploy-dev.yml`, chạy khi merge `main` hoặc chạy tay):
@@ -21,6 +21,8 @@ Code nằm trên GitHub. Bản cũ dùng CodeBuild + script PowerShell chạy ta
 - Dùng GitHub Environment `dev` có yêu cầu approve thủ công (tùy chọn) để tránh deploy ngoài ý muốn khi đang "ngủ" để tiết kiệm.
 
 > **Cập nhật 2026-11-12 (Phase 2 WP1), khi cài đặt:** CD chỉ chạy tay (`workflow_dispatch`, input `deploy`/`destroy`), không chạy khi merge `main`, vì môi trường mặc định là TEARDOWN; nhờ vậy không cần biến `DEPLOY_ENABLED`. Không dùng GitHub Environment: environment đổi claim `sub` thành `repo:...:environment:dev`, sẽ phải nới trust policy. Workflow chỉ deploy `JarsApp` với `--exclusively`; các stack nền vẫn deploy từ máy dev. Quyền push ECR được thêm vào role, giới hạn đúng repo `jars/jars-api` ([security.md §3](../02-architecture/security.md#3-iam)). `JarsQuant` thêm vào bước deploy khi có ở WP5.
+
+> **Cập nhật 2026-11-13:** job CI `quant-fn: pytest` và stack `JarsQuant` trong bước deploy không bao giờ được tạo: `quant-fn` đã bỏ cùng module `market` ([ADR-0024](0024-drop-market-and-quant-fn.md)). CI hiện chỉ có jars-api, web, infra và gitleaks. Quyết định CI/CD qua OIDC không đổi.
 
 ## Các phương án đã cân nhắc
 

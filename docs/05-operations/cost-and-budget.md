@@ -35,7 +35,7 @@
 | ECR storage | GB-tháng | 0.10 |
 | CloudWatch Logs ingest (Standard) | GB | 0.70 |
 | EBS gp3 | GB-tháng | 0.096 |
-| ElastiCache Serverless Valkey (ước tính) | tối thiểu 100 MB được tính phí | khoảng $6/tháng (nguồn bên thứ ba) |
+| ElastiCache Serverless Valkey (ước tính; **không dùng**, rate limit của advisor nằm trong PostgreSQL, [ADR-0023](../04-adr/0023-advisor-guardrail-and-rate-limit.md)) | tối thiểu 100 MB được tính phí | khoảng $6/tháng (nguồn bên thứ ba) |
 | CloudWatch custom metric (EMF) | metric-tháng, 10.000 metric đầu (tính theo giờ tồn tại) | 0.30 |
 | CloudWatch alarm (standard) | mỗi metric trong alarm-tháng | 0.10 |
 | CloudWatch dashboard | dashboard-tháng, **3 dashboard đầu miễn phí** (account chưa có dashboard nào, kiểm ngày 2026-11-12) | 3.00 |
@@ -47,13 +47,13 @@
 
 ## 3. Ba chế độ vận hành
 
-| Chế độ | Mô tả | Phase 3 | Phase 4 | Phase 5 |
+| Chế độ | Mô tả | Phase 1 (đã deploy) | + advisor, observability (Phase 2) | + insights-worker (Phase 3+, backlog) |
 |---|---|---|---|---|
-| **RUNNING** | jars-api chạy 24/7; Aurora dùng khoảng 3 giờ/ngày | **≈ $51** | **≈ $61** | **≈ $74** |
-| **SLEEP** | `desiredCount=0`; giữ ALB, CloudFront, Valkey; Aurora pause | ≈ $19 | ≈ $25 | ≈ $25 |
+| **RUNNING** | jars-api chạy 24/7; Aurora dùng khoảng 3 giờ/ngày | **≈ $51** | **≈ $55** | **≈ $68** |
+| **SLEEP** | `desiredCount=0`; giữ ALB, CloudFront; Aurora pause | ≈ $19 | ≈ $19 | ≈ $19 |
 | **TEARDOWN** | `cdk destroy JarsApp`; chỉ còn Data/Auth/Network/Messaging/Foundation | **≈ $1** | ≈ $1 | ≈ $1 |
 
-### Chi tiết RUNNING (Phase 3)
+### Chi tiết RUNNING (Phase 1)
 
 | Thành phần | Tính | USD/tháng |
 |---|---|---|
@@ -69,7 +69,7 @@
 | S3, CloudFront, Cognito, SQS, EventBridge, Scheduler | free tier / gần $0 | ~0 |
 | **Tổng** | | **≈ 50.6** |
 
-Phase 4 cộng thêm: Valkey khoảng $6 + Bedrock khoảng $3–5 (có rate limit). Phase 5 cộng thêm: insights-worker (0.25 vCPU + 0.5 GB) ≈ $9.00 + IPv4 $3.65.
+Phase 2 cộng thêm: Bedrock khoảng $3–5 (rate limit nằm trong PostgreSQL nên không có Valkey, [ADR-0023](../04-adr/0023-advisor-guardrail-and-rate-limit.md)) và observability (xem ghi chú ở §2; sidecar ADOT dùng chung task nên không tính thêm Fargate đáng kể). Backlog Phase 3+, nếu tách insights-worker: 0.25 vCPU + 0.5 GB ≈ $9.00 + IPv4 $3.65. Các cột sau Phase 1 là ước tính theo đơn giá, chưa đo.
 
 ### Bẫy chi phí "ẩn"
 
@@ -87,9 +87,9 @@ Phase 4 cộng thêm: Valkey khoảng $6 + Bedrock khoảng $3–5 (có rate lim
 
 | Giai đoạn (ước lượng) | Chế độ mặc định | Dự kiến chi |
 |---|---|---|
-| Phase 0–2 (26/10 – 20/12/2026): dev local | Chỉ có `JarsAuth` (Cognito) + Bedrock thử nghiệm | ≈ $1–3 |
-| Phase 3 (21/12/2026 – 03/01/2027) | RUNNING khi đang làm, TEARDOWN khi nghỉ | ≈ $15–25 |
-| Phase 4–6 (01–02/2027) | TEARDOWN mặc định; RUNNING vào ngày làm phần cloud hoặc demo | ≈ $30–50 |
+| Phase 0–2 (đã xong 13/11/2026): dev local + hai phiên cloud ngắn (12/11 và 13/11, ước lượng ≈ $0,4 tổng cộng) | Chỉ có `JarsAuth` (Cognito) + Bedrock thử nghiệm | ≈ $1–3 |
+| Các phiên cloud tiếp theo (kế hoạch ban đầu của "Phase 3", phần deploy đã làm ở Phase 1 WP9) | RUNNING khi đang làm, TEARDOWN khi nghỉ | ≈ $15–25 |
+| Phase 3+ (backlog, chưa lên lịch; dự kiến 01–02/2027) | TEARDOWN mặc định; RUNNING vào ngày làm phần cloud hoặc demo | ≈ $30–50 |
 | **Tổng dự kiến cho Jars** | | **≈ $50–80** |
 
 **Quy tắc vận hành:**
@@ -104,7 +104,7 @@ Phase 4 cộng thêm: Valkey khoảng $6 + Bedrock khoảng $3–5 (có rate lim
 | Budget riêng cho project | $30/tháng, lọc `Project=jars`; cảnh báo ở 50/80/100% thực chi và 100% dự báo, gửi email | `JarsFoundation` |
 | Cost Anomaly Detection | Monitor theo AWS service, email tổng hợp hằng ngày. Dịch vụ không tính phí (chỉ tính phí SNS nếu dùng alert tức thời) | Account baseline (thủ công, Phase 0) |
 | Budget tổng tài khoản | Giữ budget $10 hiện có hoặc nâng lên $60 (vì đã có project khác) | Thủ công |
-| Alarm Aurora không pause | `ServerlessDatabaseCapacity` > 0 trong 6 giờ liên tục (mỗi giờ lấy giá trị nhỏ nhất) | `JarsApp` (tạo sớm ở Phase 3; chuyển sang `JarsObservability` ở Phase 6) |
+| Alarm Aurora không pause | `ServerlessDatabaseCapacity` > 0 trong 6 giờ liên tục (mỗi giờ lấy giá trị nhỏ nhất) | `JarsApp` (cùng với dashboard `jars-dev` và alarm 5xx/p95 ở Phase 2 WP2; không có stack `JarsObservability`, [aws-infrastructure §11](../02-architecture/aws-infrastructure.md#11-observability)) |
 | CDK test | Không có NAT Gateway; Fargate dùng ARM64; log retention ≤ 14 ngày | `infra/cdk` tests |
 | Tag | `Project=jars` bật làm cost allocation tag | Thủ công, 1 lần (Billing → Cost allocation tags) |
 
