@@ -11,6 +11,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.MediaType;
@@ -46,10 +47,11 @@ public class SseRegistry {
     }
 
     /**
-     * Opens a stream for the user. The emitter is registered first and the missed notifications are sent afterwards, so
-     * nothing created in between is lost; a client may therefore see one notification twice and should de-duplicate by id.
+     * Opens a stream for the user. The emitter is registered first and the missed notifications are loaded and sent
+     * afterwards (hence a supplier, called only once the emitter is registered), so nothing created in between is lost;
+     * a client may therefore see one notification twice and should de-duplicate by id.
      */
-    SseEmitter subscribe(UserId user, List<NotificationView> missed) {
+    SseEmitter subscribe(UserId user, Supplier<List<NotificationView>> missed) {
         SseEmitter emitter = new SseEmitter(EMITTER_TIMEOUT_MILLIS);
         Set<SseEmitter> emitters = byUser.computeIfAbsent(user.value(), k -> ConcurrentHashMap.newKeySet());
         emitters.add(emitter);
@@ -60,11 +62,14 @@ public class SseRegistry {
 
         try {
             send(emitter, SseEmitter.event().comment("connected"));
-            for (NotificationView view : missed) {
+            for (NotificationView view : missed.get()) {
                 send(emitter, event(view));
             }
         } catch (IOException | IllegalStateException e) {
             cleanup.run();
+        } catch (RuntimeException e) {
+            cleanup.run(); // the lookup failed: do not leave an emitter behind that no response will ever use
+            throw e;
         }
         return emitter;
     }

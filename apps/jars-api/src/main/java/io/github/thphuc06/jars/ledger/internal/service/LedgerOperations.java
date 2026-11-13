@@ -342,12 +342,12 @@ class LedgerOperations {
                     t.getCategoryId(),
                     oldJarId,
                     t.getJarId()));
-            Audit.entity(t.getId())
+            AuditEntry audit = Audit.entity(t.getId())
                     .with("amount", t.money())
                     .with("movedBetweenJars", newJar != null) // true: a reversing ADJUST entry and a new SPEND entry
                     .with("categoryChanged", !Objects.equals(oldCategoryId, t.getCategoryId()));
             if (newJar != null) {
-                Audit.entity(t.getId()).with("fromJarId", oldJarId).with("toJarId", t.getJarId());
+                audit.with("fromJarId", oldJarId).with("toJarId", t.getJarId());
             }
         } else {
             Audit.unchanged(); // the same category and jar as before: nothing was written

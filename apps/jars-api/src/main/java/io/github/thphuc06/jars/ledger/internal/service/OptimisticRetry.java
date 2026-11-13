@@ -5,8 +5,9 @@ import java.util.function.Supplier;
 import org.springframework.dao.ConcurrencyFailureException;
 
 /**
- * Runs a unit of work again when it loses a concurrency race: an optimistic-lock version conflict, or being picked as\n * the victim of a database deadlock or serialization failure (both leave the transaction rolled back, so a retry is\n * safe). The work must start its own transaction on every
- * call (a {@code TransactionTemplate} inside the supplier): a transaction that hit a version conflict is rollback-only
+ * Runs a unit of work again when it loses a concurrency race: an optimistic-lock version conflict, or being picked as
+ * the victim of a database deadlock or serialization failure (both leave the transaction rolled back, so a retry is
+ * safe). The work must start its own transaction on every call (a {@code TransactionTemplate} inside the supplier): a transaction that hit a version conflict is rollback-only
  * and its entities are stale, so retrying <em>inside</em> it can never succeed. That is why this sits outside.
  */
 final class OptimisticRetry {
