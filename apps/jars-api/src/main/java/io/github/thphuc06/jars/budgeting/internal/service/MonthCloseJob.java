@@ -2,6 +2,9 @@ package io.github.thphuc06.jars.budgeting.internal.service;
 
 import io.github.thphuc06.jars.budgeting.internal.service.MonthCloseService.CloseReport;
 import io.github.thphuc06.jars.platform.idempotency.IdempotencyService;
+import io.github.thphuc06.jars.platform.observability.BusinessMetrics;
+import io.micrometer.observation.Observation;
+import io.micrometer.observation.ObservationRegistry;
 import java.time.Clock;
 import java.time.YearMonth;
 import java.time.format.DateTimeParseException;
@@ -30,8 +33,15 @@ public class MonthCloseJob {
     private final IdempotencyService idempotency;
     private final JsonMapper json;
     private final Clock clock;
+    private final ObservationRegistry observations;
 
-    MonthCloseJob(MonthCloseService months, IdempotencyService idempotency, JsonMapper json, Clock clock) {
+    MonthCloseJob(
+            MonthCloseService months,
+            IdempotencyService idempotency,
+            JsonMapper json,
+            Clock clock,
+            ObservationRegistry observations) {
+        this.observations = observations;
         this.months = months;
         this.idempotency = idempotency;
         this.json = json;
@@ -58,7 +68,11 @@ public class MonthCloseJob {
         YearMonth month =
                 message.hasNonNull("month") ? parseMonth(message.get("month").asString()) : previousMonth();
 
-        CloseReport report = months.closeAll(month);
+        // one observation = a timer metric (BusinessMetrics.MONTH_CLOSE) and a span in the job's trace
+        Observation observation = Observation.createNotStarted(BusinessMetrics.MONTH_CLOSE, observations)
+                .lowCardinalityKeyValue("trigger", message.hasNonNull("month") ? "manual" : "schedule")
+                .highCardinalityKeyValue("month", month.toString());
+        CloseReport report = observation.observe(() -> months.closeAll(month));
         if (report.failed() > 0) {
             throw new IllegalStateException(
                     "Month " + month + " was not closed for " + report.failed() + " users; it will be retried");

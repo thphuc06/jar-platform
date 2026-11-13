@@ -36,6 +36,13 @@
 | CloudWatch Logs ingest (Standard) | GB | 0.70 |
 | EBS gp3 | GB-tháng | 0.096 |
 | ElastiCache Serverless Valkey (ước tính) | tối thiểu 100 MB được tính phí | khoảng $6/tháng (nguồn bên thứ ba) |
+| CloudWatch custom metric (EMF) | metric-tháng, 10.000 metric đầu (tính theo giờ tồn tại) | 0.30 |
+| CloudWatch alarm (standard) | mỗi metric trong alarm-tháng | 0.10 |
+| CloudWatch dashboard | dashboard-tháng, **3 dashboard đầu miễn phí** (account chưa có dashboard nào, kiểm ngày 2026-11-12) | 3.00 |
+| X-Ray trace lưu trữ | trace, sau **100.000 trace miễn phí** mỗi tháng | 0.000005 |
+
+> 4 dòng trên lấy từ AWS Pricing API ngày **2026-11-12** (Phase 2 WP2), trừ phần free tier của dashboard và X-Ray (theo trang giá CloudWatch/X-Ray).
+> **Observability khi `JarsApp` chạy** (WP2): khoảng 6 custom metric nghiệp vụ × 0,30 = 1,8 USD/tháng nếu chạy liên tục, nhưng tính theo giờ tồn tại nên một phiên 1 giờ chỉ khoảng 0,0025 USD; 3 alarm có 4 metric = 0,40 USD/tháng (alarm 5xx dùng 2 metric); dashboard và trace nằm trong free tier. Chọn lọc metric ở collector là cố ý: cấu hình ECS mặc định của ADOT đẩy mọi metric Micrometer (vài trăm metric, khoảng 60–100 USD/tháng nếu chạy liên tục).
 | Bedrock Claude | token | Xem [Bedrock pricing](https://aws.amazon.com/bedrock/pricing/); phụ thuộc lượng dùng |
 
 ## 3. Ba chế độ vận hành
@@ -122,3 +129,14 @@ Phase 4 cộng thêm: Valkey khoảng $6 + Bedrock khoảng $3–5 (có rate lim
 | **Tổng ước lượng** | | **≈ 0,1** |
 
 Hai điều rút ra: (1) **đã đo:** Aurora tự pause khoảng 6 phút sau connection cuối, nên không tạo ra phần chi phí "ẩn" nào ([bẫy ở §3](#bẫy-chi-phí-ẩn)); (2) **theo bảng giá, chưa đo:** phần đắt nhất của `RUNNING` là ALB và Fargate chạy liên tục (§3), nên `cdk destroy JarsApp` ngay sau khi kiểm xong là cách tiết kiệm đúng chỗ. Các stack nền (`JarsFoundation`, `JarsNetwork`, `JarsAuth`, `JarsData`, `JarsMessaging`) vẫn chạy; chi phí cố định của chúng là Secrets Manager 0,40 USD/tháng, lưu trữ Aurora và ECR vài cent.
+
+### Phiên kiểm chứng Phase 2 (2026-11-13, WP6)
+
+`JarsApp` tồn tại khoảng 1,3 giờ (tạo lúc 05:36 giờ VN ngày 13/11, bắt đầu xóa lúc 06:45), gồm task API với sidecar ADOT, ALB, CloudFront và guardrail Bedrock. Trong phiên đã chạy hai lần smoke test, khoảng 10 lượt chat với Bedrock (Haiku 4.5, khoảng 3.700 token vào mỗi lượt) và một lần k6 với 7.840 request.
+
+| Mốc | Chi Jars theo tag `Project=jars`, tháng 11 tới ngày đó (USD) |
+|---|---|
+| Trước phiên | 0,18 |
+| Sau phiên (đọc lúc 07:00 ngày 13/11 giờ VN) | 0,18: Cost Explorer trễ khoảng một ngày, ngày 13/11 (UTC) chưa có dữ liệu. Điền số thật vào dòng tuần 2026-11-09 ở bảng trên khi có |
+
+Ước lượng theo đơn giá: ALB 0,03 + Fargate 0,03 + Aurora (tối đa 2 ACU trong k6) khoảng 0,1 + Bedrock khoảng 0,1 (khoảng 25 lần gọi model, mỗi lần khoảng 4.000 token vào, Haiku 4.5 giá 1 USD/1 triệu token vào) + guardrail khoảng 0,01 ≈ **0,3 USD**. Chi phí Bedrock không mang tag `Project=jars` vì gọi qua inference profile dùng chung, nên số trong Cost Explorer theo tag thấp hơn chi phí thật một chút.

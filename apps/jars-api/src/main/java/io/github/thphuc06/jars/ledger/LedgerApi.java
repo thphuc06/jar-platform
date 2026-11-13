@@ -26,4 +26,17 @@ public interface LedgerApi {
      */
     Result<AllocationReceipt> allocateIncome(
             UserId userId, String idempotencyKey, String requestHash, IncomeAllocation allocation);
+
+    /**
+     * Records one row of an imported statement (source {@code IMPORT}) <b>in the caller's transaction</b>, which must
+     * exist: the importer commits a chunk of rows, their idempotency keys and its own progress together. There is no
+     * retry inside; an optimistic-lock conflict fails the caller's transaction, which retries the chunk. Announced with
+     * {@link TransactionPosted} like any other posting.
+     *
+     * @throws io.github.thphuc06.jars.shared.DomainException 404 for a jar that is not the caller's, 422 for an
+     *     amount that is not positive, a date more than a day in the future, a missing expense jar or a category of
+     *     the wrong kind
+     */
+    ImportedTransaction.Recorded recordImported(
+            UserId userId, String idempotencyKey, String requestHash, ImportedTransaction transaction);
 }

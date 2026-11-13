@@ -2,6 +2,9 @@ package io.github.thphuc06.jars;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import io.github.thphuc06.jars.imports.internal.storage.LocalStatementStore;
+import io.github.thphuc06.jars.imports.internal.storage.S3StatementStore;
+import io.github.thphuc06.jars.imports.internal.storage.StatementStore;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -21,7 +24,12 @@ import org.springframework.test.web.servlet.assertj.MockMvcTester;
 // the queue name is mandatory in the aws profile (the listener refuses to start without it); the polling itself is off,
 // nothing connects to AWS from a test
 @SpringBootTest(
-        properties = {"jars.jobs.queue-name=jars-jobs-test", "spring.cloud.aws.sqs.listener.auto-startup=false"})
+        properties = {
+            "jars.jobs.queue-name=jars-jobs-test",
+            "JARS_IMPORTS_BUCKET=jars-statements-test",
+            "JARS_IMPORTS_QUEUE=jars-imports-test",
+            "spring.cloud.aws.sqs.listener.auto-startup=false"
+        })
 @AutoConfigureMockMvc
 @ActiveProfiles("aws")
 @Import(TestcontainersConfiguration.class)
@@ -51,6 +59,15 @@ class AwsProfileTest {
     @Test
     void theMonthCloseQueueListenerExistsOnlyHere() {
         assertThat(context.containsBean("monthCloseQueueListener")).isTrue();
+    }
+
+    @Test
+    void statementsGoToS3AndTheirUploadEventsComeFromSqs() {
+        assertThat(context.getBean(StatementStore.class)).isInstanceOf(S3StatementStore.class);
+        assertThat(context.containsBean("statementUploadedListener")).isTrue();
+        // the local upload endpoint, which stands in for S3 in development, must not exist here
+        assertThat(context.getBeanNamesForType(LocalStatementStore.class)).isEmpty();
+        assertThat(context.containsBean("localUploadController")).isFalse();
     }
 
     @Test

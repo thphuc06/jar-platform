@@ -12,7 +12,7 @@ Người trẻ Việt Nam (sinh viên, người mới đi làm) có thu nhập k
 3. **Phát hiện chi tiêu bất thường** theo từng hũ (thuật toán CUSUM và MAD) rồi gửi cảnh báo realtime.
 4. **Lập mục tiêu tiết kiệm**: kiểm tra tính khả thi, chạy kịch bản what-if, sinh lộ trình theo từng giai đoạn.
 5. **Hỏi trợ lý AI** bằng tiếng Việt về tình hình tài chính của chính mình. Mọi con số trong câu trả lời đều do backend tính, LLM chỉ diễn giải.
-6. **Tìm hiểu cổ phiếu Việt Nam (giáo dục)**: xem giá, lịch sử giá, mô phỏng phân bổ danh mục (Markowitz). **Không đưa ra khuyến nghị mua/bán.**
+6. ~~**Tìm hiểu cổ phiếu Việt Nam (giáo dục)**~~: đã bỏ (13/11/2026) vì giấy phép của nguồn dữ liệu vnstock ([ADR-0024](../04-adr/0024-drop-market-and-quant-fn.md)). Trợ lý AI vẫn từ chối khuyến nghị mua/bán.
 
 ## 3. Persona
 
@@ -42,7 +42,7 @@ Người trẻ Việt Nam (sinh viên, người mới đi làm) có thu nhập k
 | F10 | Import sao kê CSV (upload lên S3, xử lý theo batch) | 2–3 |
 | F11 | Khép sổ cuối tháng tự động (tổng kết, chuyển số dư sang tháng mới) | 2–3 |
 | F12 | Chat AI streaming, có tool calling vào dữ liệu thật của user và guardrails | 4 |
-| F13 | Tra cứu cổ phiếu VN + mô phỏng tối ưu danh mục (giáo dục) | 4 |
+| ~~F13~~ | ~~Tra cứu cổ phiếu VN + mô phỏng tối ưu danh mục~~ (đã bỏ, ADR-0024) | – |
 | F14 | Audit log: ai làm gì, lúc nào | 2 |
 
 ### Ngoài phạm vi (Out of scope) và lý do

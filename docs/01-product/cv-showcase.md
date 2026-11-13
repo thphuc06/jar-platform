@@ -29,6 +29,25 @@ Mọi số dưới đây lấy từ một lần chạy thật, không phải ư�
 
 **Chưa được ghi** (chưa làm hoặc chưa đo): AI advisor, microservice / SNS-SQS FIFO, import CSV với Spring Batch, p95 và req/s (chưa chạy k6), chi phí thật theo Cost Explorer (số hiện có là ước lượng theo đơn giá niêm yết), CI/CD tự deploy bằng OIDC (chưa có `deploy-dev.yml`; lần deploy vừa rồi dùng credential root từ máy cá nhân), link demo công khai (`JarsApp` đã bị `cdk destroy`; dựng lại khoảng 25 phút), đăng nhập bằng trình duyệt qua managed login (mới kiểm bằng token lấy từ admin API, chưa thử tay).
 
+### Thêm sau Phase 2 (2026-11-13): đã đo trên AWS
+
+| Hạng mục | Số đo | Lấy từ đâu |
+|---|---|---|
+| Test | **645 test backend** (coverage dòng 94,2%), **110 test CDK**, **134 test web** | `./mvnw verify`, JaCoCo, Vitest |
+| Smoke test trên AWS | **14/14 đạt** qua CloudFront. Thêm 3 bước so với Phase 1: import sao kê (presigned PUT → S3 → EventBridge → SQS → Spring Batch, `COMPLETED`), chat có gọi tool stream qua SSE, guardrail chặn prompt attack | `scripts/smoke-test.ps1` |
+| Tải (k6, 20 VU, 2 phút 45 giây, qua CloudFront) | **p95 đọc 117 ms, p95 ghi 200 ms, p99 toàn bộ 202 ms, 0% lỗi** trên 7.840 request (47 req/s) với 1 task Fargate 0,5 vCPU | `scripts/load-test.ps1` |
+| AI advisor (Bedrock Haiku 4.5) | Byte đầu tiên sau 1,3–2,1 giây; trả lời bằng số lấy từ tool; guardrail từ chối "nên mua FPT không?" trong 0,4 giây, trước khi gọi model | `probe-advisor`, smoke test |
+| Observability | Trace trong X-Ray có các node `jars-api`, SQS và `spring_ai chat_client`; 4 metric nghiệp vụ (`jars.transactions.posted`, `jars.anomalies.detected`, `jars.advisor.messages`, `jars.advisor.tokens`) trong namespace `Jars/Api` qua EMF | X-Ray service graph, CloudWatch |
+| Lỗi chỉ lộ ra trên AWS | 3 lỗi: SSE ghi thêm một body `401` vào cuối stream, guardrail coi mã hũ `NEC` là mã cổ phiếu, Flyway không chờ Aurora resume. Đã sửa, có test cho cả 3 | [runbook](../05-operations/runbook.md#sự-cố-đã-gặp) |
+
+**Bullet CV thêm** (tiếng Anh):
+
+- Added an **AI financial advisor** on Amazon Bedrock (Spring AI, Claude Haiku 4.5) that answers only from **read-only tools** scoped to the caller's JWT, streams tokens over SSE, checks every input and answer with a **Bedrock Guardrail** (denied topic for buy/sell advice, PII, prompt attack) and limits each user's messages per hour.
+- Built **CSV bank-statement import** with **Spring Batch** (chunked, skip-with-reason, restartable, idempotent per row): presigned S3 upload → EventBridge → SQS → batch job → ledger, with a live notification when the import finishes.
+- Instrumented the service with **OpenTelemetry** (ADOT sidecar → X-Ray and CloudWatch EMF), a dashboard and alarms; load-tested through CloudFront with k6 at **p95 117 ms (reads) / 200 ms (writes), 0% errors** on a single 0.5 vCPU Fargate task.
+
+**Vẫn chưa được ghi:** CD qua GitHub OIDC (workflow có rồi nhưng chưa chạy lần nào), tách microservice, chi phí theo hóa đơn tháng (Cost Explorer chưa có đủ dữ liệu).
+
 ## 1. Khi code xong (hết Phase 6), hệ thống làm được gì
 
 ### Góc nhìn người dùng: kịch bản demo 3 phút
@@ -43,12 +62,12 @@ Mọi số dưới đây lấy từ một lần chạy thật, không phải ư�
 | 6 | Chi đột biến ở hũ PLAY | Cảnh báo "chi tiêu bất thường" **hiện ngay**, không cần tải lại trang | Outbox → SNS/SQS FIFO → insights-worker → SSE |
 | 7 | Tạo mục tiêu "Laptop 25 triệu trong 8 tháng" | Biết có khả thi không, mỗi tháng cần để dành bao nhiêu, kịch bản what-if, lộ trình theo giai đoạn | Mô phỏng (Monte Carlo có seed), strategy pattern |
 | 8 | Hỏi AI: "Tháng này tôi tiêu lố ở đâu, có kịp mua laptop không?" | Câu trả lời tiếng Việt chạy dần ra (streaming), có số liệu đúng và hiện các tool đã gọi | Spring AI + Bedrock, tool calling, Guardrails |
-| 9 | Hỏi "nên mua FPT không?" | Từ chối khuyến nghị và giải thích; kèm dữ liệu giá mang tính giáo dục | Guardrails denied topic, Lambda Python |
+| 9 | Hỏi "nên mua FPT không?" | Từ chối khuyến nghị và giải thích, gợi ý hỏi về hũ và mục tiêu | Guardrails denied topic (đã chạy thật, xem §0) |
 | 10 | (Người xem kỹ thuật) mở dashboard CloudWatch / X-Ray | Thấy một trace đi xuyên HTTP → DB → SNS → SQS → worker | OpenTelemetry, observability |
 
 ### Góc nhìn kỹ thuật: năng lực hệ thống
 
-- **Modular monolith** Java 21 / Spring Boot 4.1 với 9 module, ranh giới được kiểm tra tự động trong CI, cộng **1 microservice** tách ra theo event và **1 Lambda Python**.
+- **Modular monolith** Java 21 / Spring Boot 4.1 với 9 module, ranh giới được kiểm tra tự động trong CI, cộng **1 microservice** tách ra theo event.
 - **Tiền đúng tuyệt đối**: ledger append-only, optimistic locking, idempotency, job đối soát.
 - **Event-driven**: transactional outbox, SNS/SQS FIFO có thứ tự theo user, DLQ, idempotent consumer.
 - **AI có kiểm soát**: LLM chỉ diễn giải, số liệu do Java tính; guardrails; rate limit; streaming.

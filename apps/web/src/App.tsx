@@ -19,6 +19,8 @@ const GoalPlanner = lazy(() => import("./pages/GoalPlanner"));
 const Transfer = lazy(() => import("./pages/Transfer"));
 const Alerts = lazy(() => import("./pages/Alerts"));
 const Profile = lazy(() => import("./pages/Profile"));
+const Imports = lazy(() => import("./pages/Imports"));
+const Advisor = lazy(() => import("./pages/Advisor"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 const queryClient = createQueryClient();
@@ -43,6 +45,8 @@ const App = () => (
                 <Route path="/alerts" element={<Alerts />} />
                 <Route path="/transfer" element={<Transfer />} />
                 <Route path="/profile" element={<Profile />} />
+                <Route path="/imports" element={<Imports />} />
+                <Route path="/advisor" element={<Advisor />} />
               </Route>
             </Route>
             <Route path="*" element={<NotFound />} />

@@ -226,6 +226,13 @@ public final class AppStack extends Stack {
         if (cfg.dbMode() == DbMode.AURORA) {
             addAuroraNeverPausesAlarm(cfg, data, alarmTopic);
         }
+        ApiObservability.addDashboardAndAlarms(
+                this,
+                cfg,
+                loadBalancer,
+                service,
+                data.identifier(),
+                alarmTopic);
 
         acknowledgeDocumentedDeviations(webBucket, service);
         if (cfg.deployWeb()) {
@@ -502,6 +509,34 @@ public final class AppStack extends Stack {
                         "sqs:GetQueueUrl"))
                 .resources(List.of(messaging.jobsQueue().getQueueArn()))
                 .build());
+        // Statement import (Phase 2 WP3). By name, not through the constructs, to add no cross-stack exports: the
+        // bucket and the queue have fixed names. PutObject is what the presigned upload URL is signed with, so the
+        // browser can write the one key of an import; GetObject/HEAD reads it back for the batch job.
+        String statementsBucket = DataStack.statementsBucketName(cfg, getAccount());
+        taskRole.addToPolicy(PolicyStatement.Builder.create()
+                .sid("StatementUploads")
+                .effect(Effect.ALLOW)
+                .actions(List.of("s3:PutObject", "s3:GetObject"))
+                .resources(List.of("arn:" + getPartition() + ":s3:::" + statementsBucket + "/uploads/*"))
+                .build());
+        taskRole.addToPolicy(PolicyStatement.Builder.create()
+                .sid("ConsumeImportsQueue")
+                .effect(Effect.ALLOW)
+                .actions(List.of(
+                        "sqs:ReceiveMessage",
+                        "sqs:DeleteMessage",
+                        "sqs:ChangeMessageVisibility",
+                        "sqs:GetQueueAttributes",
+                        "sqs:GetQueueUrl"))
+                .resources(List.of("arn:" + getPartition() + ":sqs:" + getRegion() + ":" + getAccount() + ":"
+                        + MessagingStack.IMPORTS_QUEUE_NAME))
+                .build());
+        Validations.of(taskRole)
+                .acknowledge(Acknowledgment.builder()
+                        .id("AwsSolutions-IAM5[Resource::arn:aws:s3:::" + statementsBucket + "/uploads/*]")
+                        .reason("Each import writes and reads its own key under uploads/<user>/<import>.csv; the keys"
+                                + " are only known at run time. Nothing outside uploads/ is reachable.")
+                        .build());
         Role executionRole = Role.Builder.create(this, "ApiExecutionRole")
                 .roleName(cfg.name("api-exec"))
                 .description("ECS agent: pull the image, write logs, read the DB secret")
@@ -533,34 +568,48 @@ public final class AppStack extends Stack {
         // Tomcat needs a writable /tmp while the root file system is read-only
         taskDefinition.addVolume(Volume.builder().name("tmp").build());
 
+        // AI advisor (Phase 2 WP4): the guardrail the API applies, and its permission to call the model
+        AdvisorResources.Guardrail guardrail = AdvisorResources.guardrail(this, cfg);
+        AdvisorResources.allowModelAndGuardrail(
+                this,
+                taskRole,
+                "arn:" + getPartition() + ":bedrock:" + getRegion() + ":" + getAccount() + ":guardrail/" + guardrail.id());
+
         ContainerDefinition container = taskDefinition.addContainer(
                 CONTAINER_NAME,
                 ContainerDefinitionOptions.builder()
                         .containerName(CONTAINER_NAME)
                         .image(ContainerImage.fromEcrRepository(foundation.apiRepository(), cfg.imageTag()))
                         .essential(true)
+                        // a hard limit so the JVM (MaxRAMPercentage=75) sizes its heap from this container's share
+                        // of the task, not from the whole 1 GB that it shares with the collector sidecar
+                        .memoryLimitMiB(ApiObservability.API_MEMORY_MIB)
                         .portMappings(List.of(PortMapping.builder()
                                 .containerPort(NetworkStack.APP_PORT)
                                 .protocol(Protocol.TCP)
                                 .build()))
                         // not secrets: names, URLs and ids. The DB credentials come from `secrets` below.
-                        .environment(Map.of(
-                                "SPRING_PROFILES_ACTIVE",
-                                "aws",
-                                "SPRING_DATASOURCE_URL",
-                                "jdbc:postgresql://" + data.endpointHostname() + ":" + NetworkStack.DB_PORT + "/"
-                                        + DataStack.DATABASE_NAME + "?sslmode=require",
-                                "JARS_ISSUER_URI",
-                                "https://cognito-idp." + getRegion() + ".amazonaws.com/"
-                                        + auth.userPool().getUserPoolId(),
-                                "JARS_ALLOWED_CLIENT_IDS",
-                                spaClient.getUserPoolClientId() + ","
-                                        + auth.smokeClient().getUserPoolClientId(),
-                                "JARS_JOBS_QUEUE",
-                                MessagingStack.JOBS_QUEUE_NAME,
-                                // the JVM sizes its heap from the 1 GB task limit (aws-infrastructure.md section 4)
-                                "JAVA_TOOL_OPTIONS",
-                                "-XX:MaxRAMPercentage=75"))
+                        .environment(Map.ofEntries(
+                                Map.entry("SPRING_PROFILES_ACTIVE", "aws"),
+                                Map.entry(
+                                        "SPRING_DATASOURCE_URL",
+                                        "jdbc:postgresql://" + data.endpointHostname() + ":" + NetworkStack.DB_PORT + "/"
+                                                + DataStack.DATABASE_NAME + "?sslmode=require"),
+                                Map.entry(
+                                        "JARS_ISSUER_URI",
+                                        "https://cognito-idp." + getRegion() + ".amazonaws.com/"
+                                                + auth.userPool().getUserPoolId()),
+                                Map.entry(
+                                        "JARS_ALLOWED_CLIENT_IDS",
+                                        spaClient.getUserPoolClientId() + ","
+                                                + auth.smokeClient().getUserPoolClientId()),
+                                Map.entry("JARS_JOBS_QUEUE", MessagingStack.JOBS_QUEUE_NAME),
+                                Map.entry("JARS_IMPORTS_BUCKET", DataStack.statementsBucketName(cfg, getAccount())),
+                                Map.entry("JARS_IMPORTS_QUEUE", MessagingStack.IMPORTS_QUEUE_NAME),
+                                Map.entry("JARS_GUARDRAIL_ID", guardrail.id()),
+                                Map.entry("JARS_GUARDRAIL_VERSION", guardrail.version()),
+                                // the JVM sizes its heap from the container limit (aws-infrastructure.md section 4)
+                                Map.entry("JAVA_TOOL_OPTIONS", "-XX:MaxRAMPercentage=75")))
                         .secrets(Map.of(
                                 "SPRING_DATASOURCE_USERNAME",
                                 Secret.fromSecretsManager(data.secret(), "username"),
@@ -582,6 +631,7 @@ public final class AppStack extends Stack {
                 .containerPath("/tmp")
                 .readOnly(false)
                 .build());
+        ApiObservability.addCollector(this, cfg, taskDefinition, container, logGroup, taskRole);
 
         FargateService apiService = FargateService.Builder.create(this, "ApiService")
                 .serviceName("jars-api")

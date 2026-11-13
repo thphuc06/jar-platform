@@ -188,7 +188,7 @@ sequenceDiagram
     participant RL as Valkey (rate limit)
     participant G as Bedrock Guardrails
     participant B as Bedrock ConverseStream
-    participant T as Tools (ledger, goals, insights, market)
+    participant T as Tools (ledger, goals, insights)
 
     W->>API: POST /api/v1/chat/sessions/{id}/messages (Accept: text/event-stream)
     API->>RL: Bucket4j: còn token cho user?
@@ -232,19 +232,32 @@ sequenceDiagram
     participant Q as SQS jars-imports
     participant DB as Aurora
 
-    W->>API: POST /api/v1/imports {fileName, size}
-    API->>DB: INSERT statement_imports (PENDING)
-    API-->>W: {importId, uploadUrl (presigned PUT, 5 phút, giới hạn content-length)}
-    W->>S3: PUT uploads/{userId}/{importId}.csv
+    W->>API: POST /api/v1/imports {fileName}
+    API->>DB: INSERT statement_imports (AWAITING_UPLOAD)
+    API-->>W: {statementImport, upload: {url (presigned PUT, 10 phút), method, headers, sameOrigin=false}}
+    W->>S3: PUT uploads/{userId}/{importId}.csv (không kèm token của API)
     S3->>EB: Object Created
     EB->>Q: rule statement-uploaded
-    API->>Q: @SqsListener nhận message
-    API->>DB: Kiểm tra importId thuộc userId và đang PENDING → RUNNING
-    API->>API: Spring Batch job: FlatFileItemReader(S3) → processor (chuẩn hóa, phân loại) → writer (ledger.postTransaction)
-    Note over API: chunk=100, dòng lỗi được skip và ghi lại, job restart được
-    API->>DB: statement_imports COMPLETED (rows_ok, rows_failed) + StatementImportCompleted
-    API-->>W: SSE notification "Đã import 120 giao dịch, 3 dòng lỗi"
+    API->>Q: @SqsListener nhận message (chỉ profile aws)
+    API->>DB: statement_imports → PROCESSING
+    API->>API: Spring Batch: reader (HEAD + GET từ S3, ≤ 5 MB, SHA-256, dòng tiêu đề) → processor (đọc dòng, đoán hũ/danh mục) → writer (LedgerApi.recordImported)
+    Note over API,DB: chunk 50 dòng = 1 transaction: bút toán, idempotency key import_<sha>_<dòng>, dòng lỗi, vị trí đọc
+    API->>DB: statement_imports COMPLETED/FAILED + StatementImportCompleted (outbox)
+    API-->>W: SSE notification "Đã ghi 120 giao dịch vào sổ. 3 dòng không nhập được"
+    loop mỗi 1,5 giây đến khi xong
+        W->>API: GET /api/v1/imports/{id}
+    end
 ```
+
+Ở local và trong test không có S3/SQS: `upload.url` là `PUT /api/v1/imports/{id}/file` cùng origin (`sameOrigin=true`, gửi kèm token), endpoint này ghi tệp ra thư mục tạm và chạy job ngay trong request.
+
+| Tình huống | Kết quả |
+|---|---|
+| Dòng sai ngày, số tiền bằng 0, ngày ở tương lai, ledger từ chối (`DomainException`) | Dòng bị skip, ghi vào `statement_import_errors`; các dòng khác vẫn nhập |
+| Thiếu cột ngày hoặc số tiền, tệp không phải UTF-8, lớn hơn 5 MB, **cùng tệp đã nhập xong trước đó** | Cả tệp bị từ chối: `FAILED` + `failureReason` |
+| Xung đột optimistic lock với giao dịch user đang ghi cùng lúc | Chunk bị rollback và chạy lại (tối đa 3 lần) |
+| Lỗi hạ tầng giữa chừng | Job `FAILED`; S3 event giao lại (hoặc user tải lại đúng tệp) → **cùng job instance** chạy tiếp từ chunk cuối đã commit; idempotency key chặn ghi trùng |
+| S3 giao event hai lần | Lần thứ hai thấy job đang chạy hoặc đã xong → bỏ qua |
 
 ---
 

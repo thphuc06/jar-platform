@@ -123,6 +123,28 @@
             <groupId>io.awspring.cloud</groupId>
             <artifactId>spring-cloud-aws-starter-sqs</artifactId>
         </dependency>
+        <!-- statement import: S3 presigned upload and download (only the aws profile turns the S3 client on),
+             Spring Batch with its JDBC job repository (tables in V9) -->
+        <dependency>
+            <groupId>io.awspring.cloud</groupId>
+            <artifactId>spring-cloud-aws-starter-s3</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-batch-jdbc</artifactId>
+        </dependency>
+        <!-- AI advisor: Spring AI ChatClient on Bedrock Converse (only the aws profile selects the model; locally and
+             in tests spring.ai.model.chat=none), and the Bedrock runtime client for ApplyGuardrail (ADR-0023) -->
+        <dependency>
+            <groupId>org.springframework.ai</groupId>
+            <artifactId>spring-ai-starter-model-bedrock-converse</artifactId>
+        </dependency>
+        <!-- traces and metrics over OTLP (Micrometer Tracing with the OpenTelemetry bridge); on ECS an ADOT collector
+             sidecar forwards them to X-Ray and CloudWatch -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-opentelemetry</artifactId>
+        </dependency>
         <!-- dev only: `spring-boot:run` starts local/compose.yaml; excluded from the packaged jar -->
         <dependency>
             <groupId>org.springframework.boot</groupId>

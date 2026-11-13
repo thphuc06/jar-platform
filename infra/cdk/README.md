@@ -2,7 +2,7 @@
 
 AWS CDK v2 viết bằng **Java 21** ([ADR-0012](../../docs/04-adr/0012-iac-aws-cdk-java.md)). Toàn bộ hạ tầng của Jars Platform nằm ở đây.
 
-> Trạng thái: 6 stack đã viết và có test (`JarsFoundation`, `JarsNetwork`, `JarsAuth`, `JarsData`, `JarsMessaging`, `JarsApp`). **Chưa deploy.** `JarsQuant` và `JarsObservability` thuộc phase sau. Trước lần deploy đầu đọc [deployment.md, mục "Dọn stack cũ"](../../docs/05-operations/deployment.md#dọn-stack-cũ-trước-lần-deploy-đầu).
+> Trạng thái: 6 stack đã viết và có test (`JarsFoundation`, `JarsNetwork`, `JarsAuth`, `JarsData`, `JarsMessaging`, `JarsApp`). Đã deploy (`JarsApp` chỉ dựng khi cần kiểm chứng, xong thì destroy). `JarsObservability` đã gộp vào `JarsApp`; `JarsQuant` đã bỏ ([ADR-0024](../../docs/04-adr/0024-drop-market-and-quant-fn.md)). Trước lần deploy đầu đọc [deployment.md, mục "Dọn stack cũ"](../../docs/05-operations/deployment.md#dọn-stack-cũ-trước-lần-deploy-đầu).
 
 ## Cấu trúc
 

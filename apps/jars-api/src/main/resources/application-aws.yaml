@@ -4,16 +4,51 @@
 #   SPRING_DATASOURCE_URL / _USERNAME / _PASSWORD   Aurora (username and password come from Secrets Manager)
 #   JARS_ISSUER_URI, JARS_ALLOWED_CLIENT_IDS        Cognito user pool and the app clients whose tokens are accepted
 #   JARS_JOBS_QUEUE                                 SQS queue that EventBridge Scheduler writes the month-close job to
+#   JARS_IMPORTS_BUCKET, JARS_IMPORTS_QUEUE         statements bucket (presigned uploads) and the queue of its S3 events
 # Region and credentials for the AWS SDK come from the task role.
 
 spring:
   docker:
     compose:
       enabled: false
+  flyway:
+    # Aurora resumes from 0 ACU in ~15 s: without retries the first task after a pause failed its migration check and
+    # ECS had to start a second one (Phase 2 WP6)
+    connect-retries: 6
+    connect-retries-interval: 10s
   cloud:
     aws:
       sqs:
         enabled: true
+        # a span for every message the listener handles (the month-close job), with its trace context in the message
+        # attributes when the sender set one
+        observation-enabled: true
+      s3:
+        enabled: true
+  ai:
+    model:
+      chat: bedrock-converse
+    bedrock:
+      aws:
+        region: ${AWS_REGION:ap-southeast-1}
+      converse:
+        chat:
+          options:
+            # global cross-region inference profile (ADR-0011); Haiku 5.5 is not enabled for this account
+            model: global.anthropic.claude-haiku-4-5-20251001-v1:0
+            max-tokens: ${jars.advisor.max-tokens:800}
+            temperature: 0.3
+
+jars:
+  advisor:
+    # the Bedrock guardrail of JarsApp (ADR-0023); blank = none
+    guardrail-id: ${JARS_GUARDRAIL_ID:}
+    guardrail-version: ${JARS_GUARDRAIL_VERSION:DRAFT}
+  imports:
+    storage: s3
+    # set by the task definition (JarsApp): the statements bucket of JarsData and the queue of JarsMessaging
+    bucket: ${JARS_IMPORTS_BUCKET}
+    queue-name: ${JARS_IMPORTS_QUEUE}
 
 logging:
   structured:
@@ -33,3 +68,20 @@ management:
     health:
       # probes answer with the status only
       show-components: never
+  # The ADOT collector runs as a sidecar in the same task (localhost): traces go to X-Ray, metrics whose name starts
+  # with "jars." become CloudWatch metrics through EMF, everything else is dropped by the collector.
+  tracing:
+    export:
+      otlp:
+        enabled: true
+  opentelemetry:
+    tracing:
+      export:
+        otlp:
+          endpoint: http://localhost:4318/v1/traces
+  otlp:
+    metrics:
+      export:
+        enabled: true
+        url: http://localhost:4318/v1/metrics
+        step: 1m

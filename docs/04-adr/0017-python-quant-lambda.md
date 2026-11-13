@@ -1,6 +1,6 @@
 # ADR-0017: Python chỉ dùng ở `quant-fn` (AWS Lambda); bỏ agent Dexter (TypeScript)
 
-- **Trạng thái:** Accepted
+- **Trạng thái:** Superseded bởi [ADR-0024](0024-drop-market-and-quant-fn.md) (2026-11-13)
 - **Ngày:** 2026-10-23
 
 ## Bối cảnh

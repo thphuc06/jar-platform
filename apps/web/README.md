@@ -58,10 +58,8 @@ Rules the code follows, because the backend depends on them:
 npm run gen:api    # after the backend API changed
 ```
 
-CI fails if the committed file differs from the generated one.
+CI fails if the committed file differs from the generated one. Goals and budget types in `src/api/goals.ts` and `src/api/budget.ts` are derived from the generated schema through `DeepWire`, so a backend field change breaks `npm run typecheck`.
 
-Goals and budget allocation endpoints are typed by hand in `src/api/goals.ts` and `src/api/budget.ts` (marked `TODO(WP5-openapi)`) until they are part of the OpenAPI file; then those files and `handwritten.ts` are deleted.
+## AI advisor
 
-## Not included
-
-The AI chat screen of the prototype was removed (the advisor backend is not part of this phase).
+The AI chat screen of the prototype was rebuilt on the real advisor API (`/advisor`, Phase 2 WP4): answers stream over SSE (POST with `fetch-event-source`), tool and guardrail events are shown, and a refused message (429 with Retry-After, 503 locally without a model) is explained in place.

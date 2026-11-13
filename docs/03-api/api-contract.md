@@ -39,7 +39,7 @@
 | 409 | Xung đột đồng thời (version hoặc deadlock) còn lại sau khi đã retry tối đa 5 lần |
 | 422 | Sai quy tắc nghiệp vụ (validation, số dư, Idempotency-Key bị dùng lại với request khác) |
 | 429 | Vượt rate limit (có header `Retry-After`) |
-| 503 | Phụ thuộc bên ngoài lỗi (quant-fn, Bedrock); circuit đang mở |
+| 503 | Phụ thuộc bên ngoài lỗi (Bedrock); circuit đang mở |
 
 ## 2. Endpoint
 
@@ -98,22 +98,19 @@
 ### Imports
 | Method | Path | Mô tả | Phase |
 |---|---|---|---|
-| POST | `/imports` | Tạo phiên import → `{importId, uploadUrl, expiresAt}` | 2–3 |
-| GET | `/imports/{id}` | Trạng thái + số dòng ok/lỗi | 2–3 |
+| POST | `/imports` | `{fileName}` (đuôi `.csv`, `.tsv`, `.txt`) → 201 `{statementImport, upload: {url, method, headers, expiresAt, sameOrigin}}`. Client gửi tệp tới `upload.url`: **không** kèm token khi `sameOrigin=false` (presigned S3), kèm token khi `true` (local) | 2 ✅ |
+| GET | `/imports` | 20 lần nhập gần nhất (không kèm danh sách lỗi) | 2 ✅ |
+| GET | `/imports/{id}` | `status` (`AWAITING_UPLOAD`, `PROCESSING`, `COMPLETED`, `FAILED`), `totalRows`, `postedRows`, `skippedRows`, `failureReason`, `errors[]` (100 dòng lỗi đầu: `line`, `reason`). Client poll đến khi `COMPLETED`/`FAILED` | 2 ✅ |
+
+Định dạng tệp (port từ `ingest_statement_vn` của bản hackathon, xem [hackathon-migration](../07-legacy/hackathon-migration.md)): một dòng tiêu đề, phân cách bằng dấu phẩy hoặc tab, UTF-8. Cột nhận diện không phân biệt hoa thường và dấu tiếng Việt: ngày (`date`, `transaction_date`, `ngay_giao_dich`...), số tiền có dấu (`amount`, `so_tien`) hoặc cặp ghi nợ/ghi có (`debit`/`credit`, `ghi_no`/`ghi_co`), nội dung (`description`, `memo`, `noi_dung`, `dien_giai`...), chiều tiền (`direction`, `type`). Ngày thử theo thứ tự `yyyy-MM-dd`, `dd/MM/yyyy`, `dd-MM-yyyy`, `MM/dd/yyyy`, `yyyy/MM/dd`. Số tiền đọc được `1.500.000`, `1,500,000`, `1.500.000,50`, `(45,000)`.
 
 ### Advisor (AI)
 | Method | Path | Mô tả | Phase |
 |---|---|---|---|
-| POST | `/chat/sessions` | Tạo phiên chat | 4 |
-| GET | `/chat/sessions/{id}/messages` | Lịch sử chat | 4 |
-| POST | `/chat/sessions/{id}/messages` | Gửi tin nhắn → **SSE** stream | 4 |
-
-### Market (giáo dục)
-| Method | Path | Mô tả | Phase |
-|---|---|---|---|
-| GET | `/market/quotes/{symbol}` | Giá (cache 60 s) | 4 |
-| GET | `/market/history/{symbol}?from&to` | Lịch sử giá | 4 |
-| POST | `/market/portfolio/optimize` | `{symbols[], riskLevel}` → trọng số (tham khảo) | 4 |
+| POST | `/chat/sessions` | `{title?}` → 201 phiên chat | 2 ✅ |
+| GET | `/chat/sessions` | 30 phiên gần nhất, mới dùng trước | 2 ✅ |
+| GET | `/chat/sessions/{id}/messages` | 100 tin nhắn gần nhất (`role` `USER`/`ASSISTANT`) | 2 ✅ |
+| POST | `/chat/sessions/{id}/messages` | `{content}` (1–2000 ký tự) → **SSE** stream. Lỗi trả **trước** khi stream bắt đầu, dạng problem+json thường: 404 phiên không phải của user, 422 tin nhắn rỗng/quá dài, 429 `advisor-rate-limited` kèm `Retry-After` (mặc định 20 tin/giờ, 60 tin/ngày), 503 `advisor-unavailable` khi môi trường không có model (local) | 2 ✅ |
 
 ## 3. Hợp đồng SSE
 
@@ -134,14 +131,14 @@ data: {"text":"Tháng 10 bạn chi "}
 event: token
 data: {"text":"nhiều nhất cho hũ PLAY..."}
 
-event: roadmap
-data: { ...RoadmapResponse JSON... }
+event: replace
+data: {"text":"Tôi không đưa ra khuyến nghị mua bán chứng khoán cụ thể..."}
 
 event: done
 data: {"messageId":"0193...","usage":{"inputTokens":812,"outputTokens":164},"disclaimer":"Thông tin mang tính tham khảo..."}
 ```
 
-Nếu có lỗi giữa chừng: `event: error` với `data` là ProblemDetail, sau đó đóng stream.
+`tool` báo model đang tra dữ liệu (`getJars`, `getMonthlyCashflow`, `getGoals`, `getOpenAnomalyCount`; chỉ đọc, user lấy từ JWT). `replace` chỉ xuất hiện khi guardrail đầu ra can thiệp: client thay toàn bộ phần đã hiện bằng `text` ([ADR-0023](../04-adr/0023-advisor-guardrail-and-rate-limit.md)). Event `roadmap` của thiết kế ban đầu chưa cài. Nếu có lỗi giữa chừng: `event: error` với `data` là ProblemDetail, sau đó đóng stream. Client không tự kết nối lại (một lượt chat không idempotent).
 
 ### Thông báo: `GET /notifications/stream`
 
@@ -183,6 +180,6 @@ UI hiện tại (`ius_financial_ui`) gọi thẳng Supabase. Bảng dưới đâ
 | Budget Jars (`pages/BudgetJars.tsx`) | `useJars`, `useAddJar`, `useUpdateJarAllocation`, `useDeleteJar`, `useJarSpending`, `useJarMonthlyTrend`, `useLatestBalance` | `GET/POST/PATCH/DELETE /jars`, `GET /budget/periods/{month}`, `GET /dashboard` |
 | Goal Planner (`pages/GoalPlanner.tsx`) + `components/roadmap/*` (đang dùng mock) | `useGoals`, `useAddGoal`, `useDeleteGoal`, `useBalanceHistory`, `mock-roadmap.ts` | `/goals/*`, `/goals/{id}/roadmap`, `/balances/daily` |
 | Alerts (`pages/Alerts.tsx`) | `useNotifications`, `useDismissNotification` | `/notifications`, `/notifications/stream`, `/anomalies/{id}/feedback` |
-| AI Chat (`pages/AIChat.tsx`, `FloatingChat.tsx`) | `POST {CHAT_STREAM_URL}` + `POST {STOCK_AGENT_URL}/ask` | `/chat/sessions/*` (một endpoint; câu hỏi cổ phiếu do tool `market` xử lý) |
+| AI Chat (`pages/AIChat.tsx`, `FloatingChat.tsx`) | `POST {CHAT_STREAM_URL}` + `POST {STOCK_AGENT_URL}/ask` | `/chat/sessions/*` (một endpoint; câu hỏi mua bán cổ phiếu bị guardrail từ chối, ADR-0024) |
 | `lib/api.ts` | **Không file nào dùng** | Xóa; thay bằng client sinh từ OpenAPI |
 | `lib/supabase.ts`, `hooks/useSupabaseData.ts` | Supabase client | Xóa sau khi chuyển xong |

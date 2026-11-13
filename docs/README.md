@@ -28,6 +28,7 @@ Tài liệu được viết theo kiểu **docs-as-code**: nằm cùng repo với
 | [engineering/conventions.md](engineering/conventions.md) | Quy ước git, code style, test, Definition of Done | Khi team thống nhất quy ước mới |
 | [glossary.md](glossary.md) | Thuật ngữ: Jar, CUSUM, ACU, outbox, PKCE... | Khi gặp thuật ngữ mới |
 | [diagrams/](diagrams/README.md) | Sơ đồ AWS vẽ bằng code (Python `diagrams`) | Khi đổi hạ tầng |
+| [learning/](learning/README.md) | Ghi chú học tập theo từng bước của bản cài đặt đầu tiên (P0.x–P3.x) | Không còn viết thêm từ Phase 2 |
 
 ## Quy tắc giữ tài liệu luôn đúng
 

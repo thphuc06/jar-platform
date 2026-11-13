@@ -8,6 +8,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
+import software.amazon.awscdk.CfnElement;
 import software.amazon.awscdk.assertions.Template;
 
 class AuthStackTest {
@@ -25,6 +26,39 @@ class AuthStackTest {
                         "AutoVerifiedAttributes", List.of("email"),
                         "AdminCreateUserConfig", like("AllowAdminCreateUserOnly", false),
                         "MfaConfiguration", "OFF"));
+    }
+
+    @Test
+    void githubDeployRoleMayManageSmokeTestUsersOfThisPoolOnly() {
+        template.hasResourceProperties(
+                "AWS::IAM::Policy",
+                like(
+                        "PolicyDocument",
+                        like(
+                                "Statement",
+                                List.of(like(
+                                        "Sid", "SmokeTestUsers",
+                                        "Effect", "Allow",
+                                        "Action",
+                                                List.of(
+                                                        // CDK writes the actions in alphabetical order
+                                                        "cognito-idp:AdminCreateUser",
+                                                        "cognito-idp:AdminDeleteUser",
+                                                        "cognito-idp:AdminInitiateAuth",
+                                                        "cognito-idp:AdminSetUserPassword"),
+                                        "Resource", map("Fn::GetAtt", List.of(userPoolLogicalId(), "Arn"))))),
+                        "Roles", List.of("jars-dev-github-deploy")));
+    }
+
+    private static String userPoolLogicalId() {
+        AuthStack auth = InfraFixture.aurora().stacks().auth();
+        return auth.getLogicalId((CfnElement) auth.userPool().getNode().getDefaultChild());
+    }
+
+    @Test
+    void authStackIsDeployedAfterFoundationBecauseItExtendsTheDeployRole() {
+        assertThat(InfraFixture.aurora().stacks().auth().getDependencies())
+                .contains(InfraFixture.aurora().stacks().foundation());
     }
 
     @Test

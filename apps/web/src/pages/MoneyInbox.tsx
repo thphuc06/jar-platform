@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
-import { Loader2, Pencil, Search } from "lucide-react";
+import { FileUp, Loader2, Pencil, Search } from "lucide-react";
+import { Link } from "react-router-dom";
 import { useCategories } from "@/api/categories";
 import { useJars } from "@/api/jars";
 import { flattenPages } from "@/api/paging";
@@ -80,9 +81,16 @@ const MoneyInbox = () => {
 
   return (
     <div className="animate-slide-up space-y-5 pb-32 md:pb-6">
-      <div>
-        <h1 className="text-2xl font-display font-bold">Hộp tiền</h1>
-        <p className="text-sm text-muted-foreground">Mọi giao dịch của bạn ở một nơi</p>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-display font-bold">Hộp tiền</h1>
+          <p className="text-sm text-muted-foreground">Mọi giao dịch của bạn ở một nơi</p>
+        </div>
+        <Button asChild variant="outline" size="sm" className="gap-2">
+          <Link to="/imports">
+            <FileUp className="h-4 w-4" aria-hidden="true" /> Nhập sao kê
+          </Link>
+        </Button>
       </div>
 
       <div className="relative">

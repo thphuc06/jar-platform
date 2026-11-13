@@ -26,11 +26,60 @@ class MessagingStackTest {
     }
 
     @Test
+    void uploadsOfTheStatementsBucketReachTheImportsQueue() {
+        template.hasResourceProperties(
+                "AWS::SQS::Queue",
+                like(
+                        "QueueName", "jars-imports",
+                        "VisibilityTimeout", 900,
+                        "RedrivePolicy", like("maxReceiveCount", 3)));
+        template.hasResourceProperties(
+                "AWS::Events::Rule",
+                like(
+                        "Name", "statement-uploaded",
+                        "EventPattern",
+                                map(
+                                        "source", List.of("aws.s3"),
+                                        "detail-type", List.of("Object Created"),
+                                        "detail",
+                                                map(
+                                                        "bucket",
+                                                                map("name", List.of("jars-dev-statements-626212071763")),
+                                                        "object",
+                                                                map("key", List.of(map("prefix", "uploads/"))))),
+                        "Targets", List.of(like("Arn", map("Fn::GetAtt", List.of(Match.stringLikeRegexp("ImportsQueue.*"), "Arn"))))));
+        // only this rule may send to the queue
+        template.hasResourceProperties(
+                "AWS::SQS::QueuePolicy",
+                like(
+                        "PolicyDocument",
+                        like(
+                                "Statement",
+                                Match.arrayWith(List.of(like(
+                                        "Action", List.of("sqs:GetQueueAttributes", "sqs:GetQueueUrl", "sqs:SendMessage"),
+                                        "Principal", map("Service", "events.amazonaws.com"),
+                                        "Condition",
+                                                map(
+                                                        "ArnEquals",
+                                                        map(
+                                                                "aws:SourceArn",
+                                                                map(
+                                                                        "Fn::GetAtt",
+                                                                        List.of(
+                                                                                Match.stringLikeRegexp(
+                                                                                        "StatementUploaded.*"),
+                                                                                "Arn"))))))))));
+        template.hasResourceProperties(
+                "AWS::CloudWatch::Alarm", like("AlarmName", "jars-dev-imports-dlq-not-empty"));
+    }
+
+    @Test
     void queuesAreEncryptedAndRefuseNonTlsRequests() {
         for (Map<String, Object> queue : properties(template, "AWS::SQS::Queue")) {
             assertThat(queue).containsEntry("SqsManagedSseEnabled", true);
         }
-        template.resourceCountIs("AWS::SQS::QueuePolicy", 3);
+        // jars-jobs, its DLQ, the scheduler DLQ, jars-imports (TLS + the EventBridge rule) and its DLQ
+        template.resourceCountIs("AWS::SQS::QueuePolicy", 5);
         template.hasResourceProperties(
                 "AWS::SQS::QueuePolicy",
                 like(
@@ -101,7 +150,7 @@ class MessagingStackTest {
                         "Threshold", 0,
                         "EvaluationPeriods", 1,
                         "TreatMissingData", "notBreaching"));
-        template.resourceCountIs("AWS::CloudWatch::Alarm", 2);
+        template.resourceCountIs("AWS::CloudWatch::Alarm", 3);
         for (Map<String, Object> alarm : properties(template, "AWS::CloudWatch::Alarm")) {
             // the SNS topic comes from JarsFoundation
             assertThat(alarm.get("AlarmActions").toString()).contains("Fn::ImportValue");

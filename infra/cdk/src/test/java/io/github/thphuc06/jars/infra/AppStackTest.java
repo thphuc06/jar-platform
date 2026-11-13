@@ -40,15 +40,16 @@ class AppStackTest {
                 "AWS::ECS::TaskDefinition",
                 like(
                         "ContainerDefinitions",
-                        List.of(like(
+                        Match.arrayWith(List.of(like(
                                 "Name", "api",
                                 "Essential", true,
+                                "Memory", 896,
                                 "PortMappings", List.of(like("ContainerPort", 8080, "Protocol", "tcp")),
                                 "ReadonlyRootFilesystem", true,
                                 "StopTimeout", 30,
                                 "LinuxParameters", like("InitProcessEnabled", true),
                                 "MountPoints",
-                                        List.of(like("ContainerPath", "/tmp", "SourceVolume", "tmp", "ReadOnly", false)))),
+                                        List.of(like("ContainerPath", "/tmp", "SourceVolume", "tmp", "ReadOnly", false))))),
                         "Volumes", List.of(map("Name", "tmp"))));
     }
 
@@ -64,11 +65,13 @@ class AppStackTest {
                 "AWS::ECS::TaskDefinition",
                 like(
                         "ContainerDefinitions",
-                        List.of(like(
+                        Match.arrayWith(List.of(like(
+                                "Name", "api",
                                 "LogConfiguration",
                                 like(
                                         "LogDriver", "awslogs",
-                                        "Options", like("awslogs-stream-prefix", "api", "awslogs-region", "ap-southeast-1"))))));
+                                        "Options",
+                                                like("awslogs-stream-prefix", "api", "awslogs-region", "ap-southeast-1")))))));
         template.hasResourceProperties(
                 "AWS::Logs::LogGroup", like("LogGroupName", "/jars/dev/api", "RetentionInDays", 14));
     }
@@ -83,7 +86,15 @@ class AppStackTest {
                         "JARS_ISSUER_URI",
                         "JARS_ALLOWED_CLIENT_IDS",
                         "JARS_JOBS_QUEUE",
+                        "JARS_IMPORTS_BUCKET",
+                        "JARS_IMPORTS_QUEUE",
+                        "JARS_GUARDRAIL_ID",
+                        "JARS_GUARDRAIL_VERSION",
                         "JAVA_TOOL_OPTIONS");
+        assertThat(environment.get("JARS_GUARDRAIL_ID")).contains("AdvisorGuardrail").contains("GuardrailId");
+        assertThat(environment.get("JARS_GUARDRAIL_VERSION")).contains("AdvisorGuardrailVersion");
+        assertThat(environment).containsEntry("JARS_IMPORTS_BUCKET", "jars-dev-statements-626212071763");
+        assertThat(environment).containsEntry("JARS_IMPORTS_QUEUE", "jars-imports");
         assertThat(environment).containsEntry("SPRING_PROFILES_ACTIVE", "aws");
         assertThat(environment).containsEntry("JARS_JOBS_QUEUE", "jars-jobs");
         assertThat(environment).containsEntry("JAVA_TOOL_OPTIONS", "-XX:MaxRAMPercentage=75");
@@ -221,23 +232,39 @@ class AppStackTest {
     // ---- IAM ----
 
     @Test
-    void taskRoleMayOnlyConsumeTheJobsQueueAndNothingElse() {
+    void taskRoleMayConsumeItsTwoQueuesAndUseTheUploadPrefixOfTheStatementsBucket_andNothingElse() {
         template.hasResourceProperties("AWS::IAM::Role", like("RoleName", "jars-dev-api-task"));
         List<Map<String, Object>> statements = statementsOfPolicyFor("ApiTaskRoleDefaultPolicy");
-        assertThat(statements).hasSize(1);
-        assertThat(statements.get(0))
-                .containsEntry("Effect", "Allow")
-                .containsEntry(
-                        "Action",
-                        List.of(
-                                "sqs:ChangeMessageVisibility",
-                                "sqs:DeleteMessage",
-                                "sqs:GetQueueAttributes",
-                                "sqs:GetQueueUrl",
-                                "sqs:ReceiveMessage"));
-        assertThat(statements.get(0).get("Resource").toString())
+        List<String> consume = List.of(
+                "sqs:ChangeMessageVisibility",
+                "sqs:DeleteMessage",
+                "sqs:GetQueueAttributes",
+                "sqs:GetQueueUrl",
+                "sqs:ReceiveMessage");
+        assertThat(statements).hasSize(3);
+        assertThat(statements).allSatisfy(s -> assertThat(s).containsEntry("Effect", "Allow"));
+
+        Map<String, Object> jobs = statements.get(0);
+        assertThat(jobs).containsEntry("Action", consume);
+        assertThat(jobs.get("Resource").toString())
                 .contains("JarsMessaging:ExportsOutputFnGetAttJobsQueue")
                 .doesNotContain("*");
+
+        Map<String, Object> uploads = statements.stream()
+                .filter(s -> "StatementUploads".equals(s.get("Sid")))
+                .findFirst()
+                .orElseThrow();
+        assertThat(uploads)
+                .containsEntry("Action", List.of("s3:GetObject", "s3:PutObject"))
+                .containsEntry("Resource", "arn:aws:s3:::jars-dev-statements-626212071763/uploads/*");
+
+        Map<String, Object> imports = statements.stream()
+                .filter(s -> "ConsumeImportsQueue".equals(s.get("Sid")))
+                .findFirst()
+                .orElseThrow();
+        assertThat(imports)
+                .containsEntry("Action", consume)
+                .containsEntry("Resource", "arn:aws:sqs:ap-southeast-1:626212071763:jars-imports");
     }
 
     @Test
@@ -424,13 +451,16 @@ class AppStackTest {
                         "DatapointsToAlarm", 6,
                         "Statistic", "Minimum",
                         "TreatMissingData", "notBreaching"));
-        assertThat(properties(template, "AWS::CloudWatch::Alarm").get(0).get("AlarmActions").toString())
-                .contains("JarsFoundation:ExportsOutputRef");
+        assertThat(properties(template, "AWS::CloudWatch::Alarm"))
+                .allSatisfy(alarm -> assertThat(alarm.get("AlarmActions").toString())
+                        .contains("JarsFoundation:ExportsOutputRef"));
     }
 
     @Test
     void thereIsNoAuroraAlarmInRdsMode() {
-        InfraFixture.rds().app().resourceCountIs("AWS::CloudWatch::Alarm", 0);
+        assertThat(properties(InfraFixture.rds().app(), "AWS::CloudWatch::Alarm"))
+                .extracting(alarm -> alarm.get("AlarmName"))
+                .doesNotContain("jars-dev-aurora-not-paused");
     }
 
     @Test
@@ -462,12 +492,20 @@ class AppStackTest {
         return config;
     }
 
-    @SuppressWarnings("unchecked")
+    /** The application container (the task also runs the collector sidecar). */
     private Map<String, Object> container() {
+        return container("api");
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> container(String name) {
         List<Map<String, Object>> containers = (List<Map<String, Object>>)
                 properties(template, "AWS::ECS::TaskDefinition").get(0).get("ContainerDefinitions");
-        assertThat(containers).hasSize(1);
-        return containers.get(0);
+        assertThat(containers).extracting(c -> c.get("Name")).containsExactlyInAnyOrder("api", "otel-collector");
+        return containers.stream()
+                .filter(c -> name.equals(c.get("Name")))
+                .findFirst()
+                .orElseThrow();
     }
 
     /** Environment as name to JSON text of the value, so that Fn::Join values can be matched by content. */

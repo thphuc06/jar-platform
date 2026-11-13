@@ -49,6 +49,20 @@ spring:
       sqs:
         # only the aws profile talks to SQS (it turns this on); local runs and tests never create an SQS client
         enabled: false
+      s3:
+        # same for S3 (statement uploads): locally the files go to a folder (jars.imports.storage=local)
+        enabled: false
+  ai:
+    model:
+      # no chat model locally and in tests (the advisor answers 503); the aws profile selects Bedrock Converse
+      chat: none
+  batch:
+    job:
+      # jobs run when a statement arrives (ImportLauncher), never at startup
+      enabled: false
+    jdbc:
+      # the metadata tables are part of Flyway V9
+      initialize-schema: never
   modulith:
     events:
       # a finished listener deletes its row from event_publication; unfinished rows stay as the outbox
@@ -70,6 +84,12 @@ jars:
   seed:
     # --jars.seed.enabled=true creates demo data for the token subject "demo" (local profile only)
     enabled: false
+  imports:
+    # local: files in ${java.io.tmpdir}/jars-statements, uploaded through PUT /api/v1/imports/{id}/file;
+    # the aws profile switches to s3 (presigned upload to the statements bucket)
+    storage: local
+    max-file-size: 5MB
+    upload-ttl: 10m
   jobs:
     # name of the SQS queue the EventBridge Scheduler sends jobs to (month close). Only used in the aws profile, where
     # the listener is created; blank everywhere else (nothing connects to AWS locally or in tests)
@@ -87,3 +107,26 @@ management:
         enabled: true
       # list component names (not details) so it is visible that readiness does NOT depend on the DB
       show-components: always
+  # Traces and metrics leave over OTLP only where a collector listens (the ADOT sidecar on ECS, profile aws). Spans are
+  # still created everywhere, so local logs and error bodies carry real trace ids.
+  tracing:
+    sampling:
+      # dev traffic is small: keep every trace (X-Ray records the first 100,000 traces a month for free)
+      probability: 1.0
+    export:
+      otlp:
+        enabled: false
+  otlp:
+    metrics:
+      export:
+        enabled: false
+  logging:
+    export:
+      otlp:
+        # logs go to stdout and the awslogs driver; shipping them over OTLP too would pay for them twice
+        enabled: false
+  observations:
+    enable:
+      # Spring Security adds several spans to every request (filter chain, authentication); the request span and
+      # the business spans are enough. Health checks are left out by ObservabilityConfig.
+      spring.security: false

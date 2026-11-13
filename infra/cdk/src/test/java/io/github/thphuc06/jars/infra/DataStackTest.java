@@ -91,6 +91,47 @@ class DataStackTest {
     }
 
     @Test
+    void statementsBucketIsPrivateTlsOnlyForgetsUploadsAfterSevenDaysAndTellsEventBridge() {
+        aurora.hasResourceProperties(
+                "AWS::S3::Bucket",
+                like(
+                        "BucketName", "jars-dev-statements-626212071763",
+                        "PublicAccessBlockConfiguration",
+                                like(
+                                        "BlockPublicAcls", true,
+                                        "BlockPublicPolicy", true,
+                                        "IgnorePublicAcls", true,
+                                        "RestrictPublicBuckets", true),
+                        "LifecycleConfiguration",
+                                like(
+                                        "Rules",
+                                        List.of(like(
+                                                "Prefix", "uploads/",
+                                                "ExpirationInDays", 7,
+                                                "Status", "Enabled"))),
+                        "CorsConfiguration",
+                                like(
+                                        "CorsRules",
+                                        List.of(like(
+                                                "AllowedMethods", List.of("PUT"),
+                                                "AllowedOrigins",
+                                                        List.of("https://*.cloudfront.net", "http://localhost:5173"))))));
+        aurora.hasResourceProperties(
+                "Custom::S3BucketNotifications",
+                like("NotificationConfiguration", like("EventBridgeConfiguration", map())));
+        aurora.hasResource("AWS::S3::Bucket", like("DeletionPolicy", "Retain"));
+        aurora.hasResourceProperties(
+                "AWS::S3::BucketPolicy",
+                like(
+                        "PolicyDocument",
+                        like(
+                                "Statement",
+                                List.of(like(
+                                        "Effect", "Deny",
+                                        "Condition", map("Bool", map("aws:SecureTransport", "false")))))));
+    }
+
+    @Test
     void rdsModeBuildsAFixedPriceInstanceInsteadOfACluster() {
         Template rds = Template.fromStack(InfraFixture.rds().stacks().data());
         rds.resourceCountIs("AWS::RDS::DBCluster", 0);

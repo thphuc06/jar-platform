@@ -183,27 +183,31 @@ erDiagram
         timestamptz read_at
     }
     chat_sessions {
-        uuid id PK
-        uuid user_id FK
+        uuid id PK "UUIDv7"
+        uuid user_id
         text title
+        timestamptz updated_at
     }
     chat_messages {
-        uuid id PK
+        uuid id PK "UUIDv7"
         uuid session_id FK
-        text role "USER|ASSISTANT|TOOL"
+        text role "USER|ASSISTANT"
         text content
-        jsonb tool_calls
-        int tokens_in
-        int tokens_out
+        int input_tokens
+        int output_tokens
+        text guardrail "INPUT|OUTPUT khi guardrail can thiệp"
     }
     statement_imports {
-        uuid id PK
-        uuid user_id FK
-        text s3_key
-        text status "PENDING|RUNNING|COMPLETED|FAILED"
-        int rows_total
-        int rows_ok
-        int rows_failed
+        uuid id PK "UUIDv7, cũng là tên tệp trên S3"
+        uuid user_id
+        text file_name
+        text object_key "uploads/{userId}/{id}.csv"
+        text status "AWAITING_UPLOAD|PROCESSING|COMPLETED|FAILED"
+        text file_sha256 "một user không nhập cùng tệp hai lần"
+        int total_rows
+        int posted_rows
+        int skipped_rows
+        text failure_reason
     }
 ```
 
@@ -217,8 +221,10 @@ erDiagram
 | `monthly_jar_spend` (`user_id`, `jar_id`, `month`) PK, `spent`, `txn_count`; `monthly_category_spend` (`category_id` = UUID toàn số 0 cho khoản chi chưa phân loại); `monthly_cashflow` (`income`, `expense`) | insights | **Read model** cho dashboard (CQRS-lite), cập nhật từ event bằng upsert cộng dồn (delta), nên chuyển một khoản chi sang hũ/danh mục khác chỉ là delta âm và dương |
 | `allocation_decisions` (`user_id`, `idempotency_key`) UNIQUE | budgeting | Lưu user chấp nhận (`ACCEPTED`), sửa (`EDITED`) hay bỏ qua (`SKIPPED`) gợi ý phân bổ, kèm gợi ý và phần đã áp dụng (JSONB) để cải thiện gợi ý sau này. Unique theo khóa idempotency nên gửi lại cùng request không ghi dòng thứ hai và không cộng `planned_amount` hai lần |
 | `jar_periods` (`jar_id`, `period_month`) UNIQUE | budgeting | Kế hoạch và thực chi của hũ theo tháng. `planned_amount` cộng khi áp dụng một lần phân bổ; `spent_amount` cộng dồn (delta) từ `TransactionPosted` / `TransactionRecategorized`, nên chi tiêu chuyển sang hũ khác chỉ là delta âm và dương. Job khép sổ đặt `closed_at` (không bao giờ dời) và tạo dòng tháng sau |
+| `advisor_usage` (`user_id`, `window_kind`, `window_start`) PK, `count` | advisor | Rate limit trợ lý AI theo cửa sổ cố định giờ/ngày ([ADR-0023](../04-adr/0023-advisor-guardrail-and-rate-limit.md)); cửa sổ cũ của user bị xóa ở tin nhắn kế tiếp (V10) |
 | `audit_log` | platform | `actor`, `action`, `entity_type`, `entity_id`, `trace_id`, `payload JSONB` |
-| `BATCH_*` | Spring Batch tự quản lý | Metadata của job import |
+| `statement_import_errors` (`import_id`, `line_number`) PK, `reason` | imports | Các dòng sao kê bị bỏ qua và lý do (tiếng Việt, cho user xem). Ghi cùng transaction với chunk của nó, nên import chạy lại không ghi trùng (V9) |
+| `BATCH_*` | Spring Batch 6.0 (schema chép nguyên từ `spring-batch-core`, tạo bằng Flyway V9) | Metadata của job import: job instance theo `importId`, vị trí đọc trong `BATCH_STEP_EXECUTION_CONTEXT`, nhờ đó import thất bại chạy lại từ chunk cuối đã commit |
 | `SPRING_AI_CHAT_MEMORY` (tùy chọn) | advisor | Nếu dùng JDBC chat memory repository của Spring AI |
 
 ## 4. Index chính

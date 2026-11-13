@@ -20,7 +20,6 @@
 | **CUSUM** | Cumulative Sum control chart: cộng dồn độ lệch chuẩn hóa `(x − μ)/σ − k`, báo động khi tổng vượt ngưỡng `h`. Phát hiện **xu hướng tăng hoặc giảm kéo dài** thay vì một điểm lẻ. Tham số mặc định k = 0.5, h = 5 (từ bản cũ, đã cài ở `SpendingDetector`) |
 | **MAD** | Median Absolute Deviation: đo độ phân tán, ít bị ảnh hưởng bởi ngoại lệ hơn độ lệch chuẩn. Một giao dịch là outlier nếu `|x − median| / MAD` vượt ngưỡng |
 | **Monte Carlo (có seed)** | Mô phỏng ngẫu nhiên nhiều lần; cố định seed để test tái lập được |
-| **Markowitz / Efficient frontier** | Tối ưu tỷ trọng danh mục để cân bằng lợi nhuận kỳ vọng và rủi ro (PyPortfolioOpt) |
 
 ## Kỹ thuật
 

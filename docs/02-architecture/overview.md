@@ -14,7 +14,7 @@
 | P6 | **Một cửa vào duy nhất** | CloudFront là domain duy nhất cho cả UI lẫn API → cùng origin → không cần CORS. ALB đặt internal, không lộ ra internet ([ADR-0007](../04-adr/0007-edge-cloudfront-vpc-origin.md)) |
 | P7 | **At-least-once + idempotent** | Mọi consumer event đều chịu được message trùng (bảng `processed_messages`). Outbox đảm bảo không mất event |
 | P8 | **Hạ tầng là code, tài liệu là code** | 100% hạ tầng nằm trong CDK (Java); diagram và tài liệu sống trong repo |
-| P9 | **Python chỉ ở nơi Python thắng** | vnstock và PyPortfolioOpt không có bản Java tương đương → đóng gói thành một Lambda nhỏ, giao tiếp qua JSON contract |
+| P9 | **Một ngôn ngữ ở runtime** | Toàn bộ nghiệp vụ chạy trong `jars-api` (Java). Lambda Python `quant-fn` (vnstock, PyPortfolioOpt) đã bỏ vì giấy phép của nguồn dữ liệu ([ADR-0024](../04-adr/0024-drop-market-and-quant-fn.md)) |
 
 ## 2. C4 Level 1: System Context
 
@@ -24,13 +24,11 @@ flowchart LR
     sys["<b>Jars Platform</b><br/>Quản lý hũ chi tiêu, mục tiêu,<br/>cảnh báo, trợ lý AI"]
     cognito["Amazon Cognito<br/>(Identity provider)"]
     bedrock["Amazon Bedrock<br/>(Claude, Guardrails)"]
-    market["Nguồn dữ liệu chứng khoán VN<br/>(qua thư viện vnstock)"]
 
     user -- "dùng web app (HTTPS)" --> sys
     user -- "đăng nhập (managed login)" --> cognito
     sys -- "xác thực JWT (JWKS)" --> cognito
     sys -- "LLM inference" --> bedrock
-    sys -- "giá, lịch sử giá" --> market
 ```
 
 ## 3. C4 Level 2: Containers
@@ -45,7 +43,6 @@ flowchart TB
         cf["CloudFront<br/>/* → S3 · /api/* → ALB"]
         api["<b>jars-api</b><br/>Java 21 · Spring Boot 4.1<br/>modular monolith · ECS Fargate"]
         worker["<b>insights-worker</b><br/>Java · ECS Fargate<br/>(Phase 5)"]
-        quant["<b>quant-fn</b><br/>Python 3.13 · Lambda<br/>vnstock + PyPortfolioOpt"]
         db[("Aurora PostgreSQL<br/>Serverless v2")]
         cache[("ElastiCache<br/>Serverless Valkey")]
         sns{{"SNS FIFO topics"}}
@@ -58,7 +55,6 @@ flowchart TB
     cf -->|REST + SSE| api
     api -->|JDBC| db
     api -->|cache, rate limit, pub/sub| cache
-    api -->|lambda:Invoke| quant
     api -->|outbox relay| sns
     sns --> sqs
     sqs -->|ledger events| worker
@@ -72,9 +68,8 @@ flowchart TB
 | Container | Công nghệ | Trách nhiệm | Có từ phase |
 |---|---|---|---|
 | `web` | React 18, Vite, shadcn/ui, TanStack Query, Amplify Auth | UI/PWA. Gọi `/api/*` qua cùng domain | 1 |
-| `jars-api` | Java 21, Spring Boot 4.1, Modulith | Toàn bộ nghiệp vụ: identity, ledger, budgeting, goals, insights (đến Phase 4), notification, advisor (AI), market gateway, imports | 0 |
+| `jars-api` | Java 21, Spring Boot 4.1, Modulith | Toàn bộ nghiệp vụ: identity, ledger, budgeting, goals, insights (đến Phase 4), notification, advisor (AI), imports | 0 |
 | `insights-worker` | Java 21, Spring Boot 4.1, Spring Cloud AWS SQS | Nhận `TransactionPosted`, chạy CUSUM/MAD, cập nhật read model, phát `AnomalyDetected` | 5 |
-| `quant-fn` | Python 3.13, AWS Lambda (container image, arm64) | Lấy giá và lịch sử giá (vnstock), tối ưu danh mục (PyPortfolioOpt). Stateless | 4 |
 
 Phân rã chi tiết bên trong `jars-api`: [modules.md](modules.md).
 
@@ -92,12 +87,10 @@ Version được chốt ngày **2026-10-23** theo bản stable mới nhất. C�
 | Spring Batch | theo BOM của Boot | Import CSV | – |
 | Flyway | theo BOM của Boot | Migration | – |
 | PostgreSQL | Aurora PostgreSQL **17.x** | Scale-to-zero yêu cầu ≥ 16.3 / 15.7 | ⚠️ Kiểm tra minor version khả dụng ở ap-southeast-1 khi deploy |
-| Resilience4j | 2.x | Circuit breaker cho `quant-fn`. Spring Framework 7 đã có sẵn `@Retryable` / `@ConcurrencyLimit` | ⚠️ Kiểm tra starter cho Boot 4 ở Phase 4 |
 | springdoc-openapi | 3.x | Sinh OpenAPI → TypeScript client | ⚠️ Kiểm tra ở Phase 1 |
 | Testcontainers | 2.x | PostgreSQL, LocalStack (cần auth token, xem local-development) | – |
 | AWS CDK | v2 (Java) | `aws-cdk-lib` | ✅ Account đã từng dùng CDK (stack `CDKToolkit` ở us-east-1) |
 | Node.js | 22/24 LTS | Build web, chạy CDK CLI qua `npx` | ✅ máy dev có Node 24 |
-| Python | 3.13 | `quant-fn` | – |
 | Bedrock model | `global.anthropic.claude-haiku-4-5-20251001-v1:0` (mặc định), `global.anthropic.claude-sonnet-4-6` (khi cần chất lượng cao) | Global cross-region inference profile | ✅ **gọi thật** bằng Spring AI ở P0.5 (Haiku 5.5: AccessDenied) |
 | Embedding (tùy chọn) | `cohere.embed-multilingual-v3` | Hỗ trợ tiếng Việt, dùng cho RAG | ✅ có ở ap-southeast-1 |
 
@@ -110,7 +103,6 @@ Version được chốt ngày **2026-10-23** theo bản stable mới nhất. C�
 | module ↔ module (trong jars-api) | Gọi trực tiếp API public của module (đồng bộ) **hoặc** domain event in-process (bất đồng bộ, qua outbox) | Spring Modulith kiểm tra ranh giới |
 | jars-api → insights-worker | Event: outbox → SNS FIFO → SQS FIFO (message group = `userId`) | Thứ tự theo từng user, at-least-once ([ADR-0009](../04-adr/0009-messaging-sns-sqs-eventbridge.md)) |
 | S3 / Scheduler → jars-api | EventBridge → SQS → `@SqsListener` | Có buffer, có retry và DLQ |
-| jars-api → quant-fn | `lambda:Invoke` đồng bộ qua AWS SDK, có timeout + circuit breaker | Xác thực bằng IAM, không cần public endpoint |
 | jars-api → Bedrock | `ConverseStream` qua Spring AI | Streaming token về SSE |
 
 ## 6. Thuộc tính chất lượng và chiến thuật
@@ -132,7 +124,7 @@ Version được chốt ngày **2026-10-23** theo bản stable mới nhất. C�
 |---|---|---|
 | 0–2 | `jars-api` chạy local; event in-process qua Modulith registry; Postgres + Valkey bằng docker compose | Chỉ deploy `JarsAuth` (Cognito, miễn phí) để lấy JWT thật |
 | 3 | Deploy MVP ([diagram](../diagrams/aws-phase3-mvp.png)) | Foundation, Network, Data, Messaging (S3 → EventBridge → SQS, Scheduler), App |
-| 4 | Thêm advisor (Bedrock), market (quant-fn), cache | + Valkey, + `JarsQuant`, + Guardrails |
+| 4 | Thêm advisor (Bedrock), cache | + Valkey, + Guardrails |
 | 5 | Externalize event; tách `insights-worker` | + SNS FIFO / SQS FIFO + DLQ, + service ECS thứ hai |
 | 6 | Observability đầy đủ, blue/green, load test | + ADOT/X-Ray, dashboard, alarm; (tùy chọn) WAF |
 
@@ -146,4 +138,4 @@ Version được chốt ngày **2026-10-23** theo bản stable mới nhất. C�
 | NAT Gateway | Task ở public subnet + SG khóa chặt | $0.059/giờ ≈ $43/tháng ở Singapore ([ADR-0013](../04-adr/0013-networking-no-nat.md)) |
 | Supabase | Aurora PostgreSQL | Yêu cầu AWS-native; dữ liệu đi qua backend có kiểm soát quyền |
 | Bedrock AgentCore / Strands / MCP gateway (của bản cũ) | Spring AI trong jars-api | Bài toán chỉ cần gọi tool và stream; giảm 3 runtime xuống còn 0 |
-| Dexter (agent TypeScript) | quant-fn + tool trong advisor | Fork của bên thứ ba, không phải năng lực Java |
+| Dexter (agent TypeScript), vnstock, PyPortfolioOpt | Bỏ ([ADR-0024](../04-adr/0024-drop-market-and-quant-fn.md)): advisor chỉ dùng tool đọc dữ liệu của người dùng | Giấy phép vnstock không cho dùng trong sản phẩm cho bên thứ ba |

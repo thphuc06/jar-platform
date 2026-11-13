@@ -19,6 +19,7 @@ import software.amazon.awscdk.services.ecr.TagMutability;
 import software.amazon.awscdk.services.ecr.TagStatus;
 import software.amazon.awscdk.services.iam.Effect;
 import software.amazon.awscdk.services.iam.OidcProviderNative;
+import software.amazon.awscdk.services.iam.Policy;
 import software.amazon.awscdk.services.iam.PolicyStatement;
 import software.amazon.awscdk.services.iam.Role;
 import software.amazon.awscdk.services.iam.ServicePrincipal;
@@ -190,7 +191,64 @@ public final class FoundationStack extends Stack {
                 .actions(List.of("sts:AssumeRole"))
                 .resources(bootstrapRoleArns)
                 .build());
+
+        // What deploy-dev.yml does outside CloudFormation, kept apart from the policy above so that the
+        // two concerns can be read (and tested) separately: push the image it just built, read the
+        // outputs of the Jars stacks, and let the smoke test check that the ALB is internal.
+        // Cognito permissions for the smoke test users live in JarsAuth, next to the user pool ARN.
+        Policy runtime = Policy.Builder.create(this, "GitHubDeployRuntimePolicy")
+                .statements(List.of(
+                        PolicyStatement.Builder.create()
+                                .sid("EcrLogin")
+                                .effect(Effect.ALLOW)
+                                .actions(List.of("ecr:GetAuthorizationToken"))
+                                .resources(List.of("*"))
+                                .build(),
+                        PolicyStatement.Builder.create()
+                                .sid("PushApiImage")
+                                .effect(Effect.ALLOW)
+                                .actions(List.of(
+                                        "ecr:BatchCheckLayerAvailability",
+                                        "ecr:InitiateLayerUpload",
+                                        "ecr:UploadLayerPart",
+                                        "ecr:CompleteLayerUpload",
+                                        "ecr:PutImage",
+                                        "ecr:BatchGetImage",
+                                        "ecr:DescribeImages"))
+                                .resources(List.of(apiRepository.getRepositoryArn()))
+                                .build(),
+                        PolicyStatement.Builder.create()
+                                .sid("ReadJarsStackOutputs")
+                                .effect(Effect.ALLOW)
+                                .actions(List.of("cloudformation:DescribeStacks"))
+                                .resources(List.of(jarsStacksArn()))
+                                .build(),
+                        PolicyStatement.Builder.create()
+                                .sid("SmokeTestAlbScheme")
+                                .effect(Effect.ALLOW)
+                                .actions(List.of("elasticloadbalancing:DescribeLoadBalancers"))
+                                .resources(List.of("*"))
+                                .build()))
+                .roles(List.of(role))
+                .build();
+        Validations.of(runtime)
+                .acknowledge(
+                        Acknowledgment.builder()
+                                .id("AwsSolutions-IAM5[Resource::*]")
+                                .reason("ecr:GetAuthorizationToken and elasticloadbalancing:DescribeLoadBalancers have no"
+                                        + " resource-level permissions in IAM; both are read or login only.")
+                                .build(),
+                        Acknowledgment.builder()
+                                .id("AwsSolutions-IAM5[Resource::" + jarsStacksArn() + "]")
+                                .reason("DescribeStacks on the stacks of this project (names start with Jars) to read"
+                                        + " their outputs; the stack id suffix is random, so it cannot be listed.")
+                                .build());
         return role;
+    }
+
+    /** All CloudFormation stacks of the project in this account and region (JarsFoundation, JarsApp, ...). */
+    private String jarsStacksArn() {
+        return "arn:" + getPartition() + ":cloudformation:" + getRegion() + ":" + getAccount() + ":stack/Jars*/*";
     }
 
     public Repository apiRepository() {

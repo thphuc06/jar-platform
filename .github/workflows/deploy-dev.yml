@@ -1,0 +1,180 @@
+name: deploy-dev
+
+# Deploys (or tears down) the JarsApp stack in the dev account. Manual only: the default state of the
+# environment is TEARDOWN (docs/05-operations/cost-and-budget.md), so nothing here runs on push.
+# Only JarsApp is touched (--exclusively): the long-lived stacks (Foundation, Network, Auth, Data,
+# Messaging) are deployed from a developer machine, because a CI role that can change its own
+# stack could widen its own permissions.
+#
+# One-time setup: repository variable AWS_DEPLOY_ROLE_ARN = the GitHubDeployRoleArn output of
+# JarsFoundation. The role trusts only this repository's main branch (ADR-0016), so dispatch from main.
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "deploy builds and deploys; destroy removes JarsApp (back to TEARDOWN)"
+        type: choice
+        options: [deploy, destroy]
+        default: deploy
+      web:
+        description: "build apps/web and upload it with the stack"
+        type: boolean
+        default: true
+      smoke:
+        description: "run scripts/smoke-test.ps1 after the deploy"
+        type: boolean
+        default: true
+
+# never two deployments of the same environment at once, and never cancel one halfway
+concurrency:
+  group: deploy-dev
+  cancel-in-progress: false
+
+permissions:
+  id-token: write # OIDC token for aws-actions/configure-aws-credentials
+  contents: read
+
+env:
+  AWS_REGION: ap-southeast-1
+  ECR_REPOSITORY: jars/jars-api
+
+jobs:
+  deploy:
+    name: deploy JarsApp
+    if: inputs.action == 'deploy'
+    # native arm64: the Fargate task is ARM64, so the image builds without emulation
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 60
+    steps:
+      - name: Check the trigger and the setup
+        env:
+          ROLE_ARN: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+        run: |
+          if [ "$GITHUB_REF" != "refs/heads/main" ]; then
+            echo "::error::Dispatch from main: the deploy role trusts refs/heads/main only."; exit 1
+          fi
+          if [ -z "$ROLE_ARN" ]; then
+            echo "::error::Repository variable AWS_DEPLOY_ROLE_ARN is not set (GitHubDeployRoleArn output of JarsFoundation)."; exit 1
+          fi
+
+      - uses: actions/checkout@v7
+
+      - uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: deploy-dev-${{ github.run_id }}
+
+      - id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - uses: docker/setup-buildx-action@v4
+
+      # same tag as scripts/push-image.ps1: the first 12 characters of the commit. The repository has
+      # immutable tags, so an image that already exists is reused rather than rebuilt.
+      - name: Build and push the jars-api image
+        id: image
+        env:
+          REGISTRY: ${{ steps.ecr.outputs.registry }}
+        run: |
+          tag="${GITHUB_SHA::12}"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          if aws ecr describe-images --repository-name "$ECR_REPOSITORY" --image-ids "imageTag=$tag" >/dev/null 2>&1; then
+            echo "Image $tag already in ECR"
+          else
+            docker buildx build --platform linux/arm64 --provenance=false \
+              -t "$REGISTRY/$ECR_REPOSITORY:$tag" --push apps/jars-api
+          fi
+
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+          cache-dependency-path: infra/cdk/pom.xml
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+
+      # The SPA needs the Cognito app client id, which JarsApp itself creates. If the stack already
+      # exists its outputs are reused and one deploy is enough; otherwise deploy once without the web,
+      # read the outputs, then deploy again with it (docs/05-operations/deployment.md section 2).
+      - name: Deploy JarsApp
+        working-directory: infra/cdk
+        env:
+          TAG: ${{ steps.image.outputs.tag }}
+          WEB: ${{ inputs.web }}
+        run: |
+          cdk() { npx --yes aws-cdk@2 "$@"; }
+          output() {
+            aws cloudformation describe-stacks --stack-name "$1" \
+              --query "Stacks[0].Outputs[?OutputKey=='$2'].OutputValue | [0]" --output text
+          }
+          build_web() {
+            pool="$(output JarsAuth UserPoolId)"
+            domain="$(output JarsAuth ManagedLoginBaseUrl)"
+            client="$(output JarsApp SpaClientId)"
+            (cd ../../apps/web && npm ci --no-audit --no-fund \
+              && VITE_COGNITO_USER_POOL_ID="$pool" VITE_COGNITO_CLIENT_ID="$client" \
+                 VITE_COGNITO_DOMAIN="${domain#https://}" npm run build)
+          }
+          common=(--exclusively --require-approval never -c imageTag="$TAG")
+
+          if [ "$WEB" != "true" ]; then
+            cdk deploy JarsApp "${common[@]}"
+          elif aws cloudformation describe-stacks --stack-name JarsApp >/dev/null 2>&1; then
+            build_web
+            cdk deploy JarsApp "${common[@]}" -c deployWeb=true -c webDistDir="$GITHUB_WORKSPACE/apps/web/dist"
+          else
+            cdk deploy JarsApp "${common[@]}"
+            build_web
+            cdk deploy JarsApp "${common[@]}" -c deployWeb=true -c webDistDir="$GITHUB_WORKSPACE/apps/web/dist"
+          fi
+
+          echo "### JarsApp deployed" >> "$GITHUB_STEP_SUMMARY"
+          echo "- image: \`$TAG\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- url: https://$(output JarsApp CloudFrontDomain)" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Smoke test
+        if: inputs.smoke
+        shell: pwsh
+        run: ./scripts/smoke-test.ps1 -Region $env:AWS_REGION
+
+  destroy:
+    name: destroy JarsApp
+    if: inputs.action == 'destroy'
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 45
+    steps:
+      - name: Check the trigger
+        run: |
+          if [ "$GITHUB_REF" != "refs/heads/main" ]; then
+            echo "::error::Dispatch from main: the deploy role trusts refs/heads/main only."; exit 1
+          fi
+
+      - uses: actions/checkout@v7
+
+      - uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: destroy-dev-${{ github.run_id }}
+
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+          cache-dependency-path: infra/cdk/pom.xml
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+
+      # imageTag only has to be non-empty for JarsApp to be part of the synth
+      - name: Destroy JarsApp
+        working-directory: infra/cdk
+        run: npx --yes aws-cdk@2 destroy JarsApp --exclusively --force -c imageTag=destroy
