@@ -8,6 +8,9 @@ import io.github.thphuc06.jars.imports.internal.persistence.ImportErrorStore.Row
 import io.github.thphuc06.jars.imports.internal.persistence.StatementImportRepository;
 import io.github.thphuc06.jars.imports.internal.storage.StatementStore;
 import io.github.thphuc06.jars.imports.internal.storage.StatementStore.UploadTarget;
+import io.github.thphuc06.jars.platform.audit.Audit;
+import io.github.thphuc06.jars.platform.audit.AuditAction;
+import io.github.thphuc06.jars.platform.audit.Audited;
 import io.github.thphuc06.jars.shared.DomainException;
 import io.github.thphuc06.jars.shared.UserId;
 import io.github.thphuc06.jars.shared.Uuids;
@@ -56,6 +59,7 @@ public class ImportService {
     }
 
     @Transactional
+    @Audited(AuditAction.IMPORT_CREATED)
     public CreatedImport create(UserId userId, String fileName) {
         String name = fileName.strip();
         if (EXTENSIONS.stream().noneMatch(ext -> name.toLowerCase(Locale.ROOT).endsWith(ext))) {
@@ -64,6 +68,8 @@ public class ImportService {
         }
         Instant now = clock.instant();
         StatementImport statementImport = imports.save(new StatementImport(Uuids.v7(), userId.value(), name, now));
+        // one row for the whole statement, never one per CSV line; the file name is user text, not recorded
+        Audit.entity(statementImport.getId());
         return new CreatedImport(view(statementImport, List.of()), store.uploadTarget(statementImport, now));
     }
 

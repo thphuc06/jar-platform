@@ -46,7 +46,7 @@ Every row links to the code and to the test that proves it.
 
 **Backend: 676 tests, 94.5% line coverage** (the build enforces 80% on domain and service code), Spotless formatting and a secret scan (gitleaks) on every pull request. The web client has its own unit and component tests (`apps/web`).
 
-Decisions are recorded as 24 [ADRs](docs/04-adr/README.md), including the ones where the design had to change because reality disagreed (Java 21 instead of 25, no IAM Identity Center, a CloudFront Function instead of error pages for the SPA fallback).
+Decisions are recorded as 25 [ADRs](docs/04-adr/README.md), including the ones where the design had to change because reality disagreed (Java 21 instead of 25, no IAM Identity Center, a CloudFront Function instead of error pages for the SPA fallback).
 
 ## Tech stack
 
@@ -89,7 +89,7 @@ apps/web/          React web client
 infra/cdk/         AWS CDK (Java)
 contracts/openapi/ OpenAPI file generated from the controllers; a test fails when it drifts
 scripts/           push-image, smoke-test and load-test
-docs/              architecture, API contract, 24 ADRs, operations, roadmap
+docs/              architecture, API contract, 25 ADRs, operations, roadmap
 ```
 
 ## Status
