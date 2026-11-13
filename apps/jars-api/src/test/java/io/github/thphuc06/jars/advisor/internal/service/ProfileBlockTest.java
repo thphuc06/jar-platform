@@ -63,6 +63,8 @@ class ProfileBlockTest {
                 .contains("- Hồ sơ đầy đủ: KHÔNG, còn thiếu khẩu vị rủi ro, độ tuổi, tình hình thu nhập")
                 .doesNotContain("điểm")
                 .doesNotContain("Câu trả lời");
+        // the prompt's profile gate quotes this line, so a change of wording here must change the prompt too
+        assertThat(AdvisorService.SYSTEM_PROMPT).contains("\"Hồ sơ đầy đủ: KHÔNG\"");
     }
 
     @Test

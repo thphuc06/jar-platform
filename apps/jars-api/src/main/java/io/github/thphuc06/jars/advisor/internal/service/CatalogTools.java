@@ -86,7 +86,7 @@ public class CatalogTools {
                     "Danh sách gọn TẤT CẢ 18 sản phẩm của danh mục minh họa Ngân hàng Lục Bình (nhóm DEPOSIT, FUND, LOAN,"
                             + " CARD, INSURANCE): mã, tên, mức rủi ro 1 đến 5 (riskKind: INVESTMENT đầu tư, DEBT nợ, PROTECTION"
                             + " bảo vệ), hồ sơ phù hợp, khoảng lãi suất, mức tối thiểu, thu nhập tối thiểu, một dòng mô tả."
-                            + " KHÔNG có lãi suất theo kỳ hạn, phí, điều kiện: chỉ có ở getProductDetails.")
+                            + " KHÔNG có lãi suất theo kỳ hạn, phí, điều kiện: chỉ có ở getProductDetails, không đoán.")
     public ProductList listProducts(
             @ToolParam(
                             required = false,
@@ -114,7 +114,8 @@ public class CatalogTools {
             description = "Tờ thông tin đầy đủ của tối đa " + MAX_SHEETS + " sản phẩm theo mã (ví dụ LBB-TD-ONL,"
                     + " LBF-BAL): mô tả, bảng lãi suất, phí, điều kiện, thanh khoản, ai phù hợp và không phù hợp, các lưu"
                     + " ý cần nói với khách (cautions). Mã không tồn tại được liệt kê ở unknownCodes; nếu gửi hơn "
-                    + MAX_SHEETS + " mã thì chỉ " + MAX_SHEETS + " mã đầu tiên được trả.")
+                    + MAX_SHEETS + " mã thì chỉ " + MAX_SHEETS + " mã đầu tiên được trả. Lãi suất, phí, mức tối thiểu,"
+                    + " kỳ hạn chỉ được nêu đúng như ở kết quả này.")
     public ProductSheets getProductDetails(
             @ToolParam(description = "Các mã sản phẩm lấy từ listProducts, tối đa " + MAX_SHEETS) List<String> codes,
             ToolContext context) {

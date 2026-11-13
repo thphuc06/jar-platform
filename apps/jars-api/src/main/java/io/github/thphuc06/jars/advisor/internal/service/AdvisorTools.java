@@ -87,7 +87,7 @@ public class AdvisorTools {
             name = "getMonthlyCashflow",
             description =
                     "Tổng thu, tổng chi và chênh lệch (VND) theo từng tháng, cũ trước mới sau. Tháng hiện tại chưa"
-                            + " trọn tháng.")
+                            + " trọn tháng. netVnd là dư của tháng: chỉ trích, không tự tính.")
     public List<MonthInfo> getMonthlyCashflow(
             @ToolParam(description = "Số tháng gần nhất, từ 1 đến 12") int months, ToolContext context) {
         int lastMonths = Math.max(1, Math.min(12, months));
@@ -99,7 +99,11 @@ public class AdvisorTools {
                         .toList());
     }
 
-    @Tool(name = "getGoals", description = "Các mục tiêu tiết kiệm: tên, số tiền mục tiêu (VND), hạn, trạng thái.")
+    @Tool(
+            name = "getGoals",
+            description =
+                    "Các mục tiêu tiết kiệm: tên, số tiền mục tiêu (VND), hạn, trạng thái. Không có số tiền cần góp mỗi"
+                            + " tháng: không tự tính.")
     public List<GoalInfo> getGoals(ToolContext context) {
         return run(
                 context,

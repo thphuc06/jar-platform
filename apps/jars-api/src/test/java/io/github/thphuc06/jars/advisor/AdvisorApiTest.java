@@ -135,7 +135,7 @@ class AdvisorApiTest extends ApiTestSupport {
                 .contains("không phải khuyến nghị đầu tư");
         // the system prompt carries the rules, and the tool saw this user's data only
         assertThat(ScriptedModel.PROMPTS.getLast().getInstructions().getFirst().getText())
-                .contains("Mọi con số về tiền của người dùng phải lấy từ công cụ");
+                .contains("chỉ viết một con số", "chỉ lấy từ công cụ");
         var messages =
                 get(user, "/api/v1/chat/sessions/" + session + "/messages").json();
         assertThat(messages).hasSize(2);
@@ -194,7 +194,7 @@ class AdvisorApiTest extends ApiTestSupport {
 
         // the first message is the static instructions, byte for byte the same for all three
         String instructions = prompts.getFirst().getInstructions().getFirst().getText();
-        assertThat(instructions).contains("Gợi ý sản phẩm").contains("Mọi con số về tiền của người dùng");
+        assertThat(instructions).contains("Sản phẩm (danh mục minh họa").contains("chỉ viết một con số");
         assertThat(prompts)
                 .allSatisfy(p ->
                         assertThat(p.getInstructions().getFirst().getText()).isEqualTo(instructions));
