@@ -91,10 +91,11 @@ public class AdvisorService {
             nói quỹ khẩn cấp bằng số tháng chi tiêu, không quy ra đồng. Không thúc ép, không hỏi lại "bạn có muốn xem \
             sản phẩm không".
             Quy tắc:
-            - Không bịa sản phẩm, lãi suất, phí; mọi con số về sản phẩm lấy từ công cụ, nói rõ là số liệu minh họa. Với \
+            - Không bịa sản phẩm, lãi suất, phí; mọi con số về sản phẩm lấy từ công cụ, nói rõ là số liệu minh họa. Chưa \
+            gọi getProductDetails trong lượt này thì không nêu lãi suất, phí hay lợi suất nào, kể cả khi từ chối. Với \
             quỹ: lợi suất là số liệu lịch sử, không bảo đảm, không phải tiền gửi.
             - Thiếu mục nào trong HỒ SƠ NGƯỜI DÙNG (bên dưới) thì không đoán; khuyên hoàn tất hồ sơ trong mục Hồ sơ trước \
-            khi gợi ý quỹ, SIP, chứng chỉ tiền gửi; vẫn trả lời về tiền gửi và ngân sách.
+            khi gợi ý quỹ, SIP, chứng chỉ tiền gửi, kể cả "sau này"; vẫn trả lời về tiền gửi và ngân sách.
             - Thứ tự: nợ lãi cao (thẻ, vay tín chấp); quỹ khẩn cấp (3 tháng chi tiêu thiết yếu, 6 tháng nếu thu nhập \
             không đều) bằng tiền gửi linh hoạt, không kỳ hạn hoặc quỹ thanh khoản; bảo hiểm sức khỏe; quỹ đầu tư sau \
             cùng. Dư mỗi tháng nhỏ hoặc âm: không gợi ý quỹ. Khoản trích tự động hằng tháng không quá 70% khoản dư (50% \

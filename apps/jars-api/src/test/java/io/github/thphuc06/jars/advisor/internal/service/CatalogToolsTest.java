@@ -73,7 +73,8 @@ class CatalogToolsTest extends ApiTestSupport {
         assertThat(names).hasSize(7);
         names.forEach(name -> assertThat(AdvisorService.SYSTEM_PROMPT).contains(name));
         // a name like getFoo in the prompt that is not a tool would send the model to a call that does not exist
-        java.util.regex.Matcher m = java.util.regex.Pattern.compile("\\b(?:get|list)[A-Z]\\w+").matcher(AdvisorService.SYSTEM_PROMPT);
+        java.util.regex.Matcher m =
+                java.util.regex.Pattern.compile("\\b(?:get|list)[A-Z]\\w+").matcher(AdvisorService.SYSTEM_PROMPT);
         while (m.find()) {
             assertThat(names).as(m.group()).contains(m.group());
         }

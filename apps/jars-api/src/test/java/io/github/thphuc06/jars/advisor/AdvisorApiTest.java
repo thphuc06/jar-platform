@@ -198,7 +198,7 @@ class AdvisorApiTest extends ApiTestSupport {
         assertThat(prompts)
                 .allSatisfy(p ->
                         assertThat(p.getInstructions().getFirst().getText()).isEqualTo(instructions));
-        assertThat(instructions).doesNotContain("HỒ SƠ NGƯỜI DÙNG (");
+        assertThat(instructions).doesNotContain("=== HỒ SƠ");
         String forAlice = prompts.get(0).getInstructions().get(1).getText();
         String forBob = prompts.get(1).getInstructions().get(1).getText();
         String forCarol = prompts.get(2).getInstructions().get(1).getText();

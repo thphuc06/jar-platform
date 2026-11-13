@@ -83,11 +83,10 @@ public class CatalogTools {
     @Tool(
             name = "listProducts",
             description =
-                    "Danh sách gọn TẤT CẢ sản phẩm của danh mục minh họa Ngân hàng Lục Bình (18 sản phẩm, nhóm"
-                            + " DEPOSIT tiền gửi, FUND quỹ, LOAN vay, CARD thẻ, INSURANCE bảo hiểm): mã, tên, mức rủi ro 1 đến 5"
-                            + " (riskKind: INVESTMENT là rủi ro đầu tư, DEBT là rủi ro nợ, PROTECTION là bảo vệ), hồ sơ rủi ro"
-                            + " phù hợp, khoảng lãi suất hoặc lợi suất, mức tối thiểu, thu nhập tối thiểu và một dòng mô tả."
-                            + " KHÔNG có lãi suất theo từng kỳ hạn, phí hay điều kiện: những thứ đó chỉ có ở getProductDetails.")
+                    "Danh sách gọn TẤT CẢ 18 sản phẩm của danh mục minh họa Ngân hàng Lục Bình (nhóm DEPOSIT, FUND, LOAN,"
+                            + " CARD, INSURANCE): mã, tên, mức rủi ro 1 đến 5 (riskKind: INVESTMENT đầu tư, DEBT nợ, PROTECTION"
+                            + " bảo vệ), hồ sơ phù hợp, khoảng lãi suất, mức tối thiểu, thu nhập tối thiểu, một dòng mô tả."
+                            + " KHÔNG có lãi suất theo kỳ hạn, phí, điều kiện: chỉ có ở getProductDetails.")
     public ProductList listProducts(
             @ToolParam(
                             required = false,
