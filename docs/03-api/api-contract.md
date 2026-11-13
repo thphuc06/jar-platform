@@ -149,7 +149,7 @@ event: done
 data: {"messageId":"0193...","usage":{"inputTokens":812,"outputTokens":164},"disclaimer":"Thông tin mang tính tham khảo..."}
 ```
 
-`tool` báo model đang tra dữ liệu (`getJars`, `getMonthlyCashflow`, `getGoals`, `getOpenAnomalyCount`; chỉ đọc, user lấy từ JWT). `replace` chỉ xuất hiện khi guardrail đầu ra can thiệp: client thay toàn bộ phần đã hiện bằng `text` ([ADR-0023](../04-adr/0023-advisor-guardrail-and-rate-limit.md)). Event `roadmap` của thiết kế ban đầu chưa cài. Nếu có lỗi giữa chừng: `event: error` với `data` là ProblemDetail, sau đó đóng stream. Client không tự kết nối lại (một lượt chat không idempotent).
+`tool` báo model đang tra dữ liệu (`getJars`, `getMonthlyCashflow`, `getGoals`, `getOpenAnomalies`, `getSpendingBehaviour`; chỉ đọc, user lấy từ JWT). `replace` chỉ xuất hiện khi guardrail đầu ra can thiệp: client thay toàn bộ phần đã hiện bằng `text` ([ADR-0023](../04-adr/0023-advisor-guardrail-and-rate-limit.md)). Event `roadmap` của thiết kế ban đầu chưa cài. Nếu có lỗi giữa chừng: `event: error` với `data` là ProblemDetail, sau đó đóng stream. Client không tự kết nối lại (một lượt chat không idempotent).
 
 ### Thông báo: `GET /notifications/stream`
 
