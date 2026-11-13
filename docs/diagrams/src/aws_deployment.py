@@ -7,7 +7,7 @@ Render: see docs/diagrams/README.md
 """
 from pathlib import Path
 
-from diagrams import Cluster, Diagram, Edge
+from _ortho import Canvas
 from diagrams.aws.compute import Fargate
 from diagrams.aws.database import Aurora
 from diagrams.aws.devtools import XRay
@@ -22,38 +22,58 @@ from diagrams.onprem.container import Docker
 
 OUT = Path(__file__).resolve().parent.parent / "aws-deployment"
 
-graph_attr = {"fontsize": "20", "pad": "0.5", "nodesep": "0.6", "ranksep": "1.2", "splines": "spline"}
+d = Canvas("Jars Platform - deployed topology (dev, ap-southeast-1)", OUT, cw=215, rh=190)
 
-with Diagram("Jars Platform - deployed topology (dev, ap-southeast-1)", filename=str(OUT), show=False,
-             direction="LR", outformat="png", graph_attr=graph_attr):
-    users = Users("Browser")
-    with Cluster("Edge"):
-        cdn = CloudFront("CloudFront")
-        web = S3("web bucket")
-    with Cluster("ap-southeast-1"):
-        idp = Cognito("Cognito")
-        with Cluster("VPC"):
-            alb = ALB("internal ALB")
-            api = Fargate("jars-api, one task\n0.5 vCPU / 1 GB, ARM64", labelloc="t")
-            adot = Docker("ADOT collector\nsidecar in the same task")
-            db = Aurora("Aurora Serverless v2\nmin 0 ACU (auto-pause)")
-        statements = S3("statements bucket")
-        rule = Eventbridge("EventBridge rule\nstatement-uploaded")
-        imports = SQS("SQS jars-imports")
-        sched = EventbridgeScheduler("EventBridge Scheduler\nmonth-close, nightly")
-        jobs = SQS("SQS job queues\njars-jobs, jars-reconciliation")
-        llm = Bedrock("Bedrock\nClaude Haiku 4.5 + Guardrail")
-        xray = XRay("X-Ray")
-        cw = Cloudwatch("CloudWatch")
+# Grid: columns 0-6, rows 0-3. Left band = outside the region (browser, edge); the region box holds the rest.
+# Row 1 is the request path: Browser > CloudFront > ALB > jars-api > Aurora.
+d.node("users", Users, "Browser", 0, 1)
+d.node("cdn", CloudFront, "CloudFront", 1, 1)
+d.node("web", S3, "web bucket", 1, 2)
 
-    users >> cdn >> web
-    cdn >> Edge(label="/api/*") >> alb >> api
-    api >> Edge(label="JDBC") >> db
-    users >> Edge(style="dashed", label="sign in") >> idp
-    users >> Edge(style="dashed", label="presigned PUT") >> statements
-    statements >> rule >> imports >> api
-    sched >> jobs >> api
-    api >> llm
-    api >> Edge(label="OTLP") >> adot
-    adot >> xray
-    adot >> cw
+d.node("idp", Cognito, "Cognito", 2, 0)
+d.node("alb", ALB, "internal ALB", 3, 1)
+d.node("api", Fargate, "jars-api, one task\n0.5 vCPU / 1 GB, ARM64", 4, 1, label_top=True)
+d.node("db", Aurora, "Aurora Serverless v2\nmin 0 ACU (auto-pause)", 5, 1)
+d.node("adot", Docker, "ADOT collector\nsidecar in the same task", 5, 0)
+
+d.node("statements", S3, "statements bucket", 2, 3)
+d.node("rule", Eventbridge, "EventBridge rule\nstatement-uploaded", 3, 3)
+d.node("imports", SQS, "SQS jars-imports", 4, 3)
+d.node("sched", EventbridgeScheduler, "EventBridge Scheduler\nmonth-close, nightly", 3, 2)
+d.node("jobs", SQS, "SQS job queues\njars-jobs,\njars-reconciliation", 4, 2)
+
+d.node("xray", XRay, "X-Ray", 6.2, 0)
+d.node("cw", Cloudwatch, "CloudWatch", 6.2, 1)
+d.node("llm", Bedrock, "Bedrock\nClaude Haiku 4.5\n+ Guardrail", 6.2, 2)
+
+d.group("edge", "Edge", ["cdn", "web"], "plain")
+d.group("vpc", "VPC", ["alb", "api", "db", "adot"], "vpc")
+d.group("queues", "SQS queues", ["jobs", "imports"], "plain", pad=(14, 12, 14, 10))
+d.group("services", "Regional services", ["xray", "cw", "llm"], "plain")
+d.group("region", "ap-southeast-1", ["idp", "vpc", "statements", "rule", "sched", "queues", "services"], "region",
+        pad=(18, 14, 18, 16))
+
+# request path
+d.edge("users", "cdn", "rl")
+d.edge("cdn", "web", "bt")
+d.edge("cdn", "alb", "rl", label="/api/*")
+d.edge("alb", "api", "rl")
+d.edge("api", "db", "rl", label="JDBC", lt=0.66)
+
+# browser talks to AWS directly (dashed)
+d.edge("users", "idp", "tl", style="dashed", label="sign in")
+d.edge("users", "statements", "bl", style="dashed", label="presigned PUT")
+
+# statement import and scheduled jobs; both queues feed jars-api, so one arrow from the queue box
+d.edge("statements", "rule", "rl")
+d.edge("rule", "imports", "rl")
+d.edge("sched", "jobs", "rl")
+d.edge("queues", "api", "tb")
+
+# AI advisor and telemetry
+d.edge("api", "llm", "rl", off=(20, 0), lanes=[4.5])
+d.edge("api", "adot", "rl", off=(-20, 0), lanes=[4.5], label="OTLP", lseg=2)
+d.edge("adot", "xray", "rl")
+d.edge("adot", "cw", "rl", off=(20, 0), lanes=[5.66])
+
+d.render()
