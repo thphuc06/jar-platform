@@ -20,5 +20,20 @@ public final class BusinessMetrics {
     /** Observation (timer and span) of one month close run, tag {@code outcome}. */
     public static final String MONTH_CLOSE = PREFIX + "month.close";
 
+    /**
+     * Gauge: how many jars the last nightly reconciliation found with {@code balance != SUM(entries)}. A gauge, not a
+     * counter, on purpose: the ADOT/EMF exporter turns a cumulative counter into deltas and drops the first point of
+     * a series, so a count that is incremented once in a task's lifetime would never reach CloudWatch, whereas a gauge
+     * is reported every minute with the value of the last run. Not registered until the first run of a task, so a
+     * fresh task reports nothing rather than a false 0. No tags (one series).
+     */
+    public static final String RECONCILIATION_MISMATCHES = PREFIX + "ledger.reconciliation.mismatches";
+
+    /** Gauge: how many jars the last nightly reconciliation checked (same life cycle as the mismatches gauge). */
+    public static final String RECONCILIATION_JARS_CHECKED = PREFIX + "ledger.reconciliation.jars.checked";
+
+    /** Counter of reconciliation runs, tag {@code result} ({@code clean}, {@code mismatch}, {@code error}). */
+    public static final String RECONCILIATION_RUNS = PREFIX + "ledger.reconciliation.runs";
+
     private BusinessMetrics() {}
 }

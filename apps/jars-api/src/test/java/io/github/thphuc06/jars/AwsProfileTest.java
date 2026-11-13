@@ -26,6 +26,7 @@ import org.springframework.test.web.servlet.assertj.MockMvcTester;
 @SpringBootTest(
         properties = {
             "jars.jobs.queue-name=jars-jobs-test",
+            "jars.jobs.reconciliation-queue-name=jars-reconciliation-test",
             "JARS_IMPORTS_BUCKET=jars-statements-test",
             "JARS_IMPORTS_QUEUE=jars-imports-test",
             "spring.cloud.aws.sqs.listener.auto-startup=false"
@@ -59,6 +60,11 @@ class AwsProfileTest {
     @Test
     void theMonthCloseQueueListenerExistsOnlyHere() {
         assertThat(context.containsBean("monthCloseQueueListener")).isTrue();
+    }
+
+    @Test
+    void theReconciliationQueueListenerExistsOnlyHere() {
+        assertThat(context.containsBean("reconciliationQueueListener")).isTrue();
     }
 
     @Test
