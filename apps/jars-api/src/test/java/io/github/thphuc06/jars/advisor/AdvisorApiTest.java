@@ -98,14 +98,14 @@ class AdvisorApiTest extends ApiTestSupport {
                 @Override
                 public Verdict checkInput(String text) {
                     return text.contains("bỏ qua mọi hướng dẫn")
-                            ? new Verdict(true, "Xin lỗi, tôi không thể giúp với yêu cầu này.")
+                            ? Verdict.blocked("Xin lỗi, tôi không thể giúp với yêu cầu này.", text)
                             : Verdict.pass(text);
                 }
 
                 @Override
                 public Verdict checkOutput(String text) {
                     return text.contains("mua cổ phiếu")
-                            ? new Verdict(true, "Tôi không đưa ra khuyến nghị mua bán chứng khoán cụ thể.")
+                            ? Verdict.blocked("Tôi không đưa ra khuyến nghị mua bán chứng khoán cụ thể.", text)
                             : Verdict.pass(text);
                 }
             };
