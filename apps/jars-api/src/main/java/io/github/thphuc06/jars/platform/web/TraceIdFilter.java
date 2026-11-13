@@ -1,5 +1,6 @@
 package io.github.thphuc06.jars.platform.web;
 
+import io.github.thphuc06.jars.platform.observability.MdcKeys;
 import io.micrometer.tracing.Span;
 import io.micrometer.tracing.TraceContext;
 import io.micrometer.tracing.Tracer;
@@ -21,7 +22,9 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 /**
  * Gives every request a trace id, exposes it in the MDC (key {@value #MDC_KEY}) for logs and error bodies, and returns
- * it in a W3C {@code traceparent} response header. Runs before Spring Security so even 401 responses carry the id.
+ * it in a W3C {@code traceparent} response header. Runs before Spring Security so even 401 responses carry the id. It
+ * also owns the end of the request's MDC: the user id that {@code CurrentUser} adds once the caller is known is removed
+ * here, in the same {@code finally}.
  *
  * <p>With tracing on (OpenTelemetry, the {@code aws} profile) the id is the one of the current span, which Spring's
  * observation filter has already started from an incoming {@code traceparent}: the id a user reads in an error body is
@@ -33,7 +36,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
 @Order(Ordered.HIGHEST_PRECEDENCE + 2)
 class TraceIdFilter extends OncePerRequestFilter {
 
-    static final String MDC_KEY = "traceId";
+    static final String MDC_KEY = MdcKeys.TRACE_ID;
     private static final Pattern TRACEPARENT = Pattern.compile("^00-([0-9a-f]{32})-[0-9a-f]{16}-[0-9a-f]{2}$");
     private static final SecureRandom RANDOM = new SecureRandom();
     private static final HexFormat HEX = HexFormat.of();
@@ -56,7 +59,9 @@ class TraceIdFilter extends OncePerRequestFilter {
         try {
             chain.doFilter(request, response);
         } finally {
+            // the entries of this request, and only of this request: the thread serves the next one
             MDC.remove(MDC_KEY);
+            MDC.remove(MdcKeys.USER_ID);
         }
     }
 

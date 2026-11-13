@@ -55,6 +55,8 @@ final class ApiObservability {
     /** Container memory of the two containers; together they stay inside the 1 GB of the task. */
     static final int API_MEMORY_MIB = 896;
     static final int COLLECTOR_MEMORY_MIB = 128;
+    /** Gauge of the nightly ledger reconciliation: jars whose balance differs from the sum of their entries. */
+    static final String RECONCILIATION_MISMATCHES_METRIC = "jars.ledger.reconciliation.mismatches";
 
     private ApiObservability() {}
 
@@ -230,6 +232,8 @@ final class ApiObservability {
                 .build();
         latencyAlarm.addAlarmAction(new SnsAction(alarmTopic));
 
+        addLedgerReconciliationAlarm(stack, cfg, alarmTopic);
+
         Map<String, String> serviceDimensions = Map.of(
                 "ClusterName", service.getCluster().getClusterName(),
                 "ServiceName", service.getServiceName());
@@ -284,6 +288,40 @@ final class ApiObservability {
                                                 queueDepth(MessagingStack.JOBS_QUEUE_NAME + "-dlq")),
                                         List.of()))))
                 .build();
+    }
+
+    /**
+     * Fires when the last nightly reconciliation found a jar whose balance is not the sum of its entries.
+     *
+     * <p>The metric is a gauge without tags: the application reports the result of its last run every minute for as
+     * long as the task lives, and does not report at all before the first run of a task. EMF therefore has no
+     * dimensions to name (the collector adds an OTelLib dimension only when the metric has an instrumentation scope
+     * name, which Micrometer's OTLP registry does not set). Maximum over 5 minutes with one datapoint is enough: the
+     * first minute that carries the value raises the alarm, the SNS notification is the one-off event, and a value held
+     * for many minutes cannot be missed the way a single counter increment can (the EMF exporter drops the first
+     * point of a cumulative counter). Missing data is "not breaching": when the task is replaced or JarsApp is
+     * destroyed the alarm returns to OK instead of staying in ALARM for a task that no longer exists, and it fires
+     * again after the next night's run if the mismatch is still there. After a fix the next clean run reports 0.
+     */
+    private static void addLedgerReconciliationAlarm(Stack stack, EnvConfig cfg, ITopic alarmTopic) {
+        Alarm alarm = Alarm.Builder.create(stack, "LedgerReconciliationMismatchAlarm")
+                .alarmName(cfg.name("ledger-reconciliation-mismatches"))
+                .alarmDescription("The nightly reconciliation found jars whose balance differs from the sum of their"
+                        + " ledger entries. Nothing was corrected. Details (jar id, stored, computed, difference) in"
+                        + " /jars/" + cfg.env() + "/api, search \"Ledger mismatch\".")
+                .metric(Metric.Builder.create()
+                        .namespace(METRICS_NAMESPACE)
+                        .metricName(RECONCILIATION_MISMATCHES_METRIC)
+                        .statistic("Maximum")
+                        .period(Duration.minutes(5))
+                        .build())
+                .comparisonOperator(ComparisonOperator.GREATER_THAN_THRESHOLD)
+                .threshold(0)
+                .evaluationPeriods(1)
+                .datapointsToAlarm(1)
+                .treatMissingData(TreatMissingData.NOT_BREACHING)
+                .build();
+        alarm.addAlarmAction(new SnsAction(alarmTopic));
     }
 
     /**

@@ -21,9 +21,9 @@
 | Service | Image | Port | Dùng cho |
 |---|---|---|---|
 | `postgres` ✅ (P0.6) | `postgres:17-alpine` (đang là 17.11) | 5432 | DB chính, khớp major version với Aurora 17. User/db `jars`, password chỉ dùng local. Chỉ đổi sang `pgvector/pgvector:pg17` nếu làm RAG bằng pgvector (P4.9 hiện chọn S3 Vectors) |
-| `valkey` | `valkey/valkey:8` | 6379 | Cache, rate limit (Phase 4) |
-| `lgtm` | `grafana/otel-lgtm` | 3000, 4317, 4318 | Xem trace, metric, log ở local (Phase 6, tùy chọn) |
-| `localstack` | `localstack/localstack` (cần `LOCALSTACK_AUTH_TOKEN`) | 4566 | S3, SQS, SNS, EventBridge ở local (Phase 2–5) |
+| `valkey` | `valkey/valkey:8` | 6379 | **Không còn kế hoạch dùng**: rate limit của advisor nằm trong PostgreSQL ([ADR-0023](../04-adr/0023-advisor-guardrail-and-rate-limit.md)); chỉ cần khi chạy ≥ 2 task (Phase 3+ backlog) |
+| `lgtm` | `grafana/otel-lgtm` | 3000, 4317, 4318 | Xem trace, metric, log ở local (tùy chọn, backlog Phase 3+) |
+| `localstack` | `localstack/localstack` (cần `LOCALSTACK_AUTH_TOKEN`) | 4566 | S3, SQS, SNS, EventBridge ở local (tùy chọn, hiện chưa dùng: test dùng Testcontainers Postgres và mock) |
 | `kafka` | `apache/kafka` (KRaft) | 9092 | **Lab tùy chọn** (ADR-0009) |
 
 > **LocalStack:** từ bản 2026.03.0, image yêu cầu **auth token**. Gói Hobby (phi thương mại) và gói Student là miễn phí. Đăng ký tài khoản, đặt `LOCALSTACK_AUTH_TOKEN` trong file `local/.env` (đã gitignore) và trong GitHub Secrets cho CI. Nhớ **pin version image**, không dùng `latest`.

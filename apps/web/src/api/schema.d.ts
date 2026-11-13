@@ -36,6 +36,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/audit-log": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["auditLog"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/balances/daily": {
         parameters: {
             query?: never;
@@ -522,6 +538,24 @@ export interface components {
             balance?: components["schemas"]["Money"];
             /** Format: uuid */
             jarId?: string;
+        };
+        AuditEntryView: {
+            action?: string;
+            /** Format: uuid */
+            entityId?: string;
+            entityType?: string;
+            /** Format: uuid */
+            id?: string;
+            /** Format: date-time */
+            occurredAt?: string;
+            payload?: {
+                [key: string]: unknown;
+            };
+            traceId?: string;
+        };
+        AuditPage: {
+            items?: components["schemas"]["AuditEntryView"][];
+            nextCursor?: string;
         };
         CategorySpend: {
             /** Format: uuid */
@@ -1193,6 +1227,31 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["AnomalyView"];
+                };
+            };
+        };
+    };
+    auditLog: {
+        parameters: {
+            query?: {
+                action?: "TRANSACTION_POSTED" | "JAR_TRANSFERRED" | "INCOME_ALLOCATED" | "TRANSACTION_RECATEGORIZED" | "JAR_CREATED" | "JAR_UPDATED" | "JAR_ARCHIVED" | "ALLOCATION_DECIDED" | "MONTH_CLOSED" | "GOAL_CREATED" | "GOAL_UPDATED" | "GOAL_ARCHIVED" | "PROFILE_UPDATED" | "RISK_PROFILE_SUBMITTED" | "IMPORT_CREATED" | "ANOMALY_FEEDBACK_GIVEN";
+                entityType?: "TRANSACTION" | "JAR" | "GOAL" | "USER" | "RISK_ASSESSMENT" | "ALLOCATION_DECISION" | "STATEMENT_IMPORT" | "ANOMALY";
+                limit?: number;
+                cursor?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["AuditPage"];
                 };
             };
         };

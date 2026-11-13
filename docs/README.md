@@ -15,7 +15,7 @@ Tài liệu được viết theo kiểu **docs-as-code**: nằm cùng repo với
 | [02-architecture/event-catalog.md](02-architecture/event-catalog.md) | Event nào, ai phát, ai nghe, đảm bảo giao nhận ra sao? | Mỗi khi thêm hoặc đổi event |
 | [02-architecture/flows.md](02-architecture/flows.md) | Các luồng chính chạy từng bước như thế nào (sequence diagram)? | Khi đổi luồng |
 | [02-architecture/security.md](02-architecture/security.md) | Xác thực, phân quyền, IAM, secret, threat model | Khi đổi auth, IAM hoặc dữ liệu nhạy cảm |
-| [02-architecture/well-architected-review.md](02-architecture/well-architected-review.md) | Thiết kế đúng best practice AWS ở đâu, cố ý lệch chuẩn ở đâu và vì sao (6 trụ cột + GenAI Lens + FSI Lens) | Cuối Phase 3 và Phase 6 (sau khi chạy WA Tool) |
+| [02-architecture/well-architected-review.md](02-architecture/well-architected-review.md) | Thiết kế đúng best practice AWS ở đâu, cố ý lệch chuẩn ở đâu và vì sao (6 trụ cột + GenAI Lens + FSI Lens) | Cuối Phase 2 và sau backlog Phase 3+ (sau khi chạy WA Tool) |
 | [03-api/api-contract.md](03-api/api-contract.md) | Endpoint REST/SSE, format lỗi, idempotency, mapping với màn hình UI | Mỗi khi đổi API |
 | [04-adr/](04-adr/README.md) | **Vì sao** chọn A mà không chọn B? | Mỗi quyết định kiến trúc mới |
 | [05-operations/cost-and-budget.md](05-operations/cost-and-budget.md) | Tốn bao nhiêu tiền, làm sao để không bị "cháy" credit? | Khi thêm dịch vụ có tính phí |

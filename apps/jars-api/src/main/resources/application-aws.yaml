@@ -4,6 +4,7 @@
 #   SPRING_DATASOURCE_URL / _USERNAME / _PASSWORD   Aurora (username and password come from Secrets Manager)
 #   JARS_ISSUER_URI, JARS_ALLOWED_CLIENT_IDS        Cognito user pool and the app clients whose tokens are accepted
 #   JARS_JOBS_QUEUE                                 SQS queue that EventBridge Scheduler writes the month-close job to
+#   JARS_RECONCILIATION_QUEUE                       SQS queue that EventBridge Scheduler writes the nightly ledger reconciliation to
 #   JARS_IMPORTS_BUCKET, JARS_IMPORTS_QUEUE         statements bucket (presigned uploads) and the queue of its S3 events
 # Region and credentials for the AWS SDK come from the task role.
 

@@ -69,6 +69,66 @@ paths:
           description: OK
       tags:
       - insights-controller
+  /api/v1/audit-log:
+    get:
+      operationId: auditLog
+      parameters:
+      - in: query
+        name: action
+        required: false
+        schema:
+          type: string
+          enum:
+          - TRANSACTION_POSTED
+          - JAR_TRANSFERRED
+          - INCOME_ALLOCATED
+          - TRANSACTION_RECATEGORIZED
+          - JAR_CREATED
+          - JAR_UPDATED
+          - JAR_ARCHIVED
+          - ALLOCATION_DECIDED
+          - MONTH_CLOSED
+          - GOAL_CREATED
+          - GOAL_UPDATED
+          - GOAL_ARCHIVED
+          - PROFILE_UPDATED
+          - RISK_PROFILE_SUBMITTED
+          - IMPORT_CREATED
+          - ANOMALY_FEEDBACK_GIVEN
+      - in: query
+        name: entityType
+        required: false
+        schema:
+          type: string
+          enum:
+          - TRANSACTION
+          - JAR
+          - GOAL
+          - USER
+          - RISK_ASSESSMENT
+          - ALLOCATION_DECISION
+          - STATEMENT_IMPORT
+          - ANOMALY
+      - in: query
+        name: limit
+        required: false
+        schema:
+          type: integer
+          format: int32
+      - in: query
+        name: cursor
+        required: false
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/AuditPage"
+          description: OK
+      tags:
+      - audit-log-controller
   /api/v1/balances/daily:
     get:
       operationId: dailyBalances
@@ -899,6 +959,36 @@ components:
         jarId:
           type: string
           format: uuid
+    AuditEntryView:
+      type: object
+      properties:
+        action:
+          type: string
+        entityId:
+          type: string
+          format: uuid
+        entityType:
+          type: string
+        id:
+          type: string
+          format: uuid
+        occurredAt:
+          type: string
+          format: date-time
+        payload:
+          type: object
+          additionalProperties: {}
+        traceId:
+          type: string
+    AuditPage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/AuditEntryView"
+        nextCursor:
+          type: string
     CategorySpend:
       type: object
       properties:

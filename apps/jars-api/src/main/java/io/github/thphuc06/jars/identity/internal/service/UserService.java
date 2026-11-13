@@ -4,6 +4,9 @@ import io.github.thphuc06.jars.identity.UserRegistered;
 import io.github.thphuc06.jars.identity.internal.domain.User;
 import io.github.thphuc06.jars.identity.internal.persistence.RiskAssessmentRepository;
 import io.github.thphuc06.jars.identity.internal.persistence.UserRepository;
+import io.github.thphuc06.jars.platform.audit.Audit;
+import io.github.thphuc06.jars.platform.audit.AuditAction;
+import io.github.thphuc06.jars.platform.audit.Audited;
 import io.github.thphuc06.jars.platform.security.UserDirectory;
 import io.github.thphuc06.jars.shared.DomainException;
 import io.github.thphuc06.jars.shared.UserId;
@@ -59,9 +62,14 @@ public class UserService implements UserDirectory {
     }
 
     @Transactional
+    @Audited(AuditAction.PROFILE_UPDATED)
     public Profile updateProfile(UserId userId, String displayName, String locale) {
         User user = users.findById(userId.value()).orElseThrow(() -> DomainException.notFound("Người dùng"));
         user.updateProfile(displayName, locale, clock.instant());
+        // the display name is personal data: only whether it changed. The locale is a validated code
+        Audit.entity(user.getId())
+                .with("displayNameChanged", displayName != null)
+                .withCode("locale", user.getLocale());
         return toProfile(user);
     }
 

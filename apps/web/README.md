@@ -9,7 +9,7 @@ React 18 + Vite + TypeScript + Tailwind + shadcn/ui, installable as a PWA. Talks
 ```bash
 npm ci
 npm run dev        # http://localhost:5173, proxies /api and /dev to http://localhost:8080
-npm test           # vitest, 119 tests
+npm test           # vitest, 134 tests
 npm run lint
 npm run build      # tsc + vite build + service worker
 ```

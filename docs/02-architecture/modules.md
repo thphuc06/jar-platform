@@ -79,11 +79,11 @@ Ghi một khoản chi phải **trừ số dư hũ trong cùng một transaction 
 
 Gom vào `ledger` giúp tính nhất quán mạnh nằm gọn trong một module. `budgeting` chỉ giữ phần **kế hoạch** (tỷ lệ %, ngân sách tháng), là phần chấp nhận cập nhật trễ vài trăm ms.
 
-## 5. Khi tách `insights` thành `insights-worker` (Phase 5)
+## 5. Khi tách `insights` thành `insights-worker` (Phase 3+, backlog chưa lên lịch)
 
 1. Event `TransactionPosted` được đánh dấu `@Externalized("jars-ledger-events.fifo::#{#this.userId()}")` → outbox → SNS FIFO.
 2. Code của module `insights` chuyển nguyên sang `apps/insights-worker`. Bảng chuyển sang schema `insights`.
-3. `jars-api` không còn module `insights`. Dashboard đọc read model qua... **quyết định ở Phase 5** (lựa chọn: worker ghi `monthly_jar_spend` vào schema `jars` thông qua event ngược lại, hoặc jars-api gọi API của worker). Ghi thành ADR khi đến lúc.
+3. `jars-api` không còn module `insights`. Dashboard đọc read model qua... **quyết định khi làm backlog Phase 3+** (lựa chọn: worker ghi `monthly_jar_spend` vào schema `jars` thông qua event ngược lại, hoặc jars-api gọi API của worker). Ghi thành ADR khi đến lúc.
 4. Module `notification` nghe `AnomalyDetected` từ SQS thay vì event in-process.
 
 Nhờ ranh giới module đã được kiểm tra từ Phase 1, bước tách này chủ yếu là **di chuyển code**, không phải viết lại.

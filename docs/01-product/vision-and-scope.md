@@ -28,22 +28,22 @@ Người trẻ Việt Nam (sinh viên, người mới đi làm) có thu nhập k
 
 ### Trong phạm vi (In scope)
 
-| # | Feature | Phase |
+| # | Feature | Phase (theo [roadmap](../06-plan/roadmap.md) hiện tại) |
 |---|---|---|
 | F1 | Đăng ký, đăng nhập (Cognito); mỗi người chỉ thấy dữ liệu của mình | 1 |
 | F2 | Onboarding: bảng hỏi khẩu vị rủi ro → risk profile | 1 |
 | F3 | CRUD hũ, cấu hình tỷ lệ phân bổ; tự tạo 6 hũ mặc định khi đăng ký | 1 |
 | F4 | Ghi giao dịch thu/chi/chuyển hũ (có idempotency); Money Inbox có lọc và phân trang | 1 |
-| F5 | Dashboard: số dư, thu chi trong tháng, chi theo danh mục và theo hũ, xu hướng 6 tháng | 1–2 |
-| F6 | CRUD mục tiêu, tính khả thi, kịch bản what-if, lộ trình theo giai đoạn | 2 |
-| F7 | Gợi ý phân bổ thu nhập vào hũ (dựa trên lịch sử chi tiêu) | 2 |
-| F8 | Phát hiện bất thường (CUSUM theo hũ, outlier theo giao dịch) → thông báo realtime (SSE) | 2 |
-| F9 | Phản hồi cảnh báo: "đúng là bất thường / dự kiến trước / báo nhầm" | 2 |
-| F10 | Import sao kê CSV (upload lên S3, xử lý theo batch) | 2–3 |
-| F11 | Khép sổ cuối tháng tự động (tổng kết, chuyển số dư sang tháng mới) | 2–3 |
-| F12 | Chat AI streaming, có tool calling vào dữ liệu thật của user và guardrails | 4 |
+| F5 | Dashboard: số dư, thu chi trong tháng, chi theo danh mục và theo hũ, xu hướng 6 tháng | 1 |
+| F6 | CRUD mục tiêu, tính khả thi, kịch bản what-if, lộ trình theo giai đoạn | 1 |
+| F7 | Gợi ý phân bổ thu nhập vào hũ (dựa trên lịch sử chi tiêu) | 1 |
+| F8 | Phát hiện bất thường (CUSUM theo hũ, outlier theo giao dịch) → thông báo realtime (SSE) | 1 |
+| F9 | Phản hồi cảnh báo: "đúng là bất thường / dự kiến trước / báo nhầm" | 1 |
+| F10 | Import sao kê CSV (upload lên S3, xử lý theo batch) | 2 |
+| F11 | Khép sổ cuối tháng tự động (tổng kết, chuyển số dư sang tháng mới) | 1 |
+| F12 | Chat AI streaming, có tool calling vào dữ liệu thật của user và guardrails | 2 |
 | ~~F13~~ | ~~Tra cứu cổ phiếu VN + mô phỏng tối ưu danh mục~~ (đã bỏ, ADR-0024) | – |
-| F14 | Audit log: ai làm gì, lúc nào | 2 |
+| F14 | Audit log: ai làm gì, lúc nào; ghi bằng AOP trong cùng transaction với nghiệp vụ ([ADR-0025](../04-adr/0025-audit-log-aop-same-transaction.md)) (đã làm) | 3+ |
 
 ### Ngoài phạm vi (Out of scope) và lý do
 
@@ -70,7 +70,7 @@ Người trẻ Việt Nam (sinh viên, người mới đi làm) có thu nhập k
 - Không có secret nào trong git; pipeline CI có gitleaks.
 
 **Về chi phí:**
-- Chi phí AWS của project: ≈ **$1/tháng** ở chế độ TEARDOWN (mặc định), ≤ **$25/tháng** khi SLEEP, ≤ **$75/tháng** khi RUNNING đầy đủ (Phase 5). Tổng chi cho tới khi credit hết hạn (04/2027) ≤ **$80**. Xem [cost-and-budget.md](../05-operations/cost-and-budget.md).
+- Chi phí AWS của project: ≈ **$1/tháng** ở chế độ TEARDOWN (mặc định), ≤ **$25/tháng** khi SLEEP, ≤ **$75/tháng** khi RUNNING đầy đủ (≈ $55 ở Phase 2; thêm `insights-worker` ở backlog Phase 3+ thì ≈ $68). Tổng chi cho tới khi credit hết hạn (04/2027) ≤ **$80**. Xem [cost-and-budget.md](../05-operations/cost-and-budget.md).
 
 ## 6. Giả định và ràng buộc
 

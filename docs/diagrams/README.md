@@ -4,14 +4,14 @@ Sơ đồ hạ tầng AWS được vẽ bằng thư viện Python [`diagrams`](h
 
 | File PNG | Source | Nội dung |
 |---|---|---|
-| [aws-architecture.png](aws-architecture.png) | [src/aws_architecture.py](src/aws_architecture.py) | Kiến trúc đích (hết Phase 5): edge, VPC, messaging, AI, platform |
-| [aws-phase3-mvp.png](aws-phase3-mvp.png) | [src/aws_phase3_mvp.py](src/aws_phase3_mvp.py) | Bản deploy tối thiểu đầu tiên (Phase 3) |
+| [aws-architecture.png](aws-architecture.png) | [src/aws_architecture.py](src/aws_architecture.py) | Kiến trúc đích theo thiết kế ban đầu (gồm backlog Phase 3+: `insights-worker`, SNS/SQS FIFO; Valkey không được dựng): edge, VPC, messaging, AI, platform |
+| [aws-phase3-mvp.png](aws-phase3-mvp.png) | [src/aws_phase3_mvp.py](src/aws_phase3_mvp.py) | Bản deploy tối thiểu đầu tiên (dựng ở Phase 1 WP8–WP9; tên file giữ cách đánh số phase cũ) |
 | [aws-network.png](aws-network.png) | [src/aws_network.py](src/aws_network.py) | VPC, subnet theo AZ, quy tắc security group |
 | [aws-cicd.png](aws-cicd.png) | [src/aws_cicd.py](src/aws_cicd.py) | GitHub Actions → OIDC → ECR + CDK → ECS/S3/CloudFront |
 
 **Quy ước màu cạnh** trong `aws-architecture.png`:
 - Xám: request đồng bộ.
-- Xanh lá: domain event đi qua outbox → SNS FIFO → SQS FIFO.
+- Xanh lá: domain event đi qua outbox → SNS FIFO → SQS FIFO (đích, backlog Phase 3+; hiện event chạy in-process).
 - Tím: platform event (S3 → EventBridge, Scheduler).
 - Nét đứt: browser gọi thẳng dịch vụ AWS (Cognito, presigned S3).
 

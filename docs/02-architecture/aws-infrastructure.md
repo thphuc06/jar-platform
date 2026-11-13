@@ -16,8 +16,8 @@ Hạ tầng chia thành nhiều stack theo **vòng đời**: stack nào hay bị
 | `JarsNetwork` | VPC 2 AZ (public / private / isolated subnets), security groups | Giữ mãi (không tốn phí giờ) | – |
 | `JarsData` | Aurora PostgreSQL Serverless v2 + secret (hoặc RDS với `-c dbMode=rds`). S3 `jars-dev-statements-<account>` (Phase 2 WP3: tên cố định để `JarsMessaging` và `JarsApp` không cần export; `RETAIN`; `uploads/` hết hạn sau 7 ngày; bật EventBridge; CORS `PUT` cho `https://*.cloudfront.net` và `http://localhost:5173`) | Giữ mãi (`RemovalPolicy.SNAPSHOT`) | Network |
 | `JarsAuth` | Cognito User Pool, managed login domain, resource server/scopes, app client `smoke` cho script smoke test | Giữ mãi (user không mất) | – |
-| `JarsMessaging` | SQS (jobs, imports) + DLQ, EventBridge rules, Scheduler; từ Phase 5: SNS FIFO + SQS FIFO. **Hiện có:** `jars-jobs` + DLQ, schedule `month-close`, `jars-imports` + DLQ, rule `statement-uploaded`, alarm cho 3 DLQ | Giữ mãi (gần như $0) | Foundation (alarm topic). Tên bucket statements suy ra từ env + account, không phụ thuộc stack Data |
-| `JarsApp` | ECS cluster, task definition, service, internal ALB, CloudFront + VPC origin, web bucket, Cognito app client, alarm Aurora không pause, (Phase 4) Valkey. Chỉ được synth khi có context `imageTag` | **Xóa khi không demo lâu ngày** | Foundation, Network, Data, Auth, Messaging |
+| `JarsMessaging` | SQS (jobs, imports) + DLQ, EventBridge rules, Scheduler; Phase 3+ (backlog): SNS FIFO + SQS FIFO. **Hiện có:** `jars-jobs` + DLQ, schedule `month-close`, `jars-imports` + DLQ, rule `statement-uploaded`, alarm cho 3 DLQ. **Trong code, chưa deploy:** `jars-reconciliation` + DLQ + alarm, schedule `ledger-reconciliation` | Giữ mãi (gần như $0) | Foundation (alarm topic). Tên bucket statements suy ra từ env + account, không phụ thuộc stack Data |
+| `JarsApp` | ECS cluster, task definition, service, internal ALB, CloudFront + VPC origin, web bucket, Cognito app client, alarm Aurora không pause, guardrail Bedrock, sidecar ADOT + dashboard + alarm ([§11](#11-observability)). Không có Valkey ([§10](#10-cache-elasticache-serverless-valkey-chưa-có)). Chỉ được synth khi có context `imageTag` | **Xóa khi không demo lâu ngày** | Foundation, Network, Data, Auth, Messaging |
 | ~~`JarsObservability`~~ | Gộp vào `JarsApp` (construct `ApiObservability`, Phase 2 WP2): collector ADOT, dashboard `jars-dev`, alarm 5xx và p95. Xem [§11](#11-observability) | Theo `JarsApp` | – |
 
 **Thứ tự deploy lần đầu:** Foundation → Network → Auth → Data → Messaging → App. CDK tự suy ra thứ tự khi chạy `cdk deploy --all`.
@@ -35,7 +35,7 @@ Hạ tầng chia thành nhiều stack theo **vòng đời**: stack nào hay bị
 | Behavior `/api/*` | Origin = **VPC origin** trỏ tới **internal ALB**; cache policy `CachingDisabled`; origin request policy `AllViewerExceptHostHeader`; allowed methods = ALL. CloudFront **mặc định bỏ header `Authorization`** và không cho thêm header này riêng lẻ vào origin request policy. Chỉ khi chuyển *toàn bộ* viewer header (và tắt cache) thì `Authorization` mới tới origin ([re:Post](https://repost.aws/knowledge-center/cloudfront-authorization-header), [managed policies](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/using-managed-origin-request-policies.html)) |
 | Timeout | Origin response timeout mặc định 30 s. SSE gửi **heartbeat mỗi 15 s** nên kết nối không bị coi là idle. Keep-alive timeout chỉnh được với custom/VPC origin |
 | Response headers policy | HSTS, `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, CSP `frame-ancestors 'none'` (CSP đầy đủ cho SPA thêm khi có UI). Áp dụng cho cả hai behavior |
-| WAF | Tùy chọn ở Phase 6 (tốn phí theo web ACL + rule) |
+| WAF | Tùy chọn, backlog Phase 3+ (tốn phí theo web ACL + rule) |
 
 **Vì sao dùng VPC origin:** CloudFront kết nối thẳng vào ALB nằm trong private subnet thông qua một ENI do AWS quản lý. ALB **không có IP public**, nên không ai bỏ qua CloudFront để gọi thẳng API được. Yêu cầu khi cấu hình:
 - Security group của ALB phải cho phép CloudFront managed prefix list.
@@ -54,7 +54,7 @@ Docs: [Restrict access with VPC origins](https://docs.aws.amazon.com/AmazonCloud
 |---|---|---|---|---|
 | `public` | `PUBLIC` | 10.20.0.0/24, 10.20.1.0/24 | ECS tasks (`assignPublicIp=ENABLED`) | IGW |
 | `lb` ("private") | `PRIVATE_ISOLATED` | 10.20.10.0/24, 10.20.11.0/24 | internal ALB, ENI của CloudFront VPC origin | Không |
-| `data` ("isolated") | `PRIVATE_ISOLATED` | 10.20.20.0/24, 10.20.21.0/24 | Aurora, Valkey | Không |
+| `data` ("isolated") | `PRIVATE_ISOLATED` | 10.20.20.0/24, 10.20.21.0/24 | Aurora | Không |
 
 > Trong CDK, `PRIVATE_WITH_EGRESS` bắt buộc phải có NAT, nên cả hai nhóm không có NAT đều khai báo là `PRIVATE_ISOLATED`. Tách làm hai nhóm `lb` và `data` để quy tắc security group và NACL rõ ràng hơn.
 
@@ -63,22 +63,21 @@ Docs: [Restrict access with VPC origins](https://docs.aws.amazon.com/AmazonCloud
 | Security group | Inbound | Outbound |
 |---|---|---|
 | `sg-alb` | TCP 80 từ CloudFront managed prefix list (origin-facing) | TCP 8080 tới `sg-app` |
-| `sg-app` | TCP 8080 **chỉ từ `sg-alb`** | 443 ra mọi nơi; 5432 tới `sg-db`; 6379 tới `sg-cache` |
-| `sg-db` | TCP 5432 từ `sg-app` (và `sg-worker` ở Phase 5) | – |
-| `sg-cache` | TCP 6379 từ `sg-app`, `sg-worker` | – |
+| `sg-app` | TCP 8080 **chỉ từ `sg-alb`** | 443 ra mọi nơi; 5432 tới `sg-db` |
+| `sg-db` | TCP 5432 từ `sg-app` (và `sg-worker` nếu tách `insights-worker`, Phase 3+ backlog) | – |
 
 > Lộ trình nâng cấp lên "chuẩn production": chuyển task vào private subnet và thêm NAT Gateway (khoảng $43/tháng mỗi AZ) **hoặc** VPC interface endpoint ($0.013/giờ mỗi endpoint mỗi AZ) **hoặc** dùng fck-nat trên EC2 t4g.nano (khoảng $3.9/tháng). Chi tiết trong ADR-0013.
 
 ## 4. Compute: ECS on Fargate
 
-| Hạng mục | `jars-api` | `insights-worker` (Phase 5) |
+| Hạng mục | `jars-api` | `insights-worker` (Phase 3+, backlog) |
 |---|---|---|
 | Launch type | Fargate, **ARM64 (Graviton)** | Fargate ARM64 |
 | CPU / RAM | 0.5 vCPU / 1 GB cho cả task: container app 896 MiB (JVM `-XX:MaxRAMPercentage=75`), sidecar ADOT 128 MiB ([§11](#11-observability)) | 0.25 vCPU / 0.5 GB |
 | Desired count | 1 (dev). Đặt về 0 khi "ngủ" | 1 / 0 |
 | Image | ECR `jars/jars-api:<git-sha>`, base `eclipse-temurin:21-jre` (multi-arch) | `jars/insights-worker:<sha>` |
 | Port | 8080 (ALB target group, health check `/actuator/health/readiness`) | không mở port |
-| Deployment | Rolling + **deployment circuit breaker (auto rollback)**; Phase 6 thử **ECS native blue/green** | Rolling |
+| Deployment | Rolling + **deployment circuit breaker (auto rollback)**; Phase 3+ (backlog) thử **ECS native blue/green** | Rolling |
 | Logs | `awslogs` driver → CloudWatch Logs, log JSON, retention 14 ngày | như bên trái |
 | Secrets | `secrets:` trong task definition lấy từ Secrets Manager (DB credentials) | như bên trái |
 | Config | Biến môi trường (không phải secret): `SPRING_PROFILES_ACTIVE=aws`, `SPRING_DATASOURCE_URL`, `JARS_ISSUER_URI`, `JARS_ALLOWED_CLIENT_IDS`, `JARS_JOBS_QUEUE`, `JAVA_TOOL_OPTIONS=-XX:MaxRAMPercentage=75`, model id... | |
@@ -115,7 +114,7 @@ Docs: [ECS blue/green deployments](https://docs.aws.amazon.com/AmazonECS/latest/
 | TLS | Tham số `rds.force_ssl=1` |
 | Backup | Automated backup 1 ngày (tối thiểu); xóa stack thì tạo snapshot |
 | Kết nối từ app | HikariCP `minimum-idle=0`, `idle-timeout=60s`, `max-lifetime=5m`, `spring.datasource.connection-fetch=lazy` (tính năng mới của Boot 4.1) → **không giữ kết nối khi không có request** |
-| Schema | `jars` (jars-api), `insights` (insights-worker, Phase 5). Mỗi service có DB user riêng |
+| Schema | `jars` (jars-api), `insights` (insights-worker, Phase 3+ backlog). Mỗi service có DB user riêng |
 
 **Bẫy cần nhớ:**
 - Còn **bất kỳ kết nối nào** mở (pool, health check, scheduled job, tool GUI quên đóng) thì Aurora **không pause**, và 0.5 ACU × 24 h × 30 ngày × $0.20 = **$72/tháng**. Có alarm `ServerlessDatabaseCapacity > 0` liên tục 6 giờ để cảnh báo.
@@ -144,15 +143,17 @@ Docs: [Cognito pricing](https://aws.amazon.com/cognito/pricing/). Tier Lite/Esse
 
 | Resource | Loại | Producer → Consumer | Cấu hình chính | Phase |
 |---|---|---|---|---|
-| `jars-jobs` | SQS standard + DLQ | EventBridge Scheduler → jars-api | visibility 5 phút, `maxReceiveCount=5` | 3 |
-| `jars-jobs-scheduler-dlq` | SQS standard | EventBridge Scheduler (gửi lỗi) | retention 14 ngày; alarm khi có message | 3 |
+| `jars-jobs` | SQS standard + DLQ | EventBridge Scheduler → jars-api | visibility 5 phút, `maxReceiveCount=5` | 1 ✅ |
+| `jars-jobs-scheduler-dlq` | SQS standard | EventBridge Scheduler (gửi lỗi) | retention 14 ngày; alarm khi có message | 1 ✅ |
 | `jars-imports` | SQS standard + DLQ (`jars-imports-dlq`, alarm khi có message) | S3 → EventBridge rule → jars-api | visibility 15 phút, `maxReceiveCount=3` | 2 ✅ |
-| `jars-ledger-events.fifo` | **SNS FIFO** | jars-api (outbox) → subscribers | content-based dedup, message group = `userId` | 5 |
-| `jars-insights-ledger.fifo` | SQS FIFO + DLQ | SNS ledger → insights-worker | raw message delivery | 5 |
-| `jars-insights-events.fifo` | SNS FIFO | insights-worker → subscribers | | 5 |
-| `jars-api-notifications.fifo` | SQS FIFO + DLQ | SNS insights → jars-api | | 5 |
+| `jars-ledger-events.fifo` | **SNS FIFO** | jars-api (outbox) → subscribers | content-based dedup, message group = `userId` | 3+ (backlog) |
+| `jars-insights-ledger.fifo` | SQS FIFO + DLQ | SNS ledger → insights-worker | raw message delivery | 3+ (backlog) |
+| `jars-insights-events.fifo` | SNS FIFO | insights-worker → subscribers | | 3+ (backlog) |
+| `jars-api-notifications.fifo` | SQS FIFO + DLQ | SNS insights → jars-api | | 3+ (backlog) |
 | Rule `statement-uploaded` | EventBridge (default bus) | S3 `Object Created` (bucket statements, prefix `uploads/`) → `jars-imports` | bucket bật `eventBridgeEnabled`; queue policy chỉ cho rule này gửi. Đã kiểm thật ngày 2026-11-13: upload thử → message tới queue | 2 ✅ |
-| Schedule `month-close` | EventBridge Scheduler | → `jars-jobs` | `cron(5 0 1 * ? *)`, timezone **Asia/Ho_Chi_Minh**, flexible window off | 3 |
+| Schedule `month-close` | EventBridge Scheduler | → `jars-jobs` | `cron(5 0 1 * ? *)`, timezone **Asia/Ho_Chi_Minh**, flexible window off | 1 ✅ |
+| `jars-reconciliation` | SQS standard + DLQ (`jars-reconciliation-dlq`, alarm khi có message) | EventBridge Scheduler → jars-api | retention **1 giờ** (message cũ vô giá trị, `JarsApp` bị destroy thì message tự hết hạn), visibility 5 phút, `maxReceiveCount=3` | 3 (code xong, **chưa deploy**) |
+| Schedule `ledger-reconciliation` | EventBridge Scheduler | → `jars-reconciliation` | `cron(30 2 * * ? *)`, timezone **Asia/Ho_Chi_Minh**; đối soát `balance == SUM(entries)` mỗi đêm, chỉ phát hiện và báo (metric `jars.ledger.reconciliation.mismatches`, alarm trong `JarsApp`), đánh thức Aurora một lần mỗi ngày | 3 (code xong, **chưa deploy**) |
 
 Chi tiết schema và đảm bảo giao nhận: [event-catalog.md](event-catalog.md). Lý do không dùng Kafka/MSK: [ADR-0009](../04-adr/0009-messaging-sns-sqs-eventbridge.md).
 
@@ -172,9 +173,9 @@ Chi tiết schema và đảm bảo giao nhận: [event-catalog.md](event-catalog
 
 Lambda Python lấy giá cổ phiếu bằng vnstock và tối ưu danh mục bằng PyPortfolioOpt đã bị bỏ khỏi thiết kế vì giấy phép của vnstock không cho dùng trong sản phẩm cho bên thứ ba ([ADR-0024](../04-adr/0024-drop-market-and-quant-fn.md)).
 
-## 10. Cache: ElastiCache Serverless (Valkey), Phase 4
+## 10. ~~Cache: ElastiCache Serverless (Valkey)~~ (chưa có)
 
-Dùng cho: cache dashboard, **rate limit chat**, **pub/sub fan-out thông báo** khi có ≥ 2 task jars-api. Chi phí tối thiểu khoảng $6/tháng (tối thiểu 100 MB dữ liệu được tính phí, theo nguồn bên thứ ba, cần kiểm tra lại). Resource này nằm trong `JarsApp` nên bị xóa cùng app khi teardown. Ở local dùng container `valkey/valkey`.
+Thiết kế ban đầu có Valkey cho cache dashboard, rate limit chat và pub/sub fan-out thông báo. Không resource nào như vậy được dựng (kiểm trong `infra/cdk`): rate limit của advisor nằm trong PostgreSQL ([ADR-0023](../04-adr/0023-advisor-guardrail-and-rate-limit.md)) và hiện chỉ có một task API nên SSE không cần fan-out. Chỉ đáng thêm khi chạy từ 2 task `jars-api` trở lên (khoảng $6/tháng, tối thiểu 100 MB được tính phí, theo nguồn bên thứ ba, cần kiểm tra lại); khi đó nó nằm trong `JarsApp`. Backlog Phase 3+.
 
 ## 11. Observability
 

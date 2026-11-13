@@ -6,6 +6,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -149,6 +150,64 @@ public class LedgerQueries {
                 .param("to", to)
                 .query((rs, n) -> new DailyBalance(rs.getObject("day", LocalDate.class), rs.getBigDecimal("balance")))
                 .list();
+    }
+
+    /** A jar whose stored balance is not the sum of its entries. {@code difference = stored - computed}. */
+    public record BalanceMismatch(UUID jarId, BigDecimal stored, BigDecimal computed, BigDecimal difference) {}
+
+    /**
+     * @param jarsChecked every jar in the table, archived ones included
+     * @param mismatches how many of them are inconsistent (may be more than {@code worst} holds)
+     * @param worst at most the requested number of mismatches, largest absolute difference first
+     */
+    public record BalanceCheck(long jarsChecked, long mismatches, List<BalanceMismatch> worst) {}
+
+    /**
+     * Compares {@code jars.balance} with {@code SUM(jar_entries.amount)} for every jar in one statement (one
+     * snapshot, so a posting that commits meanwhile cannot show up as a false mismatch: it changes the entry and the
+     * balance in the same transaction). {@code jar_entries.amount} is signed (+ into the jar, - out of it), so a plain
+     * SUM is the balance; a jar without entries sums to 0. The CTE is read twice, which makes PostgreSQL scan
+     * {@code jar_entries} once. The LEFT JOIN yields one row with null jar columns when nothing is inconsistent.
+     */
+    public BalanceCheck checkBalances(int limit) {
+        return jdbc.sql("""
+                        WITH checked AS (
+                            SELECT j.id, j.balance AS stored, COALESCE(s.total, 0) AS computed
+                            FROM jars j
+                            LEFT JOIN (SELECT jar_id, SUM(amount) AS total FROM jar_entries GROUP BY jar_id) s
+                                   ON s.jar_id = j.id
+                        ),
+                        totals AS (
+                            SELECT count(*) AS jars_checked,
+                                   count(*) FILTER (WHERE stored <> computed) AS mismatches
+                            FROM checked
+                        )
+                        SELECT t.jars_checked, t.mismatches, w.id, w.stored, w.computed, w.stored - w.computed AS difference
+                        FROM totals t
+                        LEFT JOIN (
+                            SELECT id, stored, computed FROM checked WHERE stored <> computed
+                            ORDER BY abs(stored - computed) DESC, id
+                            LIMIT :limit
+                        ) w ON true
+                        ORDER BY abs(w.stored - w.computed) DESC NULLS LAST, w.id
+                        """).param("limit", limit).query(rs -> {
+            long checked = 0;
+            long mismatches = 0;
+            List<BalanceMismatch> worst = new ArrayList<>();
+            while (rs.next()) {
+                checked = rs.getLong("jars_checked");
+                mismatches = rs.getLong("mismatches");
+                UUID id = rs.getObject("id", UUID.class);
+                if (id != null) {
+                    worst.add(new BalanceMismatch(
+                            id,
+                            rs.getBigDecimal("stored"),
+                            rs.getBigDecimal("computed"),
+                            rs.getBigDecimal("difference")));
+                }
+            }
+            return new BalanceCheck(checked, mismatches, List.copyOf(worst));
+        });
     }
 
     private static OffsetDateTime utc(Instant instant) {

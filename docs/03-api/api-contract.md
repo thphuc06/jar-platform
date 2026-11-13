@@ -112,6 +112,11 @@
 | GET | `/chat/sessions/{id}/messages` | 100 tin nhắn gần nhất (`role` `USER`/`ASSISTANT`) | 2 ✅ |
 | POST | `/chat/sessions/{id}/messages` | `{content}` (1–2000 ký tự) → **SSE** stream. Lỗi trả **trước** khi stream bắt đầu, dạng problem+json thường: 404 phiên không phải của user, 422 tin nhắn rỗng/quá dài, 429 `advisor-rate-limited` kèm `Retry-After` (mặc định 20 tin/giờ, 60 tin/ngày), 503 `advisor-unavailable` khi môi trường không có model (local) | 2 ✅ |
 
+### Audit log
+| Method | Path | Mô tả | Phase |
+|---|---|---|---|
+| GET | `/audit-log?action&entityType&limit&cursor` | Nhật ký thao tác của **chính người gọi**, mới nhất trước: `{items[{id, occurredAt, action, entityType, entityId, traceId, payload}], nextCursor}`. Người gọi lấy từ token nên không thể xem dòng của người khác; dòng của hệ thống (job khép sổ tháng) không thuộc về ai và không hiện. `action` là một trong `TRANSACTION_POSTED`, `JAR_TRANSFERRED`, `INCOME_ALLOCATED`, `TRANSACTION_RECATEGORIZED`, `JAR_CREATED`, `JAR_UPDATED`, `JAR_ARCHIVED`, `ALLOCATION_DECIDED`, `MONTH_CLOSED`, `GOAL_CREATED`, `GOAL_UPDATED`, `GOAL_ARCHIVED`, `PROFILE_UPDATED`, `RISK_PROFILE_SUBMITTED`, `IMPORT_CREATED`, `ANOMALY_FEEDBACK_GIVEN`; `entityType` là `TRANSACTION`, `JAR`, `GOAL`, `USER`, `RISK_ASSESSMENT`, `ALLOCATION_DECISION`, `STATEMENT_IMPORT`, `ANOMALY`. Giá trị lạ, `limit` ngoài 1–100 (mặc định 50) hay `cursor` sai: 400 problem+json; bộ lọc hợp lệ mà không khớp dòng nào: trang rỗng. `payload` là object nhỏ gồm id, số tiền dạng chuỗi và enum (khóa tùy `action`), không bao giờ có ghi chú, tên, email hay nội dung chat. Mỗi dòng được ghi cùng transaction với thay đổi nên không có dòng cho thao tác bị rollback hay request `Idempotency-Key` phát lại ([ADR-0025](../04-adr/0025-audit-log-aop-same-transaction.md)) | 3+ ✅ |
+
 ## 3. Hợp đồng SSE
 
 Dùng **`fetch` + ReadableStream** (ví dụ thư viện `@microsoft/fetch-event-source`). `EventSource` gốc của trình duyệt **không gửi được header `Authorization`** và chỉ hỗ trợ GET.
@@ -150,7 +155,7 @@ data: {"id":"0193b2...","type":"ANOMALY","severity":"HIGH","title":"Hũ PLAY tă
 : heartbeat              ← comment line mỗi 15 s, giữ kết nối qua CloudFront/ALB
 ```
 
-> **Khác bản hackathon:** bản cũ trộn text và metadata (`Trace:`, `Tools:`...) trong các dòng `data:`, rồi UI phải lọc theo prefix. Bản mới dùng **named events**, nên `useChat.ts` sẽ được viết lại ở Phase 4.
+> **Khác bản hackathon:** bản cũ trộn text và metadata (`Trace:`, `Tools:`...) trong các dòng `data:`, rồi UI phải lọc theo prefix. Bản mới dùng **named events**, nên `useChat.ts` đã được viết lại ở Phase 2 WP4.
 
 ## 4. Idempotency
 

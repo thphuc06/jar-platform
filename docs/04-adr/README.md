@@ -11,7 +11,7 @@ ADR ghi lại **vì sao** một quyết định kiến trúc được đưa ra, 
 |---|---|---|---|
 | [0001](0001-record-architecture-decisions.md) | Ghi quyết định kiến trúc bằng ADR | Accepted | 2026-10-23 |
 | [0002](0002-monorepo.md) | Monorepo cho backend, frontend, function, infra, docs | Accepted | 2026-10-23 |
-| [0003](0003-modular-monolith-spring-modulith.md) | Modular monolith (Spring Modulith), chỉ tách 1 service ở Phase 5 | Accepted | 2026-10-23 |
+| [0003](0003-modular-monolith-spring-modulith.md) | Modular monolith (Spring Modulith), chỉ tách 1 service (Phase 5 cũ, nay là backlog Phase 3+) | Accepted | 2026-10-23 |
 | [0004](0004-java-25-spring-boot-4.md) | Java 25 LTS + Spring Boot 4.1 (phần JDK bị ADR-0019 thay thế) | Accepted (một phần Superseded) | 2026-10-23 |
 | [0005](0005-region-ap-southeast-1.md) | Region ap-southeast-1 (Singapore) | Accepted | 2026-10-23 |
 | [0006](0006-compute-ecs-fargate.md) | Compute: ECS on Fargate ARM64 (không dùng App Runner/EC2/EKS) | Accepted | 2026-10-23 |
@@ -33,3 +33,4 @@ ADR ghi lại **vì sao** một quyết định kiến trúc được đưa ra, 
 | [0022](0022-idempotency-key-in-business-transaction.md) | Idempotency-Key ghi trong cùng transaction với nghiệp vụ | Accepted | 2026-11-12 |
 | [0023](0023-advisor-guardrail-and-rate-limit.md) | Trợ lý AI: guardrail qua ApplyGuardrail, rate limit trong PostgreSQL (bổ sung ADR-0011) | Accepted | 2026-11-13 |
 | [0024](0024-drop-market-and-quant-fn.md) | Bỏ module `market` và Lambda `quant-fn` (giấy phép vnstock) | Accepted | 2026-11-13 |
+| [0025](0025-audit-log-aop-same-transaction.md) | Audit log ghi bằng AOP trong cùng transaction với nghiệp vụ (bổ sung ADR-0022) | Accepted | 2026-11-13 |

@@ -1,4 +1,4 @@
-"""Minimal first deployment (Phase 3): only what the monolith needs to serve the UI.
+"""Minimal first deployment (built in Phase 1 WP8-WP9; the file name keeps the old phase numbering): only what the monolith needs to serve the UI.
 
 Render: see docs/diagrams/README.md
 """
