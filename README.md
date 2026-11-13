@@ -41,10 +41,10 @@ Every row links to the code and to the test that proves it.
 | **Errors** | RFC 9457 `problem+json` everywhere, including 401/403 produced before MVC, with a `traceId` that is also in the logs | `PlatformWebLayerTest` |
 | **Observability** | OpenTelemetry traces and business metrics through an ADOT sidecar to X-Ray and CloudWatch (EMF), dashboard and alarms in CDK; k6 through CloudFront: **p95 117 ms reads, 200 ms writes, 0% errors** at 20 virtual users on one 0.5 vCPU task | `scripts/load-test.ps1`, [cost and results](docs/05-operations/cost-and-budget.md) |
 | **Environment parity** | The production profile is started by a test (a bug that only showed under the `aws` profile was found by running the Docker image, then pinned by a test) | `AwsProfileTest` |
-| **Infrastructure as code** | AWS CDK in Java: six stacks, guardrail tests (no NAT gateway, ARM64 tasks, no `0.0.0.0/0` ingress, log retention) and `cdk-nag` | `infra/cdk` (110 tests), [ADR-0012](docs/04-adr/0012-iac-aws-cdk-java.md) |
+| **Infrastructure as code** | AWS CDK in Java: six stacks, guardrail tests (no NAT gateway, ARM64 tasks, no `0.0.0.0/0` ingress, log retention) and `cdk-nag` | `infra/cdk` (118 tests), [ADR-0012](docs/04-adr/0012-iac-aws-cdk-java.md) |
 | **Cost engineering** | Aurora Serverless v2 scales to zero and auto-pauses, no NAT gateway, Graviton, teardown-by-default; the app is configured so nothing keeps a database connection open | [ADR-0008](docs/04-adr/0008-database-aurora-serverless-v2.md), [ADR-0013](docs/04-adr/0013-networking-no-nat.md), [cost doc](docs/05-operations/cost-and-budget.md) |
 
-**Backend: 578 tests, 96.7% line coverage** (the build enforces 80% on domain and service code), Spotless formatting and a secret scan (gitleaks) on every pull request. The web client has its own unit and component tests (`apps/web`).
+**Backend: 676 tests, 94.5% line coverage** (the build enforces 80% on domain and service code), Spotless formatting and a secret scan (gitleaks) on every pull request. The web client has its own unit and component tests (`apps/web`).
 
 Decisions are recorded as 24 [ADRs](docs/04-adr/README.md), including the ones where the design had to change because reality disagreed (Java 21 instead of 25, no IAM Identity Center, a CloudFront Function instead of error pages for the SPA fallback).
 
