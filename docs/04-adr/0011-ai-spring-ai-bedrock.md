@@ -16,7 +16,7 @@ Spring AI 2.0 (GA 12/06/2026) có Bedrock Converse, tool calling, streaming và 
 - **Bedrock Guardrails:** chặn khuyến nghị mua/bán cụ thể, che PII. Phase 4 cần kiểm tra Spring AI có hỗ trợ `guardrailConfig` không; nếu không thì gọi `ApplyGuardrail` bằng AWS SDK.
 - Rate limit theo user (Bucket4j + Valkey); giới hạn `max-tokens`; đo token in/out qua Micrometer.
 - **IAM với global inference profile:** cần quyền `bedrock:InvokeModel*` trên ARN của inference profile **và** ARN của foundation model ở các region đích. Kiểm tra lại theo tài liệu Bedrock khi viết CDK.
-- RAG (tùy chọn): Bedrock Knowledge Base + S3 Vectors với nội dung `kb/*.md` lấy từ project cũ.
+- RAG (tùy chọn): Bedrock Knowledge Base + S3 Vectors với nội dung `kb/*.md` lấy từ project cũ. *(Không làm: danh mục sản phẩm 18 dòng đi qua hai tool đọc PostgreSQL, xem [ADR-0027](0027-advisor-product-catalog-and-profile.md).)*
 
 ## Các phương án đã cân nhắc
 

@@ -99,7 +99,9 @@ credential_process = aws configure export-credentials --profile jars-dev --forma
 
 ## 6. Dữ liệu mẫu
 
-`SeedDataRunner` (`ledger/internal/dev`, chỉ chạy ở profile `local` khi bật `--jars.seed.enabled=true`) tạo user demo (token subject `demo`, lấy token bằng `POST /dev/token`), 6 hũ, 3 tháng thu và chi hằng ngày, rồi hai khoản chi bất thường để có cảnh báo cho dashboard và thông báo realtime. Không làm gì nếu user demo đã có giao dịch.
+`SeedDataRunner` (`ledger/internal/dev`, chỉ chạy ở profile `local` khi bật `--jars.seed.enabled=true`) tạo user demo (token subject `demo`, lấy token bằng `POST /dev/token`), 6 hũ, 3 tháng thu và chi hằng ngày, rồi hai khoản chi bất thường để có cảnh báo cho dashboard và thông báo realtime. Không làm gì nếu user demo đã có giao dịch. `DemoProfileRunner` (`identity/internal/dev`, cùng điều kiện) cho user demo một hồ sơ đầy đủ (khẩu vị cân bằng, 25-34 tuổi, lương đều đặn) để trợ lý gợi ý sản phẩm được ngay; không làm gì nếu user đã có hồ sơ rủi ro.
+
+**Chạy advisor với Bedrock thật ở local** (tốn tiền theo lượng gọi, cần phiên `aws login` còn hạn): chạy jar với `--spring.ai.model.chat=bedrock-converse`, `--spring.ai.bedrock.converse.chat.options.model=global.anthropic.claude-haiku-4-5-20251001-v1:0`, `--spring.ai.bedrock.aws.region=ap-southeast-1`, thêm `--jars.advisor.guardrail-id=<id>` nếu muốn có guardrail, và đặt biến môi trường credential từ `aws configure export-credentials --format env`. Tài khoản Haiku 4.5 bị Bedrock giới hạn (HTTP 429 `ThrottlingException`) khi hỏi dồn dập vì mỗi lượt có tool tốn 6.000 đến 14.000 token vào: giãn khoảng 15 giây giữa các câu hỏi.
 
 ## 7. Lỗi hay gặp
 

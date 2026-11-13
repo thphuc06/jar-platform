@@ -187,8 +187,9 @@ public class AdvisorTools {
         return (UserId) context.getContext().get(USER);
     }
 
+    /** Announces the tool call (SSE {@code tool} events and the number check) around the lookup; also used by {@link CatalogTools}. */
     @SuppressWarnings("unchecked")
-    private static <T> T run(ToolContext context, String name, java.util.function.Supplier<T> lookup) {
+    static <T> T run(ToolContext context, String name, java.util.function.Supplier<T> lookup) {
         BiConsumer<String, Object> events =
                 (BiConsumer<String, Object>) context.getContext().get(EVENTS);
         if (events != null) {

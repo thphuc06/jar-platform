@@ -71,7 +71,7 @@ Xem [aws-infrastructure.md §3](aws-infrastructure.md#3-network-vpc).
 | Mass assignment | DTO `record` riêng cho request; không bind thẳng vào entity |
 | Upload file độc | Presigned PUT không giới hạn được kích thước upload; `S3StatementStore` kiểm tra kích thước (≤ 5 MB) bằng HEAD trước khi đọc file; content-type `text/csv`; key do server sinh; parser CSV giới hạn số dòng và kích thước dòng |
 | SSRF | Không gọi URL do user cung cấp. Boot 4.1 có `InetAddressFilter` cho HTTP client nếu sau này cần |
-| Lạm dụng LLM (chi phí, prompt injection) | Rate limit theo user; `max-tokens`; tool chỉ đọc + scope theo user; Guardrails |
+| Lạm dụng LLM (chi phí, prompt injection) | Rate limit theo user; `max-tokens`; tool chỉ đọc + scope theo user; Guardrails. Khối hồ sơ trong system prompt chỉ dựng từ enum, số và nhãn cố định (không tên, email hay văn bản người dùng gõ), nên không phải đường tiêm prompt ([ADR-0027](../04-adr/0027-advisor-product-catalog-and-profile.md)) |
 | Lộ thông tin qua lỗi | `ProblemDetail` không chứa stack trace; log chi tiết có `traceId` |
 | Dependency có CVE | Dependabot + `mvn org.owasp:dependency-check` (hoặc GitHub dependency review); ECR scan on push |
 | Header bảo mật | CloudFront response headers policy (HSTS, CSP, nosniff, frame-ancestors none) |

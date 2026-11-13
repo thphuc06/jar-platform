@@ -17,12 +17,15 @@ const TOOL_LABEL: Record<string, string> = {
   getGoals: "Đang xem các mục tiêu…",
   getOpenAnomalies: "Đang xem cảnh báo chi tiêu…",
   getSpendingBehaviour: "Đang so sánh chi tiêu với các tháng trước…",
+  listProducts: "Đang xem danh mục sản phẩm…",
+  getProductDetails: "Đang đọc thông tin sản phẩm…",
 };
 
 const SUGGESTIONS = [
   "Tháng này tôi chi nhiều nhất cho gì?",
   "Hũ nào của tôi đang thấp?",
   "Tôi có kịp đạt mục tiêu tiết kiệm không?",
+  "Tôi nên làm gì với khoản dư mỗi tháng?",
 ];
 
 const Bubble = ({ role, children }: { role: "USER" | "ASSISTANT"; children: React.ReactNode }) => (

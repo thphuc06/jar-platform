@@ -47,7 +47,7 @@ final class AdvisorResources {
     static Guardrail guardrail(Stack stack, EnvConfig cfg) {
         CfnGuardrail guardrail = CfnGuardrail.Builder.create(stack, "AdvisorGuardrail")
                 .name(cfg.name("advisor"))
-                .description("Jars advisor: no specific buy/sell advice asked, no card, ID, e-mail or phone numbers"
+                .description("Jars advisor: no buy/sell tips on stocks, crypto, gold or currency asked, no card, ID, e-mail or phone numbers"
                         + " kept, no prompt attacks")
                 .blockedInputMessaging("Xin lỗi, tôi không thể giúp với yêu cầu này. Hãy hỏi về hũ, chi tiêu hoặc"
                         + " mục tiêu của bạn.")
@@ -58,17 +58,19 @@ final class AdvisorResources {
                         .topicsConfig(List.of(CfnGuardrail.TopicConfigProperty.builder()
                                 .name("SpecificInvestmentAdvice")
                                 .type("DENY")
-                                .definition("Telling someone to buy, sell or hold a specific stock, fund,"
-                                        + " cryptocurrency, gold or other named asset, or predicting its future price.")
+                                .definition("Asking or telling whether to buy, sell or hold a named listed stock, crypto,"
+                                        + " gold or foreign currency, or predicting its price. Not a bank's own"
+                                        + " savings, loans or funds (VN30 index fund included).")
                                 .examples(List.of(
                                         "Should I buy VNM shares now?",
                                         "Tôi có nên mua cổ phiếu FPT không?",
                                         "Bitcoin sẽ lên giá bao nhiêu tháng sau?",
                                         "Có nên mua vàng SJC lúc này không?",
-                                        "Bạn nên mua cổ phiếu FPT ngay, giá sẽ tăng."))
+                                        "Cuối năm USD tăng hay giảm, tôi có nên mua không?"))
                                 // what the user asks is refused. The answer is not checked by the topic: the system
                                 // prompt forbids advice, and the topic flagged a harmless refusal of the model as
-                                // advice (ADR-0026)
+                                // advice (ADR-0026). The advisor recommends the bank's own products (ADR-0027), so the
+                                // definition leaves them out and asks about stocks, crypto, gold and currency only
                                 .inputEnabled(true)
                                 .inputAction("BLOCK")
                                 .outputEnabled(false)

@@ -1,5 +1,7 @@
 package io.github.thphuc06.jars.identity.internal.service;
 
+import io.github.thphuc06.jars.identity.AgeBand;
+import io.github.thphuc06.jars.identity.IncomeSituation;
 import io.github.thphuc06.jars.identity.UserRegistered;
 import io.github.thphuc06.jars.identity.internal.domain.User;
 import io.github.thphuc06.jars.identity.internal.persistence.RiskAssessmentRepository;
@@ -28,8 +30,15 @@ public class UserService implements UserDirectory {
 
     static final String DEFAULT_LOCALE = "vi-VN";
 
-    /** The profile as the API shows it. */
-    public record Profile(UUID id, String email, String displayName, String locale, boolean onboardingCompleted) {}
+    /** The profile as the API shows it. The age band and the income situation are null until the user answers them. */
+    public record Profile(
+            UUID id,
+            String email,
+            String displayName,
+            String locale,
+            boolean onboardingCompleted,
+            AgeBand ageBand,
+            IncomeSituation incomeSituation) {}
 
     private final UserRepository users;
     private final RiskAssessmentRepository assessments;
@@ -63,13 +72,21 @@ public class UserService implements UserDirectory {
 
     @Transactional
     @Audited(AuditAction.PROFILE_UPDATED)
-    public Profile updateProfile(UserId userId, String displayName, String locale) {
+    public Profile updateProfile(
+            UserId userId, String displayName, String locale, AgeBand ageBand, IncomeSituation incomeSituation) {
         User user = users.findById(userId.value()).orElseThrow(() -> DomainException.notFound("Người dùng"));
-        user.updateProfile(displayName, locale, clock.instant());
-        // the display name is personal data: only whether it changed. The locale is a validated code
-        Audit.entity(user.getId())
+        user.updateProfile(displayName, locale, ageBand, incomeSituation, clock.instant());
+        // the display name is personal data: only whether it changed. The locale, the age band and the income
+        // situation are validated codes, recorded when this request set them
+        var entry = Audit.entity(user.getId())
                 .with("displayNameChanged", displayName != null)
                 .withCode("locale", user.getLocale());
+        if (ageBand != null) {
+            entry.with("ageBand", ageBand);
+        }
+        if (incomeSituation != null) {
+            entry.with("incomeSituation", incomeSituation);
+        }
         return toProfile(user);
     }
 
@@ -97,6 +114,8 @@ public class UserService implements UserDirectory {
                 user.getEmail(),
                 user.getDisplayName(),
                 user.getLocale(),
-                assessments.existsByUserId(user.getId()));
+                assessments.existsByUserId(user.getId()),
+                user.getAgeBand(),
+                user.getIncomeSituation());
     }
 }

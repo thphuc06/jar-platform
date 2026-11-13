@@ -71,8 +71,16 @@ class BedrockGuardrail implements ContentGuard {
             Pattern.compile("\\bPLAY\\b"), "Hưởng thụ",
             Pattern.compile("\\bGIVE\\b"), "Cho đi");
 
+    /**
+     * The same for the bank's index fund (ADR-0027): "Quỹ chỉ số VN30 có rủi ro thế nào?" was blocked as investment
+     * advice in 3 of 3 tries because "VN30" reads like a ticker (measured on AWS). Only the name of the fund is
+     * rewritten, after "quỹ" or "Lục Bình": "ETF VN30" and "VN30 tháng sau tăng bao nhiêu?" still reach the guardrail
+     * as they are.
+     */
+    static final Pattern INDEX_FUND = Pattern.compile("(?iu)\\b((?:quỹ|lục\\s+bình)(?:\\s+chỉ\\s+số)?)\\s+VN30\\b");
+
     static String forGuardrail(String text) {
-        String result = text;
+        String result = INDEX_FUND.matcher(text).replaceAll("$1 30 doanh nghiệp lớn");
         for (Map.Entry<Pattern, String> code : JAR_CODES.entrySet()) {
             result = code.getKey().matcher(result).replaceAll(code.getValue());
         }

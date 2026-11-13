@@ -3,7 +3,7 @@
 - **Trạng thái:** Accepted
 - **Ngày:** 2026-11-13
 - **Bổ sung cho:** [ADR-0011](0011-ai-spring-ai-bedrock.md) (Spring AI + Bedrock); thay phần "rate limit Bucket4j + Valkey" của thiết kế ban đầu.
-- **Được sửa bởi:** [ADR-0026](0026-guardrail-input-pii-masking.md): PII ở đầu vào được che, denied topic chỉ áp dụng cho đầu vào, thông điệp chặn theo lý do. Bảng và đoạn guardrail dưới đây là bản gốc.
+- **Được sửa bởi:** [ADR-0026](0026-guardrail-input-pii-masking.md) và [ADR-0027](0027-advisor-product-catalog-and-profile.md) (định nghĩa denied topic): PII ở đầu vào được che, denied topic chỉ áp dụng cho đầu vào, thông điệp chặn theo lý do. Bảng và đoạn guardrail dưới đây là bản gốc.
 
 ## Bối cảnh
 Khi cài đặt module `advisor` (Phase 2 WP4) có hai điểm thiết kế không làm được hoặc không đáng làm như đã viết:

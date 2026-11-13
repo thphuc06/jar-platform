@@ -1,35 +1,54 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowRight, Check, Loader2, TrendingUp } from "lucide-react";
-import { useSubmitRiskProfile } from "@/api/me";
+import { useSubmitRiskProfile, useUpdateMe } from "@/api/me";
 import { describeError } from "@/api/problem";
 import type { RiskProfile } from "@/api/types";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
-import { buildAnswers, RISK_QUESTIONS, riskLevelLabel } from "@/lib/riskQuestionnaire";
+import { AGE_BANDS, buildProfileFacts, INCOME_SITUATIONS } from "@/lib/profileFacts";
+import { buildAnswers, RISK_QUESTIONS, riskLevelLabel, type RiskQuestion } from "@/lib/riskQuestionnaire";
 import { cn } from "@/lib/utils";
+
+/**
+ * The five risk questions (answered by option index, scored by the server) and the two facts asked after them (age band
+ * and income situation: profile facts for the advisor, not part of the score). The last two are sent first, with
+ * `PATCH /me`, so that a user is never "onboarded" without them; the questionnaire is sent last and marks the end.
+ */
+const STEPS: readonly RiskQuestion[] = [
+  ...RISK_QUESTIONS,
+  { title: "Độ tuổi", question: "Bạn thuộc nhóm tuổi nào?", options: AGE_BANDS.map((o) => o.label) },
+  { title: "Thu nhập", question: "Thu nhập hiện tại của bạn thế nào?", options: INCOME_SITUATIONS.map((o) => o.label) },
+];
 
 const Onboarding = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const submit = useSubmitRiskProfile();
+  const updateMe = useUpdateMe();
   const [currentStep, setCurrentStep] = useState(-1); // -1 = welcome
   const [selected, setSelected] = useState<Record<number, number>>({});
   const [result, setResult] = useState<RiskProfile | null>(null);
 
   const handleNext = () => {
-    if (currentStep < RISK_QUESTIONS.length - 1) {
+    if (currentStep < STEPS.length - 1) {
       setCurrentStep(currentStep + 1);
       return;
     }
     const answers = buildAnswers(selected);
-    if (!answers) return;
-    submit.mutate(answers, {
-      onSuccess: setResult,
-      onError: (error) => toast({ title: "Không lưu được hồ sơ rủi ro", description: describeError(error), variant: "destructive" }),
+    const facts = buildProfileFacts(selected[RISK_QUESTIONS.length], selected[RISK_QUESTIONS.length + 1]);
+    if (!answers || !facts) return;
+    updateMe.mutate(facts, {
+      onSuccess: () =>
+        submit.mutate(answers, {
+          onSuccess: setResult,
+          onError: (error) => toast({ title: "Không lưu được hồ sơ rủi ro", description: describeError(error), variant: "destructive" }),
+        }),
+      onError: (error) => toast({ title: "Không lưu được hồ sơ", description: describeError(error), variant: "destructive" }),
     });
   };
+  const saving = updateMe.isPending || submit.isPending;
 
   if (result) {
     return (
@@ -44,7 +63,7 @@ const Onboarding = () => {
               Khẩu vị rủi ro: <strong>{riskLevelLabel(result.riskLevel)}</strong> ({result.score}/100)
             </p>
             <p className="mt-2 text-xs text-muted-foreground">
-              Kết quả chỉ mô tả thái độ của bạn với rủi ro, không phải lời khuyên đầu tư.
+              Kết quả chỉ mô tả thái độ của bạn với rủi ro; trợ lý dùng nó cùng độ tuổi và thu nhập để chọn sản phẩm minh họa, không phải lời khuyên đầu tư cá nhân.
             </p>
           </div>
           <Button onClick={() => navigate("/", { replace: true })} className="w-full gap-2" size="lg">
@@ -65,7 +84,7 @@ const Onboarding = () => {
           <div>
             <h1 className="text-3xl font-display font-bold">FinAdvisor</h1>
             <p className="mt-2 text-muted-foreground">
-              Trả lời 5 câu hỏi ngắn để chúng tôi hiểu khẩu vị rủi ro tài chính của bạn.
+              Trả lời 7 câu hỏi ngắn để chúng tôi hiểu khẩu vị rủi ro và hoàn cảnh tài chính của bạn.
             </p>
           </div>
           <Button onClick={() => setCurrentStep(0)} className="w-full gap-2" size="lg">
@@ -76,9 +95,9 @@ const Onboarding = () => {
     );
   }
 
-  const step = RISK_QUESTIONS[currentStep];
-  const progress = ((currentStep + 1) / RISK_QUESTIONS.length) * 100;
-  const isLast = currentStep === RISK_QUESTIONS.length - 1;
+  const step = STEPS[currentStep];
+  const progress = ((currentStep + 1) / STEPS.length) * 100;
+  const isLast = currentStep === STEPS.length - 1;
   const questionId = `question-${currentStep}`;
 
   return (
@@ -87,7 +106,7 @@ const Onboarding = () => {
         <div className="mb-8">
           <div className="mb-2 flex justify-between text-xs text-muted-foreground">
             <span>
-              Bước {currentStep + 1} / {RISK_QUESTIONS.length}
+              Bước {currentStep + 1} / {STEPS.length}
             </span>
             <span>{step.title}</span>
           </div>
@@ -126,19 +145,19 @@ const Onboarding = () => {
 
         <div className="mt-8 flex gap-3">
           {currentStep > 0 && (
-            <Button variant="outline" size="lg" onClick={() => setCurrentStep(currentStep - 1)} disabled={submit.isPending}>
+            <Button variant="outline" size="lg" onClick={() => setCurrentStep(currentStep - 1)} disabled={saving}>
               Quay lại
             </Button>
           )}
           <Button
             onClick={handleNext}
-            disabled={selected[currentStep] === undefined || submit.isPending}
+            disabled={selected[currentStep] === undefined || saving}
             className="flex-1 gap-2"
             size="lg"
           >
-            {submit.isPending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
+            {saving && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
             {isLast ? "Hoàn tất hồ sơ" : "Tiếp tục"}
-            {!submit.isPending && <ArrowRight className="h-4 w-4" aria-hidden="true" />}
+            {!saving && <ArrowRight className="h-4 w-4" aria-hidden="true" />}
           </Button>
         </div>
       </div>

@@ -3,6 +3,7 @@
 - **Trạng thái:** Accepted
 - **Ngày:** 2026-11-13
 - **Bổ sung cho:** [ADR-0023](0023-advisor-guardrail-and-rate-limit.md) (guardrail qua `ApplyGuardrail`). Thay phần "lọc PII" và "denied topic" của ADR-0023.
+- **Được sửa bởi:** [ADR-0027](0027-advisor-product-catalog-and-profile.md): định nghĩa và ví dụ của denied topic được viết lại (trợ lý giờ giới thiệu sản phẩm của ngân hàng, nên topic chỉ còn cổ phiếu, tiền mã hóa, vàng, ngoại tệ); phần "đầu vào, không đầu ra" vẫn giữ.
 
 ## Bối cảnh
 Lần chạy thật trên AWS (13/11) lộ hai lỗi của guardrail. Cả hai được tái hiện bằng `aws bedrock-runtime apply-guardrail` trên một guardrail tạm tạo từ đúng định nghĩa CDK (bảng đo ở cuối).

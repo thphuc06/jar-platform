@@ -174,6 +174,96 @@ class IdentityApiTest {
     }
 
     @Test
+    void anUserWhoHasNotAnsweredTheTwoProfileQuestions_hasNoAgeBandAndNoIncomeSituation() throws Exception {
+        JwtRequestPostProcessor token = newUserToken();
+        submit(token, "[2,3,2,2,1]"); // a user who answered the questionnaire before the new questions existed
+
+        String me = getMe(token);
+
+        assertThat(me)
+                .contains("\"onboardingCompleted\":true")
+                .contains("\"ageBand\":null")
+                .contains("\"incomeSituation\":null");
+    }
+
+    @Test
+    void patch_setsTheAgeBandAndTheIncomeSituation_andLeavesTheOtherFieldsAlone() {
+        JwtRequestPostProcessor token = newUserToken();
+
+        var result = mvc.patch()
+                .uri("/api/v1/me")
+                .with(token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"ageBand\":\"AGE_25_34\",\"incomeSituation\":\"IRREGULAR_INCOME\"}");
+        assertThat(result)
+                .hasStatusOk()
+                .bodyJson()
+                .convertTo(String.class)
+                .satisfies(body -> assertThat(body)
+                        .contains("\"ageBand\":\"AGE_25_34\"")
+                        .contains("\"incomeSituation\":\"IRREGULAR_INCOME\"")
+                        .contains("\"locale\":\"vi-VN\""));
+
+        // one of them alone changes only that one
+        mvc.patch()
+                .uri("/api/v1/me")
+                .with(token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"ageBand\":\"AGE_55_PLUS\"}")
+                .exchange();
+        assertThat(mvc.get().uri("/api/v1/me").with(token))
+                .bodyJson()
+                .convertTo(String.class)
+                .satisfies(body -> assertThat(body)
+                        .contains("\"ageBand\":\"AGE_55_PLUS\"")
+                        .contains("\"incomeSituation\":\"IRREGULAR_INCOME\""));
+    }
+
+    @Test
+    void patch_rejectsAnAgeBandOrIncomeSituationThatIsNotOneOfTheCodes_inVietnamese() {
+        assertThat(mvc.patch()
+                        .uri("/api/v1/me")
+                        .with(newUserToken())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"ageBand\":\"1990-01-01\"}"))
+                .hasStatus(HttpStatus.UNPROCESSABLE_CONTENT)
+                .bodyJson()
+                .convertTo(String.class)
+                .satisfies(body ->
+                        assertThat(body).contains("\"field\":\"ageBand\"").contains("Nhóm tuổi phải là"));
+        assertThat(mvc.patch()
+                        .uri("/api/v1/me")
+                        .with(newUserToken())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"incomeSituation\":\"RICH\"}"))
+                .hasStatus(HttpStatus.UNPROCESSABLE_CONTENT)
+                .bodyJson()
+                .convertTo(String.class)
+                .satisfies(body -> assertThat(body)
+                        .contains("\"field\":\"incomeSituation\"")
+                        .contains("Tình hình thu nhập phải là"));
+    }
+
+    @Test
+    void changingTheAgeBandAndTheIncomeSituation_isAuditedAsCodes() throws Exception {
+        JwtRequestPostProcessor token = newUserToken();
+        UUID userId = userIdFor(token);
+
+        mvc.patch()
+                .uri("/api/v1/me")
+                .with(token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"ageBand\":\"UNDER_25\",\"incomeSituation\":\"NO_INCOME_YET\"}")
+                .exchange();
+
+        var payload = jdbc.sql("SELECT payload::text FROM audit_log WHERE actor = ? AND action = 'PROFILE_UPDATED'")
+                .param(userId.toString())
+                .query(String.class)
+                .single();
+        assertThat(payload).contains("\"ageBand\": \"UNDER_25\"").contains("\"incomeSituation\": \"NO_INCOME_YET\"");
+    }
+
+    @Test
     void usersNeverSeeEachOthersRiskProfile() {
         JwtRequestPostProcessor alice = newUserToken();
         JwtRequestPostProcessor bob = newUserToken();

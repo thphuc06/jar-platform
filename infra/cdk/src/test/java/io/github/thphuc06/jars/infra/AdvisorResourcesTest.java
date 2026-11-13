@@ -62,6 +62,27 @@ class AdvisorResourcesTest {
     }
 
     @Test
+    void theTopicLeavesTheBanksOwnProductsAlone_butCoversStocksCryptoGoldAndCurrency() {
+        // the advisor recommends products of the bank catalogue (ADR-0027), so the topic must not name funds as the thing
+        // that is refused. Measured on Bedrock: this wording blocks stock, crypto, gold and currency tips and lets the
+        // questions about savings, loans and the bank's funds through
+        @SuppressWarnings("unchecked")
+        Map<String, Object> topic = (Map<String, Object>) ((List<Object>) ((Map<String, Object>)
+                                properties(template, "AWS::Bedrock::Guardrail").get(0).get("TopicPolicyConfig"))
+                        .get("TopicsConfig"))
+                .get(0);
+        String definition = topic.get("Definition").toString();
+        assertThat(definition)
+                .contains("stock", "crypto", "gold", "foreign currency")
+                .contains("Not a bank's own savings, loans or funds")
+                .doesNotContain("specific stock, fund");
+        @SuppressWarnings("unchecked")
+        List<String> examples = (List<String>) topic.get("Examples");
+        assertThat(examples).noneMatch(e -> e.toLowerCase().contains("quỹ") || e.toLowerCase().contains("fund"));
+        assertThat(examples).anyMatch(e -> e.contains("cổ phiếu")).anyMatch(e -> e.contains("USD"));
+    }
+
+    @Test
     void everySensitiveDataRuleMasksWhatTheUserTypes_notOnlyWhatTheModelAnswers() {
         // regression: rules with only "Action" were applied to the answer and not to the user's message (ADR-0026)
         Map<String, Object> policy = sensitivePolicy();

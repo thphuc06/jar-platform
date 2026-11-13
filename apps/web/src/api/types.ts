@@ -42,7 +42,7 @@ type DeepWireDefined<T> = T extends readonly (infer U)[]
 
 // ---- identity -----------------------------------------------------------------------------------------------
 
-export type Me = Wire<S["MeResponse"], never, "email" | "displayName">;
+export type Me = Wire<S["MeResponse"], never, "email" | "displayName" | "ageBand" | "incomeSituation">;
 export type RiskProfile = Wire<S["RiskProfileResponse"]>;
 
 // ---- ledger -------------------------------------------------------------------------------------------------

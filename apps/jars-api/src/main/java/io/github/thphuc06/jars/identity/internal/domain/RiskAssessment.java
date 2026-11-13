@@ -53,6 +53,10 @@ public class RiskAssessment {
         return id;
     }
 
+    public List<Integer> getAnswers() {
+        return answers;
+    }
+
     public int getScore() {
         return score;
     }

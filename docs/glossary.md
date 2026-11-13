@@ -10,6 +10,8 @@
 | **Khép sổ tháng (month close)** | Tổng kết tháng cũ, tạo kỳ mới cho mọi hũ |
 | **Đối soát sổ cái (ledger reconciliation)** | Job hằng đêm kiểm tra số dư lưu của từng hũ (`jars.balance`) có bằng tổng các bút toán (`SUM(jar_entries.amount)`) không. Chỉ phát hiện và báo (log `Ledger mismatch`, metric `jars.ledger.reconciliation.mismatches`, alarm), không tự sửa ([flows.md F6](02-architecture/flows.md#f6)) |
 | **Risk profile** | Khẩu vị rủi ro (CONSERVATIVE / BALANCED / GROWTH) rút ra từ bảng hỏi onboarding |
+| **Age band / income situation** | Hai câu hỏi onboarding thứ 6 và 7: nhóm tuổi (dưới 25, 25-34, 35-44, 45-54, từ 55) và tình hình thu nhập (lương đều, không đều, chưa có thu nhập). Là dữ kiện hồ sơ cho trợ lý, không thuộc điểm rủi ro, không lưu ngày sinh |
+| **Danh mục sản phẩm (product catalogue)** | 18 sản phẩm **hư cấu** của Ngân hàng TMCP Lục Bình (bảng `catalog_products`), số liệu minh họa tính đến 13/11/2026; trợ lý đọc qua tool `listProducts` và `getProductDetails` ([ADR-0027](04-adr/0027-advisor-product-catalog-and-profile.md)) |
 | **Feasibility** | Mục tiêu có đạt được không với tốc độ tiết kiệm hiện tại; cần bao nhiêu mỗi tháng |
 | **What-if scenario** | Mô phỏng khi thay đổi thu nhập hoặc tiết kiệm |
 | **Roadmap (lộ trình)** | Kế hoạch theo giai đoạn để đạt mục tiêu (phase, milestone, hành động tiếp theo) |

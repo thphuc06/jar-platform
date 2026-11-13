@@ -54,6 +54,22 @@ class BedrockGuardrailTest {
     }
 
     @Test
+    void theBanksIndexFundReachesTheGuardrailWithoutTheTicker_butAnEtfOrAnIndexForecastDoesNot() {
+        // "VN30" after "quỹ" or "Lục Bình" is the bank's own fund (ADR-0027); measured on AWS it was blocked 3 of 3
+        assertThat(BedrockGuardrail.forGuardrail("Quỹ chỉ số VN30 của ngân hàng có rủi ro thế nào?"))
+                .isEqualTo("Quỹ chỉ số 30 doanh nghiệp lớn của ngân hàng có rủi ro thế nào?");
+        assertThat(BedrockGuardrail.forGuardrail("Quỹ VN30 Lục Bình hợp với tôi không?"))
+                .isEqualTo("Quỹ 30 doanh nghiệp lớn Lục Bình hợp với tôi không?");
+        assertThat(BedrockGuardrail.forGuardrail("So sánh Quỹ Lục Bình Chỉ số VN30 và quỹ cân bằng"))
+                .isEqualTo("So sánh Quỹ Lục Bình Chỉ số 30 doanh nghiệp lớn và quỹ cân bằng");
+        // not the fund of the bank: the guardrail still sees the name and decides
+        assertThat(BedrockGuardrail.forGuardrail("Nên mua ETF VN30 trên sàn hay gửi tiết kiệm?"))
+                .contains("VN30");
+        assertThat(BedrockGuardrail.forGuardrail("VN30 tháng sau sẽ tăng bao nhiêu?"))
+                .contains("VN30");
+    }
+
+    @Test
     void onlyWholeWordsAreReplaced_soATickerOrAWordThatContainsACodeStaysAsItIs() {
         assertThat(BedrockGuardrail.forGuardrail("Tôi có nên mua FPT hay EDUCATION fund?"))
                 .isEqualTo("Tôi có nên mua FPT hay EDUCATION fund?");

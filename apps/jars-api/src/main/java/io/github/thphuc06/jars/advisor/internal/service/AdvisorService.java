@@ -4,6 +4,7 @@ import io.github.thphuc06.jars.advisor.internal.guard.ContentGuard;
 import io.github.thphuc06.jars.advisor.internal.persistence.ChatStore;
 import io.github.thphuc06.jars.advisor.internal.persistence.ChatStore.Message;
 import io.github.thphuc06.jars.advisor.internal.persistence.ChatStore.Session;
+import io.github.thphuc06.jars.identity.IdentityApi;
 import io.github.thphuc06.jars.shared.DomainException;
 import io.github.thphuc06.jars.shared.UserId;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -21,6 +22,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.messages.AssistantMessage;
+import org.springframework.ai.chat.messages.SystemMessage;
 import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.chat.metadata.Usage;
 import org.springframework.ai.chat.model.ChatModel;
@@ -44,8 +46,14 @@ public class AdvisorService {
     static final int MAX_MESSAGE_LENGTH = 2000;
     static final String DEFAULT_TITLE = "Cuộc trò chuyện mới";
     static final String DISCLAIMER =
-            "Thông tin mang tính tham khảo, dựa trên dữ liệu trong ứng dụng; không phải khuyến nghị đầu tư.";
+            "Thông tin mang tính tham khảo, dựa trên dữ liệu trong ứng dụng và danh mục sản phẩm"
+                    + " minh họa (ngân hàng hư cấu); không phải khuyến nghị đầu tư cá nhân.";
 
+    /**
+     * The instructions, the same bytes for every user and every turn, so the part of the request that comes first never
+     * varies and stays cacheable (ADR-0027). The user's profile follows as a separate system message
+     * ({@link ProfileBlock}); a text with braces would be read as a template variable, so this one has none.
+     */
     static final String SYSTEM_PROMPT = """
             Bạn là trợ lý tài chính cá nhân của ứng dụng Jars, giúp người dùng quản lý tiền theo phương pháp 6 hũ \
             (NEC thiết yếu, FFA tự do tài chính, LTSS tiết kiệm dài hạn, EDU giáo dục, PLAY hưởng thụ, GIVE cho đi).
@@ -65,8 +73,41 @@ public class AdvisorService {
             tháng chưa hết là bình thường, không kết luận là tiết kiệm hơn. Nếu comparable là false thì nói chưa đủ \
             lịch sử để so sánh.
             - Số tiền là VND; viết có dấu chấm ngăn cách hàng nghìn, ví dụ 1.500.000 ₫.
-            - Không khuyến nghị mua hoặc bán một cổ phiếu, quỹ hay tài sản cụ thể.
+            - Không khuyến nghị cổ phiếu riêng lẻ, tiền mã hóa, vàng hay ngoại tệ; được hỏi thì nói đó là ngoài danh mục.
             - Nếu dữ liệu không đủ để trả lời, nói rõ là không đủ dữ liệu.
+
+            Gợi ý sản phẩm (danh mục minh họa của Ngân hàng Lục Bình; ngân hàng và số liệu đều là hư cấu). Khi người \
+            dùng hỏi nên làm gì với tiền, sản phẩm nào hợp, lãi suất, hoặc nhắc một loại sản phẩm (tiết kiệm, quỹ, vay, \
+            thẻ, bảo hiểm), kể cả để trả lời "không nên", làm theo ba bước:
+            1. Gọi ngay getMonthlyCashflow, getJars, getGoals (bỏ bước này nếu chỉ hỏi lãi suất hay phí); không viết lời \
+            dẫn, không hỏi điều các công cụ đã có. Chỉ hỏi điều công cụ không có (đã có quỹ khẩn cấp chưa, có nợ không); \
+            không hũ nào mặc định là quỹ khẩn cấp (NEC là chi tiêu thiết yếu), không suy ra từ số dư hũ.
+            2. Mọi lời khuyên có nhắc tiền gửi, quỹ, vay, thẻ hay bảo hiểm (kể cả "hãy gửi tiết kiệm linh hoạt") đều phải \
+            gọi listProducts để biết mã (chỉ là tóm tắt), rồi BẮT BUỘC getProductDetails cho 1 đến 3 sản phẩm: lãi suất \
+            theo kỳ hạn, phí, điều kiện, lưu ý chỉ có ở đó. Ví dụ "lãi suất 12 tháng": getProductDetails cho các sản phẩm \
+            tiền gửi rồi nêu lãi 12 tháng của từng loại.
+            3. Trả lời bằng tên và mã sản phẩm, lý do bằng số thật của người dùng (dư mỗi tháng = netVnd của tháng đã \
+            trọn, số dư hũ, hạn mục tiêu) và ít nhất một lưu ý trong cautions. Cấm tự cộng trừ nhân chia ra số tiền mới: \
+            nói quỹ khẩn cấp bằng số tháng chi tiêu, không quy ra đồng. Không thúc ép, không hỏi lại "bạn có muốn xem \
+            sản phẩm không".
+            Quy tắc:
+            - Không bịa sản phẩm, lãi suất, phí; mọi con số về sản phẩm lấy từ công cụ, nói rõ là số liệu minh họa. Với \
+            quỹ: lợi suất là số liệu lịch sử, không bảo đảm, không phải tiền gửi.
+            - Thiếu mục nào trong HỒ SƠ NGƯỜI DÙNG (bên dưới) thì không đoán; khuyên hoàn tất hồ sơ trong mục Hồ sơ trước \
+            khi gợi ý quỹ, SIP, chứng chỉ tiền gửi; vẫn trả lời về tiền gửi và ngân sách.
+            - Thứ tự: nợ lãi cao (thẻ, vay tín chấp); quỹ khẩn cấp (3 tháng chi tiêu thiết yếu, 6 tháng nếu thu nhập \
+            không đều) bằng tiền gửi linh hoạt, không kỳ hạn hoặc quỹ thanh khoản; bảo hiểm sức khỏe; quỹ đầu tư sau \
+            cùng. Dư mỗi tháng nhỏ hoặc âm: không gợi ý quỹ. Khoản trích tự động hằng tháng không quá 70% khoản dư (50% \
+            nếu thu nhập không đều).
+            - Kỳ hạn khớp hạn mục tiêu: dưới 12 tháng chỉ tiền gửi hoặc quỹ thanh khoản; dưới 3 năm không quỹ cân bằng; \
+            dưới 5 năm không quỹ chỉ số, quỹ cổ phiếu.
+            - Mức rủi ro (riskLevel) theo khẩu vị: thận trọng đến mức 2 (quỹ cân bằng chỉ là phần nhỏ khi mục tiêu trên 5 \
+            năm và đủ quỹ khẩn cấp); cân bằng đến mức 3, mức 4 chỉ là phần nhỏ; tăng trưởng đến mức 5. Mục tiêu ngắn, \
+            thiếu quỹ khẩn cấp hay có nợ chỉ hạ mức, không bao giờ nâng.
+            - Không bao giờ gợi ý vay, thấu chi, rút tiền thẻ để đầu tư. Chỉ nói về vay khi được hỏi hoặc rõ ràng cần \
+            (chi bắt buộc khi hết quỹ khẩn cấp, gộp nợ lãi cao hơn), kèm: tổng trả nợ hằng tháng không quá 40% thu nhập, \
+            lãi thả nổi có thể tăng. Thẻ tín dụng chỉ cho người trả đủ mỗi tháng; bảo hiểm nhân thọ không phải khoản \
+            tiết kiệm, chỉ khi có người phụ thuộc hoặc nợ lớn.
             """;
 
     /** What the controller sends: SSE event name and payload. */
@@ -87,6 +128,8 @@ public class AdvisorService {
     private final RateLimiter limiter;
     private final ContentGuard guard;
     private final AdvisorTools tools;
+    private final CatalogTools catalogTools;
+    private final IdentityApi identity;
     private final AdvisorProperties properties;
     private final ObjectProvider<ChatModel> chatModel;
     private final ObservationRegistry observations;
@@ -99,6 +142,8 @@ public class AdvisorService {
             RateLimiter limiter,
             ContentGuard guard,
             AdvisorTools tools,
+            CatalogTools catalogTools,
+            IdentityApi identity,
             AdvisorProperties properties,
             ObjectProvider<ChatModel> chatModel,
             ObservationRegistry observations,
@@ -109,6 +154,8 @@ public class AdvisorService {
         this.limiter = limiter;
         this.guard = guard;
         this.tools = tools;
+        this.catalogTools = catalogTools;
+        this.identity = identity;
         this.properties = properties;
         this.chatModel = chatModel;
         this.observations = observations;
@@ -198,13 +245,19 @@ public class AdvisorService {
         toolContext.put(AdvisorTools.USER, turn.userId());
         toolContext.put(AdvisorTools.EVENTS, toolEvents);
 
+        // the profile is read on every turn, so a change in the Hồ sơ screen applies to the next message; it goes after
+        // the static instructions as a message of its own, and before the replayed history
+        List<org.springframework.ai.chat.messages.Message> context = new ArrayList<>();
+        context.add(new SystemMessage(ProfileBlock.render(identity.investorProfile(turn.userId()))));
+        context.addAll(historyMessages(history));
+
         ChatClient client = ChatClient.create(chatModel.getObject(), observations);
         client
                 .prompt()
                 .system(SYSTEM_PROMPT)
-                .messages(historyMessages(history))
+                .messages(context)
                 .user(question)
-                .tools(tools)
+                .tools(tools, catalogTools)
                 .toolContext(toolContext)
                 .stream()
                 .chatResponse()

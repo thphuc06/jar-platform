@@ -41,7 +41,18 @@ export const categories = [
   { id: ids.catSalary, name: "Lương", kind: "INCOME", parentId: null, system: true },
 ];
 
-export const me = { id: "77777777-7777-4777-8777-000000000001", email: null, displayName: "Phúc", locale: "vi-VN", onboardingCompleted: true };
+export const me = {
+  id: "77777777-7777-4777-8777-000000000001",
+  email: null,
+  displayName: "Phúc",
+  locale: "vi-VN",
+  onboardingCompleted: true,
+  ageBand: "AGE_25_34",
+  incomeSituation: "REGULAR_SALARY",
+};
+
+/** A user who did the questionnaire before the two profile questions existed. */
+export const meWithoutFacts = { ...me, ageBand: null, incomeSituation: null };
 
 export const riskProfile = { score: 52, riskLevel: "BALANCED", assessedAt: "2026-11-01T03:21:09Z" };
 

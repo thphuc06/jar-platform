@@ -1,6 +1,9 @@
 package io.github.thphuc06.jars.identity.internal.service;
 
 import io.github.thphuc06.jars.identity.IdentityApi;
+import io.github.thphuc06.jars.identity.InvestorProfile;
+import io.github.thphuc06.jars.identity.internal.domain.RiskQuestionnaire;
+import io.github.thphuc06.jars.identity.internal.persistence.RiskAssessmentRepository;
 import io.github.thphuc06.jars.identity.internal.persistence.UserRepository;
 import io.github.thphuc06.jars.shared.UserId;
 import java.util.List;
@@ -16,9 +19,11 @@ class IdentityApiImpl implements IdentityApi {
     private static final UUID BEGINNING = new UUID(0L, 0L);
 
     private final UserRepository users;
+    private final RiskAssessmentRepository assessments;
 
-    IdentityApiImpl(UserRepository users) {
+    IdentityApiImpl(UserRepository users, RiskAssessmentRepository assessments) {
         this.users = users;
+        this.assessments = assessments;
     }
 
     @Override
@@ -30,5 +35,22 @@ class IdentityApiImpl implements IdentityApi {
         return users.findIdsAfter(cursor == null ? BEGINNING : cursor, Limit.of(limit)).stream()
                 .map(UserId::new)
                 .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public InvestorProfile investorProfile(UserId userId) {
+        InvestorProfile.Risk risk = assessments
+                .findFirstByUserIdOrderByAssessedAtDesc(userId.value())
+                .map(a -> new InvestorProfile.Risk(
+                        a.getRiskLevel().name(),
+                        a.getRiskLevel().label(),
+                        a.getScore(),
+                        a.getAssessedAt(),
+                        RiskQuestionnaire.describe(a.getAnswers())))
+                .orElse(null);
+        return users.findById(userId.value())
+                .map(u -> new InvestorProfile(risk, u.getAgeBand(), u.getIncomeSituation()))
+                .orElseGet(() -> new InvestorProfile(risk, null, null));
     }
 }

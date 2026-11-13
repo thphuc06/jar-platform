@@ -47,7 +47,7 @@
 | Method | Path | Mô tả | Phase |
 |---|---|---|---|
 | GET | `/me` | Thông tin user (tự tạo lazy ở lần gọi đầu) | 1 |
-| PATCH | `/me` | Đổi `displayName`, `locale` | 1 |
+| PATCH | `/me` | Đổi `displayName`, `locale`, `ageBand` (`UNDER_25`, `AGE_25_34`, `AGE_35_44`, `AGE_45_54`, `AGE_55_PLUS`), `incomeSituation` (`REGULAR_SALARY`, `IRREGULAR_INCOME`, `NO_INCOME_YET`): chỉ các trường gửi lên mới đổi; mã sai là 422 kèm thông báo tiếng Việt. `GET /me` trả cả hai trường, `null` khi user chưa trả lời (user đăng ký trước hai câu hỏi này). Chúng là dữ kiện hồ sơ cho trợ lý, không thuộc điểm rủi ro ([ADR-0027](../04-adr/0027-advisor-product-catalog-and-profile.md)) | 1 |
 | PUT | `/me/risk-profile` | Nộp 5 câu trả lời onboarding `{"answers":[2,3,2,2,1]}` (mỗi phần tử là chỉ số lựa chọn, thứ tự câu hỏi như UI) → `{score 0..100, riskLevel, assessedAt}`. Mỗi lần nộp thêm một dòng lịch sử; bảng điểm ở `RiskQuestionnaire` | 1 |
 | GET | `/me/risk-profile` | Risk profile hiện tại (404 nếu chưa làm onboarding) | 1 |
 
@@ -149,7 +149,7 @@ event: done
 data: {"messageId":"0193...","usage":{"inputTokens":812,"outputTokens":164},"disclaimer":"Thông tin mang tính tham khảo..."}
 ```
 
-`tool` báo model đang tra dữ liệu (`getJars`, `getMonthlyCashflow`, `getGoals`, `getOpenAnomalies`, `getSpendingBehaviour`; chỉ đọc, user lấy từ JWT). `replace` chỉ xuất hiện khi guardrail đầu ra can thiệp: client thay toàn bộ phần đã hiện bằng `text`: câu trả lời đã che PII, hoặc thông điệp theo lý do chặn ([ADR-0023](../04-adr/0023-advisor-guardrail-and-rate-limit.md), [ADR-0026](../04-adr/0026-guardrail-input-pii-masking.md)). Tin nhắn của user và `title` phiên được guardrail che PII trước khi lưu (`{CREDIT_DEBIT_CARD_NUMBER}`, `{EMAIL}`, ...), nên `GET .../messages` trả lại bản đã che. Event `roadmap` của thiết kế ban đầu chưa cài. Nếu có lỗi giữa chừng: `event: error` với `data` là ProblemDetail, sau đó đóng stream. Client không tự kết nối lại (một lượt chat không idempotent).
+`tool` báo model đang tra dữ liệu (`getJars`, `getMonthlyCashflow`, `getGoals`, `getOpenAnomalies`, `getSpendingBehaviour` đọc dữ liệu của user, user lấy từ JWT; `listProducts`, `getProductDetails` đọc danh mục sản phẩm minh họa, giống nhau cho mọi user; tất cả chỉ đọc). `replace` chỉ xuất hiện khi guardrail đầu ra can thiệp: client thay toàn bộ phần đã hiện bằng `text`: câu trả lời đã che PII, hoặc thông điệp theo lý do chặn ([ADR-0023](../04-adr/0023-advisor-guardrail-and-rate-limit.md), [ADR-0026](../04-adr/0026-guardrail-input-pii-masking.md)). Tin nhắn của user và `title` phiên được guardrail che PII trước khi lưu (`{CREDIT_DEBIT_CARD_NUMBER}`, `{EMAIL}`, ...), nên `GET .../messages` trả lại bản đã che. Event `roadmap` của thiết kế ban đầu chưa cài. Nếu có lỗi giữa chừng: `event: error` với `data` là ProblemDetail, sau đó đóng stream. Client không tự kết nối lại (một lượt chat không idempotent).
 
 ### Thông báo: `GET /notifications/stream`
 
@@ -183,8 +183,8 @@ data: {"id":"0193b2...","type":"ANOMALY","severity":"HIGH","title":"Hũ PLAY tă
 |---|---|---|
 | Login (`pages/Login.tsx`) | `InitiateAuth USER_PASSWORD_AUTH` + client secret | Amplify Auth `signInWithRedirect` (managed login + PKCE) |
 | Signup (`pages/Signup.tsx`) | **Giả** (`setTimeout`) | Managed login sign-up, rồi gọi `GET /me` |
-| Onboarding (`pages/Onboarding.tsx`) | Không lưu | `PUT /me/risk-profile` |
-| Profile (`pages/Profile.tsx`) | State local | `GET/PATCH /me`, `GET /me/risk-profile` |
+| Onboarding (`pages/Onboarding.tsx`) | Không lưu | 7 câu hỏi: `PATCH /me` (độ tuổi, thu nhập) rồi `PUT /me/risk-profile` (5 câu rủi ro) |
+| Profile (`pages/Profile.tsx`) | State local | `GET/PATCH /me` (cả độ tuổi và thu nhập, hiện "Chưa cung cấp" với user cũ), `GET /me/risk-profile` |
 | Dashboard (`pages/Index.tsx`) | `useLatestBalance`, `useMonthlyFlow`, `useSpendingByCategory`, `useTransactions` | `GET /dashboard?month=` + `GET /transactions?limit=5` |
 | Money Inbox (`pages/MoneyInbox.tsx`) | `useTransactions`, `useCategories` | `GET /transactions`, `GET /categories`, `PATCH /transactions/{id}` |
 | Transfer (`pages/Transfer.tsx`) | `useInsertTransaction`, `useJars` | `POST /transactions` hoặc `POST /jars/transfers` |

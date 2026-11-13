@@ -200,8 +200,8 @@ sequenceDiagram
     alt bị chặn
         API-->>W: câu trả lời theo lý do chặn (không gọi model); tin nhắn lưu ở dạng đã che
     end
-    API->>API: Nạp lịch sử chat (N tin gần nhất) + system prompt + ngữ cảnh risk profile
-    API->>B: ConverseStream (tools = [getJars, getMonthlyCashflow, getGoals, getOpenAnomalies, getSpendingBehaviour], guardrail qua ApplyGuardrail)
+    API->>API: Nạp lịch sử chat (N tin gần nhất) + system prompt tĩnh + khối hồ sơ của user (rủi ro, độ tuổi, thu nhập; chỉ từ enum và số, ADR-0027)
+    API->>B: ConverseStream (tools = [getJars, getMonthlyCashflow, getGoals, getOpenAnomalies, getSpendingBehaviour, listProducts, getProductDetails], guardrail qua ApplyGuardrail)
     B-->>API: toolUse getMonthlyCashflow(month=2026-10)
     API->>T: Gọi Java service với userId lấy từ JWT (KHÔNG lấy từ tham số LLM)
     T-->>API: Kết quả có cấu trúc (số do Java tính)

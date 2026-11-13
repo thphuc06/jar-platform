@@ -1,5 +1,7 @@
 package io.github.thphuc06.jars.identity.internal.web;
 
+import io.github.thphuc06.jars.identity.AgeBand;
+import io.github.thphuc06.jars.identity.IncomeSituation;
 import io.github.thphuc06.jars.identity.internal.service.RiskProfileService;
 import io.github.thphuc06.jars.identity.internal.service.UserService;
 import io.github.thphuc06.jars.shared.UserId;
@@ -37,7 +39,12 @@ class MeController {
 
     @PatchMapping
     MeResponse update(UserId userId, @Valid @RequestBody UpdateMeRequest request) {
-        return MeResponse.from(users.updateProfile(userId, request.displayName(), request.locale()));
+        return MeResponse.from(users.updateProfile(
+                userId,
+                request.displayName(),
+                request.locale(),
+                request.ageBand() == null ? null : AgeBand.valueOf(request.ageBand()),
+                request.incomeSituation() == null ? null : IncomeSituation.valueOf(request.incomeSituation())));
     }
 
     @PutMapping("/risk-profile")
@@ -50,9 +57,24 @@ class MeController {
         return RiskProfileResponse.from(riskProfiles.current(userId));
     }
 
-    record MeResponse(UUID id, String email, String displayName, String locale, boolean onboardingCompleted) {
+    /** ageBand and incomeSituation are codes (see {@link UpdateMeRequest}), null until the user answers them. */
+    record MeResponse(
+            UUID id,
+            String email,
+            String displayName,
+            String locale,
+            boolean onboardingCompleted,
+            String ageBand,
+            String incomeSituation) {
         static MeResponse from(UserService.Profile p) {
-            return new MeResponse(p.id(), p.email(), p.displayName(), p.locale(), p.onboardingCompleted());
+            return new MeResponse(
+                    p.id(),
+                    p.email(),
+                    p.displayName(),
+                    p.locale(),
+                    p.onboardingCompleted(),
+                    p.ageBand() == null ? null : p.ageBand().name(),
+                    p.incomeSituation() == null ? null : p.incomeSituation().name());
         }
     }
 
@@ -61,7 +83,17 @@ class MeController {
             String displayName,
 
             @Pattern(regexp = "vi-VN|en-US", message = "locale phải là vi-VN hoặc en-US")
-            String locale) {}
+            String locale,
+
+            @Pattern(
+                    regexp = "UNDER_25|AGE_25_34|AGE_35_44|AGE_45_54|AGE_55_PLUS",
+                    message = "Nhóm tuổi phải là UNDER_25, AGE_25_34, AGE_35_44, AGE_45_54 hoặc AGE_55_PLUS")
+            String ageBand,
+
+            @Pattern(
+                    regexp = "REGULAR_SALARY|IRREGULAR_INCOME|NO_INCOME_YET",
+                    message = "Tình hình thu nhập phải là REGULAR_SALARY, IRREGULAR_INCOME hoặc NO_INCOME_YET")
+            String incomeSituation) {}
 
     record RiskAnswersRequest(
             @NotNull(message = "Thiếu danh sách câu trả lời")
