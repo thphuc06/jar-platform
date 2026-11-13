@@ -8,9 +8,9 @@ Personal finance built around the **6-jars method**: income is split into jars, 
 
 This is a personal portfolio project, rewritten from scratch from a hackathon prototype. The screens come from that prototype's Lovable-generated UI; everything else (backend, infrastructure, tests, the data/auth/realtime layer of the web client) is written here.
 
-![Deployment topology](docs/diagrams/aws-phase3-mvp.png)
+![Deployment topology](docs/diagrams/aws-deployment.png)
 
-*The diagram is the MVP topology; everything in it is deployed by `infra/cdk`.*
+*The deployed topology (CloudFront, internal ALB, one Fargate task with an ADOT sidecar, Aurora Serverless v2, S3 → EventBridge → SQS for statement uploads, Bedrock); everything in it is created by `infra/cdk`. A more detailed view is in [`aws-architecture.png`](docs/diagrams/aws-architecture.png).*
 
 ## What it does
 
@@ -35,6 +35,8 @@ Every row links to the code and to the test that proves it.
 | **Idempotent POSTs** | `Idempotency-Key` row is inserted *in the business transaction*, so concurrent duplicates queue on the unique index and the second one replays the first response | `IdempotencyServiceTest` and `LedgerPostingTest`: 8 threads, one posting |
 | **Money is exact** | `BigDecimal` / `NUMERIC(19,2)`, amounts serialised as strings, an ArchUnit rule forbids `double`/`float` in domain code | `MoneyTest`, `MoneyArchitectureTest`, [ADR-0014](docs/04-adr/0014-money-and-ledger-model.md) |
 | **Modular monolith** | Spring Modulith modules (`identity`, `ledger`, `insights`, `notification`, `budgeting`, `goals`, `imports`, `advisor`); module boundaries and cycles are verified on every build | `ModularityTests` (it also tests itself with a deliberately violating fixture), [ADR-0003](docs/04-adr/0003-modular-monolith-spring-modulith.md) |
+| **Audit log** | An append-only `audit_log` table written by an `@Audited` aspect **in the same transaction** as the change it describes: a rolled-back or race-losing attempt leaves no row, a replayed idempotent request adds none, and a database trigger refuses `UPDATE`, `DELETE` and `TRUNCATE` | `AuditTransactionTest`, `AuditAppendOnlyTest`, [ADR-0025](docs/04-adr/0025-audit-log-aop-same-transaction.md) |
+| **Ledger reconciliation** | A nightly job (EventBridge Scheduler → SQS) checks `balance == SUM(entries)` for every jar. It only detects and reports (log lines, a metric, an alarm) and never corrects, because which side is wrong is a decision for a person. Written and tested; not yet deployed to AWS | `ReconciliationTest` (real PostgreSQL, corruptions made with SQL and undone), `ReconciliationServiceTest` |
 | **Reliable events** | In-process events go through the Modulith outbox (`event_publication`), consumers are idempotent (`processed_messages`), listeners run after commit | `InsightsFlowTest` (a redelivered event is counted once), `InsightsModuleTest` (Modulith `Scenario`) |
 | **Authorization** | Stateless OAuth2 resource server for Cognito; only *access* tokens from our own app clients are accepted (fails closed); every query is scoped to the caller and someone else's resource is a `404`, not a `403` | `AccessTokenValidatorsTest`, the IDOR matrix in `LedgerReadAndSecurityTest` |
 | **Realtime** | SSE with a 15 s heartbeat, replay of missed notifications from `Last-Event-ID` (UUIDv7 ids sort by time), push only after the transaction commits | `NotificationStreamTest`, over a real HTTP connection |
@@ -87,6 +89,7 @@ Swagger UI is at <http://localhost:8080/swagger-ui.html> (Authorize with the tok
 apps/jars-api/     Spring Boot modular monolith (Maven)
 apps/web/          React web client
 infra/cdk/         AWS CDK (Java)
+local/             Docker Compose for local development (Postgres)
 contracts/openapi/ OpenAPI file generated from the controllers; a test fails when it drifts
 scripts/           push-image, smoke-test and load-test
 docs/              architecture, API contract, 25 ADRs, operations, roadmap

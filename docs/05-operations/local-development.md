@@ -16,7 +16,7 @@
 | Graphviz | (chỉ để render diagram) | ❌ | `winget install Graphviz.Graphviz` |
 | IDE | IntelliJ IDEA (Community đủ dùng) hoặc VS Code + Extension Pack for Java | | |
 
-## 2. Thành phần chạy local (`local/compose.yaml`, tạo ở Phase 0)
+## 2. Thành phần chạy local (`local/compose.yaml`: hiện chỉ có `postgres`)
 
 | Service | Image | Port | Dùng cho |
 |---|---|---|---|
@@ -26,7 +26,9 @@
 | `localstack` | `localstack/localstack` (cần `LOCALSTACK_AUTH_TOKEN`) | 4566 | S3, SQS, SNS, EventBridge ở local (tùy chọn, hiện chưa dùng: test dùng Testcontainers Postgres và mock) |
 | `kafka` | `apache/kafka` (KRaft) | 9092 | **Lab tùy chọn** (ADR-0009) |
 
-> **LocalStack:** từ bản 2026.03.0, image yêu cầu **auth token**. Gói Hobby (phi thương mại) và gói Student là miễn phí. Đăng ký tài khoản, đặt `LOCALSTACK_AUTH_TOKEN` trong file `local/.env` (đã gitignore) và trong GitHub Secrets cho CI. Nhớ **pin version image**, không dùng `latest`.
+> Chỉ `postgres` thật sự có trong `local/compose.yaml`. Các dòng `valkey`, `lgtm`, `localstack`, `kafka` ở trên là ý tưởng chưa dựng.
+
+> **LocalStack (nếu sau này dùng):** từ bản 2026.03.0, image yêu cầu **auth token**. Gói Hobby (phi thương mại) và gói Student là miễn phí. Đăng ký tài khoản, đặt `LOCALSTACK_AUTH_TOKEN` trong file `local/.env` (đã gitignore) và trong GitHub Secrets cho CI. Nhớ **pin version image**, không dùng `latest`.
 > Nếu không muốn dùng LocalStack: test dùng mock (`@MockitoBean SqsTemplate`), hoặc chạy thử với SQS thật trên tài khoản dev (chi phí gần $0).
 
 ## 3. Spring profiles
@@ -34,7 +36,7 @@
 | Profile | Khi nào | DB | Auth | Messaging | AI |
 |---|---|---|---|---|---|
 | `local` (**mặc định** khi không đặt `SPRING_PROFILES_ACTIVE`) | Chạy app trên máy | compose `postgres`, Spring Boot **tự khởi động** `local/compose.yaml` (`spring-boot-docker-compose`, chế độ `start-only`) | App tự phát token: `POST /dev/token` (chỉ có ở profile `local`, khóa RSA sinh ngẫu nhiên mỗi lần chạy), **không cần Cognito** | in-process (Modulith) | chưa có (ngoài phạm vi Phase 1) |
-| (test) | `./mvnw verify` | Testcontainers `postgres:17-alpine` (`@ServiceConnection`, class `TestcontainersConfiguration`) | `spring-security-test` `jwt()` | in-process; LocalStack container cho test tích hợp SQS | Stub `ChatModel` |
+| (test) | `./mvnw verify` | Testcontainers `postgres:17-alpine` (`@ServiceConnection`, class `TestcontainersConfiguration`) | `spring-security-test` `jwt()` | in-process; không có container SQS (listener SQS chỉ có ở profile `aws`, logic job được test gọi trực tiếp) | Stub `ChatModel` |
 | `aws` | ECS | Aurora (`SPRING_DATASOURCE_*` do task definition cấp, secret từ Secrets Manager) | Cognito (chỉ nhận access token của các app client trong `JARS_ALLOWED_CLIENT_IDS`) | SQS thật cho job khép sổ; log JSON; không có `/dev/token` và không publish OpenAPI | – |
 
 ## 4. Chạy
@@ -97,7 +99,7 @@ credential_process = aws configure export-credentials --profile jars-dev --forma
 
 ## 6. Dữ liệu mẫu
 
-Phase 1 sẽ viết `SeedDataRunner` (chỉ chạy ở profile `local`): tạo 1 user demo, 6 hũ, khoảng 3 tháng giao dịch giả lập (ý tưởng từ `backend/seed/seed.json` của bản cũ), và một vài "cú sốc chi tiêu" để demo CUSUM.
+`SeedDataRunner` (`ledger/internal/dev`, chỉ chạy ở profile `local` khi bật `--jars.seed.enabled=true`) tạo user demo (token subject `demo`, lấy token bằng `POST /dev/token`), 6 hũ, 3 tháng thu và chi hằng ngày, rồi hai khoản chi bất thường để có cảnh báo cho dashboard và thông báo realtime. Không làm gì nếu user demo đã có giao dịch.
 
 ## 7. Lỗi hay gặp
 
@@ -112,6 +114,7 @@ Phase 1 sẽ viết `SeedDataRunner` (chỉ chạy ở profile `local`): tạo 1
 | LocalStack thoát ngay khi start | Thiếu `LOCALSTACK_AUTH_TOKEN` | Xem mục 2 |
 | `Migration checksum mismatch for migration version 7/8` khi `spring-boot:run` | Volume Postgres của Docker Compose còn schema của bản cài đặt đầu tiên (trước khi hợp nhất `main` ngày 12/11/2026), migration cùng số nhưng khác nội dung | Dữ liệu dev, xóa được: `docker compose -f local/compose.yaml down -v` rồi chạy lại |
 | `Vitest failed to find the current suite` khi `npm test` trên Windows | Đường dẫn làm việc có chữ ổ đĩa viết thường (`c:\...`), Vitest nạp hai bản | Mở terminal ở `C:\...` (chữ hoa) rồi chạy lại; CI trên Linux không bị |
+| `AccessDeniedException` / `ExpiredToken` từ AWS | Phiên `aws login` hết hạn (12 giờ) hoặc model Bedrock chưa được bật | `aws login --profile jars-dev`; kiểm tra model access ở console Bedrock (ap-southeast-1) |
 
 ## 8. Nhập sao kê ở local
 
@@ -124,4 +127,3 @@ ID=$(curl -s -X POST localhost:8080/api/v1/imports -H "Authorization: Bearer $TO
 printf 'date,description,amount\n2026-10-02,GRAB *TRIP,-45000\n' | curl -s -X PUT "localhost:8080/api/v1/imports/$ID/file" \
   -H "Authorization: Bearer $TOKEN" -H 'Content-Type: text/csv' --data-binary @- | jq '{status, postedRows, skippedRows}'
 ```
-| `AccessDeniedException` / `ExpiredToken` từ AWS | Phiên `aws login` hết hạn (12 giờ) hoặc model Bedrock chưa được bật | `aws login --profile jars-dev`; kiểm tra model access ở console Bedrock (ap-southeast-1) |

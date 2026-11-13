@@ -8,6 +8,7 @@
 | **Jar entry** | Một bút toán trong sổ cái của hũ (cộng hoặc trừ), chỉ được ghi thêm |
 | **Jar period** | Kế hoạch và thực chi của một hũ trong một tháng |
 | **Khép sổ tháng (month close)** | Tổng kết tháng cũ, tạo kỳ mới cho mọi hũ |
+| **Đối soát sổ cái (ledger reconciliation)** | Job hằng đêm kiểm tra số dư lưu của từng hũ (`jars.balance`) có bằng tổng các bút toán (`SUM(jar_entries.amount)`) không. Chỉ phát hiện và báo (log `Ledger mismatch`, metric `jars.ledger.reconciliation.mismatches`, alarm), không tự sửa ([flows.md F6](02-architecture/flows.md#f6)) |
 | **Risk profile** | Khẩu vị rủi ro (CONSERVATIVE / BALANCED / GROWTH) rút ra từ bảng hỏi onboarding |
 | **Feasibility** | Mục tiêu có đạt được không với tốc độ tiết kiệm hiện tại; cần bao nhiêu mỗi tháng |
 | **What-if scenario** | Mô phỏng khi thay đổi thu nhập hoặc tiết kiệm |
@@ -29,6 +30,7 @@
 | **Outbox (transactional outbox)** | Ghi event vào bảng trong **cùng transaction** với dữ liệu nghiệp vụ, rồi mới gửi ra ngoài, nhờ đó không mất event và không có event "ma" |
 | **Inbox / idempotent consumer** | Ghi nhận ID message đã xử lý để bỏ qua bản trùng |
 | **At-least-once** | Message có thể đến nhiều hơn 1 lần nhưng không mất |
+| **Audit log** | Bảng `audit_log` append-only ghi ai làm gì, lúc nào. Aspect `@Audited` ghi một dòng trong cùng transaction với thay đổi nghiệp vụ, nên rollback thì không còn dòng nào ([ADR-0025](04-adr/0025-audit-log-aop-same-transaction.md)) |
 | **Idempotency key** | Khóa do client gửi để server không thực hiện cùng một thao tác hai lần |
 | **Optimistic locking** | Không khóa khi đọc; kiểm tra cột `version` khi ghi, nếu lệch thì báo xung đột |
 | **Lost update** | Hai giao dịch cùng đọc rồi cùng ghi đè, làm mất một cập nhật |

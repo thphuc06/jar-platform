@@ -83,12 +83,12 @@ Version được chốt ngày **2026-10-23** theo bản stable mới nhất. C�
 | Spring Boot | **4.1.x** (mới nhất: 4.1.2) | Framework 7, Jackson 3, có starter OpenTelemetry | ✅ tag `v4.1.2` trên GitHub |
 | Spring Modulith | **2.1.x** (2.1.2) | Event publication registry (outbox), `@ApplicationModuleTest` | ✅ |
 | Spring AI | **2.0.x** (2.0.2) | `spring-ai-starter-model-bedrock-converse`, tool calling, streaming | ✅ GA 12/06/2026 |
-| Spring Cloud AWS | **4.2.x** (4.2.1) | SQS listener, SNS, S3, Secrets Manager, `spring-cloud-aws-modulith-events-sns/sqs` | ✅ Smoke test P0.5 với Boot 4.1.2: Secrets Manager import + SQS listener chạy được (bảng tương thích chính thức chỉ ghi Boot 4.0.x). Cần thêm `software.amazon.awssdk:signin` (runtime) để đọc credential `aws login` |
+| Spring Cloud AWS | **4.2.x** (4.2.1) | Dùng `spring-cloud-aws-starter-sqs` (SQS listener) và `spring-cloud-aws-starter-s3` (presigned URL, đọc sao kê). Không dùng SNS, Secrets Manager hay `spring-cloud-aws-modulith-events-*` (đó là hướng Phase 3+, backlog) | ✅ SQS listener chạy được với Boot 4.1.2 (bảng tương thích chính thức chỉ ghi Boot 4.0.x). Muốn đọc credential `aws login` ở local cần thêm `software.amazon.awssdk:signin` (runtime), chưa có trong `pom.xml` |
 | Spring Batch | 6.x, theo BOM của Boot | Import CSV (Phase 2 WP3) | ✅ |
 | Flyway | theo BOM của Boot | Migration | – |
-| PostgreSQL | Aurora PostgreSQL **17.x** | Scale-to-zero yêu cầu ≥ 16.3 / 15.7 | ⚠️ Kiểm tra minor version khả dụng ở ap-southeast-1 khi deploy |
-| springdoc-openapi | 3.x | Sinh OpenAPI → TypeScript client | ⚠️ Kiểm tra ở Phase 1 |
-| Testcontainers | 2.x | PostgreSQL, LocalStack (cần auth token, xem local-development) | – |
+| PostgreSQL | Aurora PostgreSQL **17.x** | Scale-to-zero yêu cầu ≥ 16.3 / 15.7 | ✅ 17.11 trong `DataStack.java` (bản 17.x mới nhất ở ap-southeast-1 ngày 2026-11-12), đã deploy |
+| springdoc-openapi | 3.2.0 | Sinh OpenAPI → TypeScript client | ✅ trong `pom.xml` |
+| Testcontainers | 2.x | PostgreSQL (không có LocalStack trong test) | ✅ |
 | AWS CDK | v2 (Java) | `aws-cdk-lib` | ✅ Account đã từng dùng CDK (stack `CDKToolkit` ở us-east-1) |
 | Node.js | 22/24 LTS | Build web, chạy CDK CLI qua `npx` | ✅ máy dev có Node 24 |
 | Bedrock model | `global.anthropic.claude-haiku-4-5-20251001-v1:0` (mặc định), `global.anthropic.claude-sonnet-4-6` (khi cần chất lượng cao) | Global cross-region inference profile | ✅ **gọi thật** bằng Spring AI ở P0.5 (Haiku 5.5: AccessDenied) |
@@ -123,7 +123,7 @@ Version được chốt ngày **2026-10-23** theo bản stable mới nhất. C�
 | Phase | Hình dạng hệ thống | Hạ tầng |
 |---|---|---|
 | 0 | Skeleton `jars-api` chạy local; Postgres bằng docker compose | Chỉ deploy `JarsAuth` (Cognito, miễn phí) để lấy JWT thật |
-| 1 ✅ | Core → Cloud: nghiệp vụ lõi, event in-process qua Modulith registry; deploy MVP ([diagram](../diagrams/aws-phase3-mvp.png)) | Foundation, Network, Auth, Data, Messaging (S3 → EventBridge → SQS, Scheduler), App |
+| 1 ✅ | Core → Cloud: nghiệp vụ lõi, event in-process qua Modulith registry; deploy MVP ([diagram](../diagrams/aws-deployment.png)) | Foundation, Network, Auth, Data, Messaging (S3 → EventBridge → SQS, Scheduler), App |
 | 2 ✅ | Thêm advisor (Bedrock), import CSV, observability, CD qua OIDC; không Valkey (rate limit trong PostgreSQL) | + Guardrails, ADOT/X-Ray, dashboard, alarm (trong `JarsApp`) |
 | 3+ (backlog, chưa lên lịch) | Externalize event; tách `insights-worker`; blue/green, WAF | + SNS FIFO / SQS FIFO + DLQ, + service ECS thứ hai |
 

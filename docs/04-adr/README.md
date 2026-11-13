@@ -17,9 +17,9 @@ ADR ghi lại **vì sao** một quyết định kiến trúc được đưa ra, 
 | [0006](0006-compute-ecs-fargate.md) | Compute: ECS on Fargate ARM64 (không dùng App Runner/EC2/EKS) | Accepted | 2026-10-23 |
 | [0007](0007-edge-cloudfront-vpc-origin.md) | CloudFront là cửa vào duy nhất; S3 OAC + VPC origin tới ALB internal | Accepted | 2026-10-23 |
 | [0008](0008-database-aurora-serverless-v2.md) | Aurora PostgreSQL Serverless v2 scale-to-zero | Accepted | 2026-10-23 |
-| [0009](0009-messaging-sns-sqs-eventbridge.md) | Outbox → SNS FIFO → SQS FIFO; EventBridge cho platform event; không dùng MSK | Accepted | 2026-10-23 |
+| [0009](0009-messaging-sns-sqs-eventbridge.md) | Outbox → SNS FIFO → SQS FIFO (chưa làm, backlog Phase 3+); EventBridge cho platform event; không dùng MSK | Accepted | 2026-10-23 |
 | [0010](0010-auth-cognito-pkce.md) | Cognito managed login + PKCE; Spring resource server | Accepted | 2026-10-23 |
-| [0011](0011-ai-spring-ai-bedrock.md) | AI bằng Spring AI + Bedrock trong jars-api; LLM không tự tính số | Accepted | 2026-10-23 |
+| [0011](0011-ai-spring-ai-bedrock.md) | AI bằng Spring AI + Bedrock trong jars-api; LLM không tự tính số | Accepted (một phần Superseded bởi 0023) | 2026-10-23 |
 | [0012](0012-iac-aws-cdk-java.md) | IaC bằng AWS CDK (Java) | Accepted | 2026-10-23 |
 | [0013](0013-networking-no-nat.md) | Không dùng NAT Gateway ở dev; task ở public subnet, khóa bằng SG | Accepted | 2026-10-23 |
 | [0014](0014-money-and-ledger-model.md) | Tiền: BigDecimal/NUMERIC(19,2); sổ cái hũ append-only | Accepted | 2026-10-23 |

@@ -21,13 +21,13 @@ Mọi số dưới đây lấy từ một lần chạy thật, không phải ư�
 
 **Bullet CV dùng được ngay** (tiếng Anh, chỉ gồm điều đã chạy thật):
 
-- Built a **modular monolith** (6 modules, boundaries verified on every build with Spring Modulith and ArchUnit) on Java 21 / Spring Boot 4 for a 6-jars personal-finance app: append-only money ledger, budgeting with a once-only month close, savings goals with seeded Monte Carlo what-ifs.
+- Built a **modular monolith** (8 modules, boundaries verified on every build with Spring Modulith and ArchUnit) on Java 21 / Spring Boot 4 for a 6-jars personal-finance app: append-only money ledger, budgeting with a once-only month close, savings goals with seeded Monte Carlo what-ifs.
 - Made money postings safe under concurrency: **optimistic locking** with a retry loop outside the transaction, **idempotency keys** inserted inside the business transaction, and a reproduced-then-fixed PostgreSQL **deadlock** on two-way jar transfers. 738 tests (94.8% line coverage), including race tests with 8–12 parallel writers.
 - Implemented per-jar **spending anomaly detection** (robust MAD outlier test plus CUSUM drift, checked against golden vectors from the original Python prototype), delivered through the **Modulith transactional outbox** to idempotent consumers and pushed to the browser over **Server-Sent Events**.
 - Secured the API as a stateless **OAuth2 resource server for Amazon Cognito** (access tokens from our own app clients only, fail-closed validators), with every query scoped to the caller and IDOR tests for each resource endpoint.
-- Provisioned everything with **AWS CDK (Java)**, six stacks, 95 guardrail tests and cdk-nag: Fargate on Graviton, internal ALB behind a CloudFront VPC origin, Aurora Serverless v2 scaling to zero, no NAT gateway. Verified a real deployment end to end with a smoke test (11/11 checks) and tore the compute stack down afterwards.
+- Provisioned everything with **AWS CDK (Java)**, six stacks, 118 guardrail tests and cdk-nag: Fargate on Graviton, internal ALB behind a CloudFront VPC origin, Aurora Serverless v2 scaling to zero, no NAT gateway. Verified a real deployment end to end with a smoke test (11/11 checks) and tore the compute stack down afterwards.
 
-**Chưa được ghi** (chưa làm hoặc chưa đo): AI advisor, microservice / SNS-SQS FIFO, import CSV với Spring Batch, p95 và req/s (chưa chạy k6), chi phí thật theo Cost Explorer (số hiện có là ước lượng theo đơn giá niêm yết), CI/CD tự deploy bằng OIDC (chưa có `deploy-dev.yml`; lần deploy vừa rồi dùng credential root từ máy cá nhân), link demo công khai (`JarsApp` đã bị `cdk destroy`; dựng lại khoảng 25 phút), đăng nhập bằng trình duyệt qua managed login (mới kiểm bằng token lấy từ admin API, chưa thử tay).
+**Chưa được ghi (ghi chú ở thời điểm Phase 1, đã được mục "Thêm sau Phase 2" bên dưới thay thế: AI advisor, import CSV với Spring Batch, k6/p95 và `deploy-dev.yml` đều đã có):** microservice / SNS-SQS FIFO, chi phí thật theo Cost Explorer (số hiện có là ước lượng theo đơn giá niêm yết), link demo công khai (`JarsApp` đã bị `cdk destroy`; dựng lại khoảng 25 phút), đăng nhập bằng trình duyệt qua managed login (mới kiểm bằng token lấy từ admin API, chưa thử tay).
 
 ### Thêm sau Phase 2 (2026-11-13): đã đo trên AWS
 

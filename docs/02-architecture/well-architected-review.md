@@ -23,12 +23,12 @@ Ký hiệu: ✅ có trong thiết kế · 🔧 bổ sung sau review này · ⚠�
 
 | Best practice | Áp dụng | Trạng thái | Phase |
 |---|---|---|---|
-| Bảo vệ root: MFA, không access key, không dùng hằng ngày | Root đã có MFA và không có access key ✅; ⚠️ **CLI vẫn đang dùng root** (ADR-0018 hoãn, ghi nhận 2026-11-12); phải chuyển sang IAM user trước khi bật CI/CD deploy | ⚠️ | 0 |
+| Bảo vệ root: MFA, không access key, không dùng hằng ngày | Root đã có MFA và không có access key ✅; ⚠️ **CLI vẫn đang dùng root** (ADR-0018 hoãn, ghi nhận 2026-11-12); CI/CD deploy đã bật và dùng role GitHub OIDC, không dùng root; chuyển CLI của người sang IAM user vẫn hoãn | ⚠️ | 0 |
 | Danh tính tập trung, credential tạm thời | ⚠️ **Không dùng Identity Center** (account standalone; Organizations làm mất credit). Thay bằng IAM user có MFA + `aws login` (credential tạm thời) cho người; OIDC (CI); task role (app) ([ADR-0018](../04-adr/0018-human-access-iam-user-aws-login.md)) | ⚠️ / 🔧 | 0 |
 | Least privilege | Role tách riêng, resource ARN cụ thể ([security.md §3](security.md#3-iam)); cdk-nag | ✅ | 3 |
-| **Phát hiện truy cập ngoài ý muốn** | **IAM Access Analyzer – external access analyzer** (miễn phí): báo resource bị chia sẻ public hoặc cross-account | 🔧 | 0 |
-| **Chặn S3 public ở cấp account** | Bật **S3 Block Public Access (account-level)** | 🔧 | 0 |
-| Mã hóa at rest | Aurora (KMS mặc định), S3 SSE-S3, SQS SSE, EBS default encryption (cho EC2 nếu có) | ✅ / 🔧 | 0, 3 |
+| **Phát hiện truy cập ngoài ý muốn** | **IAM Access Analyzer – external access analyzer** (miễn phí): báo resource bị chia sẻ public hoặc cross-account. Không bật (quyết định P0.2) | ⚠️ | 0 |
+| **Chặn S3 public ở cấp account** | **S3 Block Public Access (account-level)**: không bật (quyết định P0.2) | ⚠️ | 0 |
+| Mã hóa at rest | Aurora (KMS mặc định), S3 SSE-S3, SQS SSE. EBS default encryption không bật (quyết định P0.2) | ✅ | 3 |
 | Mã hóa in transit | CloudFront HTTPS; `rds.force_ssl=1`; S3 bucket policy **chặn non-TLS** (`enforceSSL`) | ✅ / 🔧 | 3 |
 | Bảo vệ hạ tầng nhiều lớp | ALB internal + VPC origin; SG theo chuỗi ALB → app → DB | ✅ | 3 |
 | Bảo mật container | Image non-root; `readonlyRootFilesystem=true` (mount volume `/tmp` cho Tomcat); ECR **immutable tags** + scan on push; không đưa secret vào image | 🔧 | 3 |
@@ -57,7 +57,7 @@ Ký hiệu: ✅ có trong thiết kế · 🔧 bổ sung sau review này · ⚠�
 | Chọn compute phù hợp | Fargate **Graviton (ARM64)**; chỉ một workload (ECS), không có Lambda cho quant (đã bỏ, [ADR-0024](../04-adr/0024-drop-market-and-quant-fn.md)) | ✅ |
 | JVM trong container | `MaxRAMPercentage=75`; virtual threads; (tùy chọn) CDS/AOT cache để khởi động nhanh hơn | ✅ / ⏳ |
 | Cache gần người dùng | CloudFront cho static; dữ liệu đọc nhiều dùng read model trong PostgreSQL (không có Valkey) | ✅ |
-| Đo trước khi tối ưu | Load test k6, ghi p95 vào README | ⏳ 6 |
+| Đo trước khi tối ưu | Load test k6 (`scripts/load-test.ps1`), kết quả p95 ghi trong README | ✅ |
 | Đúng cấu trúc dữ liệu | Index cho keyset pagination; read model cho dashboard | ✅ |
 
 ## 5. Cost Optimization
@@ -96,7 +96,7 @@ Ký hiệu: ✅ có trong thiết kế · 🔧 bổ sung sau review này · ⚠�
 
 | Chủ đề FSI | Áp dụng thực tế trong project |
 |---|---|
-| Tính đúng đắn và truy vết giao dịch | Ledger append-only, `audit_log`, `traceId` xuyên suốt, job đối soát số dư |
+| Tính đúng đắn và truy vết giao dịch | Ledger append-only, `audit_log`, `traceId` xuyên suốt, job đối soát số dư hằng đêm (`ReconciliationService`: đã viết, chưa deploy lên AWS) |
 | Bảo vệ dữ liệu khách hàng | Ownership check (chống IDOR), mask PII trong log, xóa sao kê sau 7 ngày, mã hóa at rest và in transit |
 | Nội địa hóa / lưu trú dữ liệu | Dữ liệu nghiệp vụ ở Singapore; **ghi nhận rủi ro**: global inference profile của Bedrock có thể xử lý prompt ngoài region ([ADR-0005](../04-adr/0005-region-ap-southeast-1.md)) |
 | Khả năng phục hồi (operational resilience) | ⚠️ Dev single-AZ task. Ghi rõ "prod sẽ cần ≥ 2 task, Aurora reader ở AZ khác, NAT mỗi AZ" |

@@ -7,11 +7,11 @@
 ```
 io.github.thphuc06.jars
 ├── JarsApplication.java
-├── shared/            # shared kernel: Money, UserId, ProblemTypes, SecurityUtils (giữ thật nhỏ)
+├── shared/            # shared kernel (giữ thật nhỏ): Money, UserId, KeysetCursor, Uuids, DomainException, ProblemType, ProblemTypes
+├── platform/          # hạ tầng cắt ngang: security (CurrentUser, JWT), audit, idempotency, observability, web (xem cuối §2)
 ├── identity/
 │   ├── IdentityApi.java          # ← public: facade interface mà module khác được gọi
 │   ├── UserRegistered.java       # ← public: domain event
-│   ├── CurrentUser.java          # ← public: DTO (record)
 │   └── internal/                 # ← mọi thứ khác: entity, repository, controller, service impl
 ├── ledger/
 ├── budgeting/
@@ -34,39 +34,39 @@ io.github.thphuc06.jars
 | Module | Trách nhiệm | Bảng sở hữu | API public (tóm tắt) | Event phát | Event nghe | Nguồn port từ project cũ |
 |---|---|---|---|---|---|---|
 | `identity` | Tạo user từ JWT (lazy), profile, bảng hỏi rủi ro | `users`, `risk_assessments` | `IdentityApi.userIdsAfter(cursor, limit)` (duyệt toàn bộ user theo trang, cho job khép sổ); `currentUser()`, `riskProfile(userId)` (dự kiến) | `UserRegistered`, `RiskProfileAssessed` (dự kiến) | – | `risk.py`, `suitability.py`, UI Onboarding |
-| `ledger` | **Nguồn sự thật về tiền**: giao dịch, sổ cái hũ, số dư, danh mục | `transactions`, `jars`, `jar_entries`, `categories` | `LedgerApi`: `jars(userId)`, `categories(userId)`, `allocateIncome(userId, key, hash, IncomeAllocation)` (một khoản thu `INCOME` không gắn hũ + một bút toán `ALLOCATE` mỗi hũ, cùng một transaction, cùng cơ chế retry / idempotency / `TransactionPosted` như `POST /transactions`; tổng các phần phải đúng bằng số tiền, làm tròn là việc của bên gọi). `postTransaction`, `transferBetweenJars`, `balances` chưa có trong API public | `TransactionPosted`, `TransactionRecategorized`, `JarCreated` | `UserRegistered` (tạo 6 hũ mặc định) | schema `jars`, `transactions` cũ |
+| `ledger` | **Nguồn sự thật về tiền**: giao dịch, sổ cái hũ, số dư, danh mục | `transactions`, `jars`, `jar_entries`, `categories` | `LedgerApi`: `jars(userId)`, `categories(userId)`, `allocateIncome(userId, key, hash, IncomeAllocation)` (một khoản thu `INCOME` không gắn hũ + một bút toán `ALLOCATE` mỗi hũ, cùng một transaction, cùng cơ chế retry / idempotency / `TransactionPosted` như `POST /transactions`; tổng các phần phải đúng bằng số tiền, làm tròn là việc của bên gọi). `postTransaction`, `transferBetweenJars`, `balances` chưa có trong API public | `TransactionPosted`, `TransactionRecategorized`, `JarCreated` | `UserRegistered` (tạo 6 hũ mặc định); listener SQS `jars-reconciliation` (profile `aws`) chạy `ReconciliationService`: đối soát số dư hũ với tổng bút toán hằng đêm, chỉ phát hiện và báo, không tự sửa ([flows.md](flows.md) F6) | schema `jars`, `transactions` cũ |
 | `budgeting` | Kế hoạch: gợi ý phân bổ thu nhập, áp dụng phân bổ, kế hoạch và thực chi theo tháng, khép sổ tháng | `jar_periods`, `allocation_decisions` | Chưa có interface `XxxApi`: module chỉ phát event `MonthClosed` ra ngoài. Gợi ý, áp dụng, xem kỳ và khép sổ là REST (`/budget/*`) và job SQS, logic nằm ở `internal/service` | `MonthClosed` | `TransactionPosted`, `TransactionRecategorized` (cập nhật `spent_amount` của kỳ) | `allocation.py` (rút gọn), `taxonomy.py` (bỏ) |
-| `goals` | Mục tiêu, khả thi, what-if, lộ trình | `goals` | `feasibility(goalId)`, `scenarios(goalId)`, `roadmap(goalId)` | `GoalCreated` | – | `goal.py`, `scenario.py`, `service_agent/*_engine`, `roadmap_compiler` |
-| `insights` | Phân tích chi tiêu, phát hiện bất thường, read model cho dashboard | `anomaly_detector_state`, `anomalies`, `monthly_jar_spend`, `monthly_category_spend`, `monthly_cashflow` | `InsightsApi`: `monthlyCashflow(userId, lastMonths)` (thu chi theo tháng), `openAnomalyCount(userId)`. Dashboard, cảnh báo là REST | `AnomalyDetected` | `TransactionPosted`, `TransactionRecategorized` | `cusum_engine`, `anomaly.py` (MAD), `spend.py`, `recurring.py` |
+| `goals` | Mục tiêu, khả thi, what-if, lộ trình | `goals` | `GoalsApi.goals(userId)` (chỉ đọc, cho tool của advisor). Khả thi, what-if, lộ trình chỉ có qua REST (`/goals/*`) | `GoalCreated` | – | `goal.py`, `scenario.py`, `service_agent/*_engine`, `roadmap_compiler` |
+| `insights` | Phân tích chi tiêu, phát hiện bất thường, read model cho dashboard | `anomaly_detector_state`, `anomalies`, `monthly_jar_spend`, `monthly_category_spend`, `monthly_cashflow` | `InsightsApi`: `monthlyCashflow(userId, lastMonths)` (thu chi theo tháng), `openAnomalyCount(userId)`. Dashboard, cảnh báo là REST | `AnomalyDetected` | `TransactionPosted`, `TransactionRecategorized`, `JarCreated` | `cusum_engine`, `anomaly.py` (MAD), `spend.py`, `recurring.py` |
 | `notification` | Lưu thông báo, đẩy SSE, (tùy chọn) email SES | `notifications` | `stream(userId)` (REST/SSE) | – | `AnomalyDetected`, `MonthClosed` (đã cài), `StatementImportCompleted` | `tier1_notifications` cũ |
 | `advisor` | Chat AI: phiên chat, tool calling chỉ đọc (user lấy từ JWT qua `ToolContext`), guardrail (`ApplyGuardrail`), rate limit trong PostgreSQL ([ADR-0023](../04-adr/0023-advisor-guardrail-and-rate-limit.md)) | `chat_sessions`, `chat_messages`, `advisor_usage` | – (chỉ có REST/SSE) | – | – | `agent/` (Strands), `kb/*.md` |
 | `imports` | Import sao kê CSV: presigned URL, Spring Batch job (chunk 50, skip, retry, restart) | `statement_imports`, `statement_import_errors` (+ bảng metadata của Spring Batch) | Chưa có `XxxApi`: REST `/imports` và listener SQS; ghi vào ledger qua `LedgerApi.recordImported` (tham gia transaction của chunk) | `StatementImportCompleted` | SQS `jars-imports` | `ingest_statement_vn` |
-| `shared` | Value object và tiện ích dùng chung | – | `Money`, `UserId`, `Month`, `ProblemTypes` | – | – | – |
+| `shared` | Value object và tiện ích dùng chung | – | `Money`, `UserId`, `KeysetCursor`, `Uuids`, `DomainException`, `ProblemType`, `ProblemTypes` | – | – | – |
 
-Thêm vào đó là các thành phần **hạ tầng không phải module nghiệp vụ**, nằm trong `io.github.thphuc06.jars.platform` (được Modulith đánh dấu là shared): cấu hình security, xử lý lỗi toàn cục, idempotency (bảng `idempotency_keys`), `Clock`, audit (AOP), cấu hình OpenTelemetry. `shared` (`Money`, `UserId`, `ProblemTypes`) cũng được khai báo shared trong `@Modulithic`.
+Thêm vào đó là các thành phần **hạ tầng không phải module nghiệp vụ**, nằm trong `io.github.thphuc06.jars.platform` (được Modulith đánh dấu là shared): cấu hình security, xử lý lỗi toàn cục, idempotency (bảng `idempotency_keys`), `Clock`, `CurrentUser` và JWT validator (`platform/security`), audit log (annotation `@Audited` + `AuditAspect`, ghi bảng `audit_log` cùng transaction với thao tác, [ADR-0025](../04-adr/0025-audit-log-aop-same-transaction.md)), cấu hình OpenTelemetry và `BusinessMetrics`. `shared` (`Money`, `UserId`, `ProblemTypes`) cũng được khai báo shared trong `@Modulithic`.
 
-> **Đã cài đặt (P0.7):** `JarsApplication` có `@Modulithic(systemName = "Jars Platform", sharedModules = "platform")`; `platform/package-info.java` có `@ApplicationModule(displayName = "Platform (infrastructure)")`. `ModularityTests` gọi `verify()` ở mọi build và sinh diagram module vào `target/spring-modulith-docs` (`components.puml`).
+> **Đã cài đặt (P0.7):** `JarsApplication` có `@Modulithic(systemName = "Jars Platform", sharedModules = {"platform", "shared"})`; `platform/package-info.java` có `@ApplicationModule(displayName = "Platform (infrastructure)")`. `ModularityTests` gọi `verify()` ở mọi build và sinh diagram module vào `target/spring-modulith-docs` (`components.puml`).
 
 ## 3. Đồ thị phụ thuộc cho phép
 
 ```mermaid
 flowchart LR
     identity
-    ledger --> identity
     budgeting --> ledger
+    budgeting --> identity
     goals --> ledger
-    goals --> budgeting
-    insights -. "event: TransactionPosted" .-> ledger
-    budgeting -. "event: TransactionPosted" .-> ledger
-    notification -. "events" .-> insights
-    notification -. "events" .-> budgeting
-    notification -. "events" .-> imports
+    goals --> insights
+    insights --> ledger
     imports --> ledger
     advisor --> ledger
-    advisor --> budgeting
     advisor --> goals
     advisor --> insights
-    advisor --> identity
+    ledger -. "event: UserRegistered" .-> identity
+    budgeting -. "events: TransactionPosted, TransactionRecategorized" .-> ledger
+    insights -. "events: TransactionPosted, TransactionRecategorized, JarCreated" .-> ledger
+    notification -. "event: AnomalyDetected" .-> insights
+    notification -. "event: MonthClosed" .-> budgeting
+    notification -. "event: StatementImportCompleted" .-> imports
 ```
 
 Mũi tên liền là gọi API đồng bộ; mũi tên đứt là nghe event (mũi tên chỉ về **module phát** event). **Không được có vòng phụ thuộc.** Nếu A cần biết điều gì xảy ra ở B và B cũng cần A, thì một chiều phải chuyển thành event.

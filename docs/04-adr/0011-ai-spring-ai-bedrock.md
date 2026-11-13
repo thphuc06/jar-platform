@@ -1,6 +1,6 @@
 # ADR-0011: AI advisor bằng Spring AI + Amazon Bedrock trong jars-api; LLM không tự tính số
 
-- **Trạng thái:** Accepted
+- **Trạng thái:** Accepted. Phần rate limit (Bucket4j + Valkey) đã bị thay bởi [ADR-0023](0023-advisor-guardrail-and-rate-limit.md) (rate limit trong PostgreSQL, guardrail qua `ApplyGuardrail`); các quyết định còn lại vẫn có hiệu lực
 - **Ngày:** 2026-10-23
 
 ## Bối cảnh

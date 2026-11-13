@@ -34,7 +34,7 @@
 |---|---|
 | 400 | JSON sai cú pháp, sai kiểu dữ liệu |
 | 401 | Thiếu hoặc sai token |
-| 403 | Thiếu scope |
+| 403 | Chưa dùng ở MVP: API không kiểm tra scope, chỉ cần token hợp lệ và quyền sở hữu dữ liệu ([security.md §2](../02-architecture/security.md#2-phân-quyền-authorization)) |
 | 404 | Không tồn tại **hoặc không thuộc user** (chống IDOR) |
 | 409 | Xung đột đồng thời (version hoặc deadlock) còn lại sau khi đã retry tối đa 5 lần |
 | 422 | Sai quy tắc nghiệp vụ (validation, số dư, Idempotency-Key bị dùng lại với request khác) |
@@ -117,6 +117,12 @@
 |---|---|---|---|
 | GET | `/audit-log?action&entityType&limit&cursor` | Nhật ký thao tác của **chính người gọi**, mới nhất trước: `{items[{id, occurredAt, action, entityType, entityId, traceId, payload}], nextCursor}`. Người gọi lấy từ token nên không thể xem dòng của người khác; dòng của hệ thống (job khép sổ tháng) không thuộc về ai và không hiện. `action` là một trong `TRANSACTION_POSTED`, `JAR_TRANSFERRED`, `INCOME_ALLOCATED`, `TRANSACTION_RECATEGORIZED`, `JAR_CREATED`, `JAR_UPDATED`, `JAR_ARCHIVED`, `ALLOCATION_DECIDED`, `MONTH_CLOSED`, `GOAL_CREATED`, `GOAL_UPDATED`, `GOAL_ARCHIVED`, `PROFILE_UPDATED`, `RISK_PROFILE_SUBMITTED`, `IMPORT_CREATED`, `ANOMALY_FEEDBACK_GIVEN`; `entityType` là `TRANSACTION`, `JAR`, `GOAL`, `USER`, `RISK_ASSESSMENT`, `ALLOCATION_DECISION`, `STATEMENT_IMPORT`, `ANOMALY`. Giá trị lạ, `limit` ngoài 1–100 (mặc định 50) hay `cursor` sai: 400 problem+json; bộ lọc hợp lệ mà không khớp dòng nào: trang rỗng. `payload` là object nhỏ gồm id, số tiền dạng chuỗi và enum (khóa tùy `action`), không bao giờ có ghi chú, tên, email hay nội dung chat. Mỗi dòng được ghi cùng transaction với thay đổi nên không có dòng cho thao tác bị rollback hay request `Idempotency-Key` phát lại ([ADR-0025](../04-adr/0025-audit-log-aop-same-transaction.md)) | 3+ ✅ |
 
+### Health và công cụ local
+| Method | Path | Mô tả | Phase |
+|---|---|---|---|
+| GET | `/health` | **Công khai** (không cần token): `HealthResponse`, dùng cho smoke test qua CloudFront. Probe của ALB dùng `/actuator/health/readiness`, không phải endpoint này | 1 |
+| POST | `/dev/token` | **Chỉ chạy local** (profile `local` với `jars.security.local-dev-tokens=true`): cấp access token giả cho một `sub` để dev không cần Cognito. Không có trên AWS. Nằm ngoài `/api/v1` | 1 |
+
 ## 3. Hợp đồng SSE
 
 Dùng **`fetch` + ReadableStream** (ví dụ thư viện `@microsoft/fetch-event-source`). `EventSource` gốc của trình duyệt **không gửi được header `Authorization`** và chỉ hỗ trợ GET.
@@ -125,10 +131,10 @@ Dùng **`fetch` + ReadableStream** (ví dụ thư viện `@microsoft/fetch-event
 
 ```
 event: tool
-data: {"name":"getSpending","status":"started"}
+data: {"name":"getMonthlyCashflow","status":"started"}
 
 event: tool
-data: {"name":"getSpending","status":"done"}
+data: {"name":"getMonthlyCashflow","status":"done"}
 
 event: token
 data: {"text":"Tháng 10 bạn chi "}
@@ -169,9 +175,9 @@ data: {"id":"0193b2...","type":"ANOMALY","severity":"HIGH","title":"Hũ PLAY tă
 
 > Thiết kế này thay cho bản trước dùng trạng thái `IN_PROGRESS` và mã 409 `request-in-progress`: vì INSERT nằm trong transaction nghiệp vụ nên request đồng thời tự xếp hàng trên unique index, không cần trạng thái trung gian.
 
-## 5. Mapping màn hình UI → API
+## 5. Mapping màn hình UI → API (lịch sử, đã làm xong)
 
-UI hiện tại (`ius_financial_ui`) gọi thẳng Supabase. Bảng dưới đây là danh sách việc khi chuyển UI sang API mới (Phase 1–4).
+> **Đã hoàn thành ở Phase 1 (WP7).** `apps/web/src/api/*` gọi API qua client sinh từ OpenAPI, không còn Supabase. Bảng dưới là danh sách việc ban đầu khi chuyển UI của bản hackathon (`ius_financial_ui`, gọi thẳng Supabase) sang API mới; cột "Hook / lời gọi hiện tại" là của bản cũ. Giữ lại làm tài liệu tham chiếu.
 
 | Màn hình (file) | Hook / lời gọi hiện tại | API mới |
 |---|---|---|

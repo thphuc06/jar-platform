@@ -2,7 +2,7 @@
 
 Modular monolith **Java 21 · Spring Boot 4.1 · Spring Modulith 2.1**. Đây là backend chính của Jars Platform.
 
-> Trạng thái (2026-11-12): module `identity`, `ledger`, `insights`, `notification` đã chạy (xem [roadmap](../../docs/06-plan/roadmap.md)); ranh giới module kiểm tra bằng Spring Modulith, format bằng Spotless, coverage domain/service ≥ 80% bằng JaCoCo; Spring Boot **4.1.2** / Java 21; PostgreSQL 17 + Flyway (schema `jars`), OpenAPI commit ở `contracts/openapi`, Dockerfile arm64.
+> Trạng thái (2026-11-13): cả 8 module (`identity`, `ledger`, `budgeting`, `goals`, `insights`, `notification`, `advisor`, `imports`) đã chạy (xem [roadmap](../../docs/06-plan/roadmap.md)); ranh giới module kiểm tra bằng Spring Modulith, format bằng Spotless, coverage domain/service ≥ 80% bằng JaCoCo; Spring Boot **4.1.2** / Java 21; PostgreSQL 17 + Flyway (schema `jars`), OpenAPI commit ở `contracts/openapi`, Dockerfile arm64.
 
 ## Chạy nhanh
 
@@ -25,7 +25,7 @@ curl localhost:8080/actuator/health/readiness  # {"status":"UP"} (probe cho ALB/
 | `GET /actuator/health/liveness` | ECS container health | |
 | `GET /actuator/info` | Debug | Chỉ expose `health`, `info` |
 
-## Cấu trúc dự kiến
+## Cấu trúc
 
 ```
 apps/jars-api/
@@ -35,8 +35,8 @@ apps/jars-api/
 └── src/
     ├── main/java/io/github/thphuc06/jars/
     │   ├── JarsApplication.java
-    │   ├── platform/               # security, error handling, audit, observability config
-    │   ├── shared/                 # Money, UserId, ProblemTypes
+    │   ├── platform/               # security, error handling, idempotency, audit, observability config
+    │   ├── shared/                 # Money, UserId, KeysetCursor, Uuids, DomainException, ProblemTypes
     │   ├── identity/ ledger/ budgeting/ goals/ insights/
     │   └── notification/ advisor/ imports/
     ├── main/resources/
@@ -52,14 +52,14 @@ apps/jars-api/
 | Nhóm | Artifact |
 |---|---|
 | Web | `spring-boot-starter-webmvc`, `spring-boot-starter-validation` (Boot 4 tách starter theo module: `web` cũ nay là `webmvc`) |
-| Security | `spring-boot-starter-oauth2-resource-server` |
-| Data | `spring-boot-starter-data-jpa`, `spring-boot-starter-flyway`, `org.postgresql:postgresql`, `flyway-database-postgresql` |
-| Modulith | `spring-modulith-starter-core`, `spring-modulith-starter-jpa`, `spring-modulith-starter-test` |
-| AWS | `spring-cloud-aws-starter-sqs`, `-sns`, `-s3`, `-secrets-manager`, `spring-cloud-aws-modulith-events-sns` (P5), `software.amazon.awssdk:lambda` |
+| Security | `spring-boot-starter-security`, `spring-boot-starter-security-oauth2-resource-server` |
+| Data | `spring-boot-starter-jdbc`, `spring-boot-starter-data-jpa`, `spring-boot-starter-flyway`, `org.postgresql:postgresql` (runtime), `flyway-database-postgresql` |
+| Modulith | `spring-modulith-starter-core`, `spring-modulith-starter-jpa`, `spring-modulith-starter-test` (test) |
+| AWS | `spring-cloud-aws-starter-sqs`, `spring-cloud-aws-starter-s3` (không có SNS, Secrets Manager, Lambda) |
 | AI | `spring-ai-starter-model-bedrock-converse` |
-| Batch | `spring-boot-starter-batch` |
-| Ops | `spring-boot-starter-actuator`, `spring-boot-starter-opentelemetry` |
-| API docs | `springdoc-openapi-starter-webmvc-ui` (3.x, kiểm tra hỗ trợ Boot 4) |
-| Test | các starter `*-test` theo module (`spring-boot-starter-webmvc-test`, `-jdbc-test`, `-flyway-test`...), `spring-security-test`, `spring-boot-testcontainers`, `testcontainers` (postgresql, localstack), `archunit-junit5` |
+| Batch | `spring-boot-starter-batch-jdbc` |
+| Ops | `spring-boot-starter-actuator`, `spring-boot-starter-opentelemetry`, `spring-boot-starter-aspectj` (cho `@Audited`), `spring-boot-docker-compose` (runtime, optional, chạy `local/compose.yaml`) |
+| API docs | `springdoc-openapi-starter-webmvc-ui` (3.2.0) |
+| Test | các starter `*-test` theo module (`spring-boot-starter-webmvc-test`, `-jdbc-test`, `-data-jpa-test`, `-flyway-test`, `-security-test`...), `spring-boot-testcontainers`, `testcontainers-junit-jupiter`, `testcontainers-postgresql`. Không có LocalStack; ArchUnit đến qua Spring Modulith |
 
 Tài liệu: [modules](../../docs/02-architecture/modules.md) · [API contract](../../docs/03-api/api-contract.md) · [data model](../../docs/02-architecture/data-model.md).
