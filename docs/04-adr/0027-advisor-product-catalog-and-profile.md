@@ -106,7 +106,33 @@ Tạo một guardrail tạm theo đúng định nghĩa CDK (`bedrock create-guar
 Tổng hợp: 14 câu danh mục, trước 12 qua, sau 14 qua (sau thay thế; không có phép thay thế thì 12). 18 câu mua bán, trước chặn 11, sau chặn 13; 5 câu tiếng Việt chung chung vẫn lọt như trước. Câu nào cho cùng kết quả cả ba lần, nên số đo ở đây không cho thấy dao động của bộ phân loại, và cũng không chứng minh là không có. Vài ví dụ của định nghĩa mới nằm gần các câu thử (ví dụ vàng SJC, USD), nên các câu "câu mới" ở trên là số đo công bằng hơn.
 
 ## Kết quả chạy model thật ở local
-FINDINGS_PLACEHOLDER
+Chạy backend local (jar, PostgreSQL tạm ở cổng 5433, dữ liệu seed) với Bedrock thật (Haiku 4.5, `ap-southeast-1`) và guardrail tạm (đã xóa). Bốn persona tạo qua API (token dev): P1 thận trọng, 45-54, lương đều, dư 1 triệu/tháng, hũ chưa đủ; P2 cân bằng, 25-34, dư 10,5 triệu, mục tiêu du lịch 6 tháng và mua nhà 5 năm; P3 tăng trưởng, dưới 25, thu nhập không đều; P4 chưa có hồ sơ nào. Mỗi persona 5 đến 7 câu cố định (dư mỗi tháng, mục tiêu, vay tín chấp đầu tư quỹ cổ phiếu, lãi suất 12 tháng, mua cổ phiếu FPT, thêm 1 đến 2 câu riêng). Sáu vòng (r2 đến r7, khoảng 130 lượt gọi model; mỗi lần sửa prompt là một vòng); bản ghi từng lượt (câu hỏi, tool đã gọi, câu trả lời, token, độ trễ) nằm ngoài repo ở `demo/cloud/products/`.
+
+**Đã sửa qua các vòng:** (r2) model hỏi lại người dùng điều có sẵn ở tool và không gọi tool danh mục: thêm quy trình ba bước; dữ liệu persona lúc đầu sai (thu nhập chưa chia vào hũ) nên hũ âm vô lý, đã sửa dữ liệu. (r3) model đọc nhầm khoảng lãi trong `listProducts` ("6,60%" của kỳ 24 tháng) làm lãi 12 tháng: mô tả tool và prompt nói rõ danh sách không có lãi theo kỳ hạn, bắt buộc `getProductDetails`, thêm một ví dụ. (r5 đến r7) thêm "mọi lời khuyên có nhắc sản phẩm đều phải qua bước 2", "cấm tự tính ra số tiền", "chưa gọi `getProductDetails` trong lượt thì không nêu lãi suất", "chưa có hồ sơ thì không gợi ý quỹ, kể cả sau này".
+
+**Vòng cuối (r7), với prompt được giữ lại, 26 câu, 22 lượt đến model (4 câu mua cổ phiếu FPT bị guardrail chặn):**
+
+| Tiêu chí | Kết quả |
+|---|---|
+| Từ chối vay để đầu tư | Đúng 4/4 |
+| Hỏi mua cổ phiếu FPT | Bị guardrail chặn 4/4 trước khi tới model |
+| Lãi suất 12 tháng | 4/4 gọi `listProducts` rồi `getProductDetails`, số đúng (6,40 / 6,20 / 6,30 / 7,00%) |
+| Gọi tool dữ liệu user trước khi gợi ý | Mọi lượt tư vấn chung (dư mỗi tháng, mục tiêu, quỹ) gọi `getMonthlyCashflow`, `getJars`, `getGoals`, trừ hai câu của P2 (xem dưới) |
+| Tôn trọng ánh xạ rủi ro | Đúng ở các lượt có nhắc quỹ: P1 thận trọng không được gợi ý quỹ cổ phiếu; P3 tăng trưởng nhưng thu nhập không đều và hũ âm nên bị hạ xuống tiền gửi; P2 cân bằng được gợi ý quỹ cân bằng cho mục tiêu 5 năm và tiền gửi cho mục tiêu 6 tháng |
+| User chưa có hồ sơ (P4) | Khuyên hoàn tất hồ sơ ở 3 trong 4 câu tư vấn và không gợi ý sản phẩm đầu tư cụ thể; **sai** ở câu vay tín chấp (xem dưới) |
+| Gọi `getProductDetails` khi khuyên sản phẩm | Chỉ khi câu trả lời nêu sản phẩm cụ thể (P2 mục tiêu, mọi câu lãi suất). Các lượt "chưa nên đầu tư, hãy gửi tiết kiệm linh hoạt" của P1, P3, P4 không gọi tool danh mục và không nêu mã sản phẩm |
+
+**Câu trả lời tốt** (P2, mục tiêu): "Tiết kiệm Góp Đều Lục Bình (LBB-SAV-ACCUM) là lựa chọn tốt nhất [cho du lịch 6 tháng] ... Quỹ Lục Bình Cân bằng (LBF-BAL) phù hợp hơn [cho mua nhà 5 năm] ... lợi suất lịch sử 7 đến 16%/năm (không bảo đảm) ... quỹ có thể giảm 20-28% từ đỉnh trong năm xấu". Tốt về từ chối (P3, quỹ cổ phiếu): "quỹ cổ phiếu tăng trưởng chưa phù hợp với bạn ... hũ Thiết yếu đang âm ... Trước khi đầu tư, cần cân bằng lại các hũ ... xây quỹ khẩn cấp bằng tiền gửi linh hoạt".
+
+**Còn sai sau vòng cuối (không sửa tiếp, lợi ích giảm dần):**
+1. **Con số không có trong tool.** P4, vay tín chấp: "Lãi vay tín chấp thường cao (trên 10%/năm)" khi chưa gọi tool nào (danh mục ghi từ 14,5%); vòng trước là "khoảng 10-15%/năm". Dòng prompt "chưa gọi `getProductDetails` thì không nêu lãi suất" không đủ với Haiku. `Grounding` bỏ qua mọi số có "%" (có chủ đích), nên **không có gì bắt được một lãi suất bịa**; metric `jars.advisor.ungrounded` không ghi gì cho câu này. Cách chặt hơn (chưa làm): kiểm riêng các số cạnh "%" ở lượt có nhắc sản phẩm, hoặc ép gọi tool trước khi trả lời.
+2. **Gợi ý đầu tư cho user chưa có hồ sơ.** P4, cùng câu: "tiết kiệm dần ..., rồi mới đầu tư quỹ cổ phiếu bằng tiền của riêng mình", trái quy tắc "không gợi ý quỹ, kể cả sau này".
+3. **Tự tính số tiền.** Nhiều câu vẫn quy ra đồng hoặc cộng trừ (ví dụ "góp khoảng 9 triệu mỗi tháng", "khoảng 40 triệu cho 3 tháng chi tiêu") dù có cấm; số dưới 4 chữ số không bị `Grounding` kiểm. Ở vòng r5 có câu sai hẳn ("3 tháng chi tiêu khoảng 3 triệu").
+4. **Không gọi tool, hỏi lại user.** P2 "so sánh quỹ cân bằng và quỹ cổ phiếu" và "có nên vay mua nhà không": không gọi tool nào, hỏi lại điều có trong dữ liệu; các vòng trước hai câu này có gọi tool. Model dao động giữa các vòng ngay cả với cùng prompt.
+5. **Lời dẫn và Markdown.** Câu trả lời thường mở đầu bằng "Tôi sẽ xem tình hình ..." (dính vào đầu câu trả lời) và có lúc dùng `**`, dù prompt cấm cả hai (lỗi này có từ trước thay đổi).
+6. **Sai nhỏ.** Gọi kỳ 6 tháng của tiết kiệm góp đều là "5,80 đến 6,60%" (khoảng của cả sản phẩm); một lần (r5) coi 7,5 triệu ở hũ tiết kiệm dài hạn là "quỹ khẩn cấp đủ".
+
+**Chi phí token đo thật (usage của Bedrock).** Lượt không gọi tool: khoảng 6.300 đến 6.500 token vào. Lượt tư vấn đủ ba tool dữ liệu: khoảng 13.300 đến 13.500. Thêm `listProducts` và một lần `getProductDetails`: 25.000 đến 27.500; có lượt 38.000 khi model gọi `listProducts` hai lần. Trước thay đổi: khoảng 3.700 cho một lượt có tool. Token đi đâu (`count-tokens`): hướng dẫn tĩnh khoảng 800 lên khoảng 2.300; khối hồ sơ khoảng 320; định nghĩa hai tool mới +700; kết quả tool (danh sách khoảng 4.100, mỗi tờ 1.000 đến 2.100); và mỗi vòng tool gửi lại toàn bộ ngữ cảnh. Chưa bật prompt caching. Cách giảm còn lại: cache phần tĩnh khi vượt ngưỡng, hoặc thu nhỏ danh sách gọn (bỏ `profiles` hoặc `summary`, khoảng 1.000 đến 1.500 token) nhưng có thể làm model chọn sai; chưa làm.
 
 ## Xem lại khi
 Danh mục vượt khoảng 10.000 token ở dạng gọn hoặc có tài liệu dài (xem trên); bật prompt caching (khi phần tĩnh vượt ngưỡng của model); cần chặn đầu ra khuyến nghị cụ thể (bật denied topic ở đầu ra với `outputAction: NONE` để đo trước); hoặc tier Standard của guardrail cho tiếng Việt.
