@@ -284,6 +284,27 @@ class InsightsApiTest extends UserApiTestSupport {
     }
 
     @Test
+    void spendingBehaviour_aCategoryBelowItsUsualLevel_hasANegativeDifferenceAndPercentage() {
+        UserId user = newTestUser().id();
+        YearMonth now = YearMonth.now(VIETNAM);
+        setCategorySpend(user, CATEGORY_FOOD, now, "900000");
+        setCategorySpend(user, CATEGORY_FOOD, now.minusMonths(1), "1200000");
+        setCategorySpend(user, CATEGORY_FOOD, now.minusMonths(2), "1200000");
+        setCategorySpend(user, CATEGORY_TRANSPORT, now, "1000"); // far below: -99.8%
+        setCategorySpend(user, CATEGORY_TRANSPORT, now.minusMonths(1), "500000");
+        setCategorySpend(user, CATEGORY_TRANSPORT, now.minusMonths(2), "500000");
+
+        SpendingBehaviour b = insights.spendingBehaviour(user);
+
+        SpendingBehaviour.CategoryBehaviour food = b.categories().getFirst();
+        assertThat(food.spent()).isEqualTo(Money.vnd("900000"));
+        assertThat(food.usual()).isEqualTo(Money.vnd("1200000"));
+        assertThat(food.difference()).isEqualTo(Money.vnd("-300000"));
+        assertThat(food.changePercent()).isEqualTo(-25);
+        assertThat(b.categories().get(1).changePercent()).isEqualTo(-100); // -99.8 rounds to -100
+    }
+
+    @Test
     void spendingBehaviour_withoutAnyHistory_isEmpty() {
         SpendingBehaviour b = insights.spendingBehaviour(newTestUser().id());
 

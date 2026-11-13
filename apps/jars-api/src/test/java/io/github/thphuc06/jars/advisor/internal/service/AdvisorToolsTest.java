@@ -180,6 +180,26 @@ class AdvisorToolsTest extends UserApiTestSupport {
     }
 
     @Test
+    void getSpendingBehaviour_aCategoryBelowUsual_showsNegativeNumbers_andTheAnswerIsGrounded() {
+        TestUser user = newTestUser();
+        YearMonth now = YearMonth.now(VIETNAM);
+        addCategorySpend(user.id(), CATEGORY_FOOD, now, "900000");
+        addCategorySpend(user.id(), CATEGORY_FOOD, now.minusMonths(1), "1200000");
+        addCategorySpend(user.id(), CATEGORY_FOOD, now.minusMonths(2), "1200000");
+
+        JsonNode result = call("getSpendingBehaviour", user.id());
+
+        JsonNode food = result.get("categories").get(0);
+        assertThat(food.get("differenceVnd").asString()).isEqualTo("-300000");
+        assertThat(food.get("changePercent").isInt()).isTrue();
+        assertThat(food.get("changePercent").asInt()).isEqualTo(-25);
+        assertThat(Grounding.ungrounded(
+                        "Ăn uống mới 900.000 ₫, thấp hơn thường lệ 300.000 ₫ (giảm 25%), nhưng tháng chưa hết.",
+                        result.toString()))
+                .isEmpty();
+    }
+
+    @Test
     void theNewToolResultsMakeTheAmountsInAnAnswerGrounded_andPercentagesAreIgnored() {
         TestUser user = newTestUser();
         YearMonth now = YearMonth.now(VIETNAM);
