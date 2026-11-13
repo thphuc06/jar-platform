@@ -4,6 +4,9 @@ import io.github.thphuc06.jars.identity.internal.domain.RiskAssessment;
 import io.github.thphuc06.jars.identity.internal.domain.RiskLevel;
 import io.github.thphuc06.jars.identity.internal.domain.RiskQuestionnaire;
 import io.github.thphuc06.jars.identity.internal.persistence.RiskAssessmentRepository;
+import io.github.thphuc06.jars.platform.audit.Audit;
+import io.github.thphuc06.jars.platform.audit.AuditAction;
+import io.github.thphuc06.jars.platform.audit.Audited;
 import io.github.thphuc06.jars.shared.DomainException;
 import io.github.thphuc06.jars.shared.UserId;
 import java.time.Clock;
@@ -27,9 +30,11 @@ public class RiskProfileService {
     }
 
     @Transactional
+    @Audited(AuditAction.RISK_PROFILE_SUBMITTED)
     public RiskProfile submit(UserId userId, List<Integer> answers) {
         RiskQuestionnaire.Result result = RiskQuestionnaire.score(answers);
         RiskAssessment saved = assessments.save(new RiskAssessment(userId.value(), answers, result, clock.instant()));
+        Audit.entity(saved.getId()).with("score", saved.getScore()).with("riskLevel", saved.getRiskLevel());
         return toProfile(saved);
     }
 

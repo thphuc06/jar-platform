@@ -1,5 +1,8 @@
 package io.github.thphuc06.jars.budgeting.internal.persistence;
 
+import io.github.thphuc06.jars.platform.audit.Audit;
+import io.github.thphuc06.jars.platform.audit.AuditAction;
+import io.github.thphuc06.jars.platform.audit.Audited;
 import io.github.thphuc06.jars.shared.Money;
 import io.github.thphuc06.jars.shared.UserId;
 import io.github.thphuc06.jars.shared.Uuids;
@@ -7,6 +10,7 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.time.YearMonth;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.UUID;
@@ -71,13 +75,24 @@ public class JarPeriodStore {
                 .update();
     }
 
-    /** Closes the user's open records of the month and returns how many it closed; a closed record keeps its time. */
+    /**
+     * Closes the user's open records of the month and returns how many it closed; a closed record keeps its time.
+     * Audited here, where the month actually closes: the row is written only when something was closed, so a user
+     * whose month is already closed (a repeated job) leaves none. The actor is the system (no caller; a scheduled job).
+     */
     @Transactional(propagation = Propagation.MANDATORY)
+    @Audited(AuditAction.MONTH_CLOSED)
     public int closeAll(UserId user, LocalDate month, Instant now) {
-        return jdbc.sql("""
+        int closed = jdbc.sql("""
                         UPDATE jar_periods SET closed_at = ?
                         WHERE user_id = ? AND period_month = ? AND closed_at IS NULL
                         """).params(timestamp(now), user.value(), month).update();
+        if (closed == 0) {
+            Audit.unchanged();
+        } else {
+            Audit.entity(user.value()).with("month", YearMonth.from(month)).with("periodsClosed", closed);
+        }
+        return closed;
     }
 
     @Transactional(readOnly = true, propagation = Propagation.SUPPORTS)

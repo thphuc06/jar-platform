@@ -5,6 +5,9 @@ import io.github.thphuc06.jars.insights.internal.model.AnomalyStatus;
 import io.github.thphuc06.jars.insights.internal.persistence.AnomalyRepository;
 import io.github.thphuc06.jars.ledger.JarSummary;
 import io.github.thphuc06.jars.ledger.LedgerApi;
+import io.github.thphuc06.jars.platform.audit.Audit;
+import io.github.thphuc06.jars.platform.audit.AuditAction;
+import io.github.thphuc06.jars.platform.audit.Audited;
 import io.github.thphuc06.jars.shared.DomainException;
 import io.github.thphuc06.jars.shared.KeysetCursor;
 import io.github.thphuc06.jars.shared.Money;
@@ -87,12 +90,14 @@ public class AnomalyService {
 
     /** Records the user's verdict on one of their own alerts (404 for anyone else's). */
     @Transactional
+    @Audited(AuditAction.ANOMALY_FEEDBACK_GIVEN)
     public AnomalyView feedback(UserId userId, UUID anomalyId, String label) {
         AnomalyStatus verdict = parse(label);
         Anomaly anomaly = anomalies
                 .findByIdAndUserId(anomalyId, userId.value())
                 .orElseThrow(() -> DomainException.notFound("Cảnh báo"));
         anomaly.giveFeedback(verdict, clock.instant());
+        Audit.entity(anomaly.getId()).with("verdict", verdict);
         Map<UUID, String> jarNames =
                 ledger.jars(userId).stream().collect(Collectors.toMap(JarSummary::id, JarSummary::name));
         return view(anomaly, jarNames);

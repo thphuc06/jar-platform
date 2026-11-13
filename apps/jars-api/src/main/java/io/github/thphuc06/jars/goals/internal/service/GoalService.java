@@ -6,6 +6,10 @@ import io.github.thphuc06.jars.goals.internal.domain.GoalProblems;
 import io.github.thphuc06.jars.goals.internal.domain.GoalStatus;
 import io.github.thphuc06.jars.goals.internal.persistence.GoalRepository;
 import io.github.thphuc06.jars.ledger.LedgerApi;
+import io.github.thphuc06.jars.platform.audit.Audit;
+import io.github.thphuc06.jars.platform.audit.AuditAction;
+import io.github.thphuc06.jars.platform.audit.AuditEntry;
+import io.github.thphuc06.jars.platform.audit.Audited;
 import io.github.thphuc06.jars.shared.DomainException;
 import io.github.thphuc06.jars.shared.Money;
 import io.github.thphuc06.jars.shared.UserId;
@@ -15,6 +19,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.context.ApplicationEventPublisher;
@@ -80,6 +85,7 @@ public class GoalService {
     }
 
     @Transactional
+    @Audited(AuditAction.GOAL_CREATED)
     public GoalView create(UserId userId, CreateGoal cmd) {
         if (cmd.fundingJarId() != null) {
             requireOwnJar(userId, cmd.fundingJarId());
@@ -87,29 +93,42 @@ public class GoalService {
         Goal goal = goals.save(Goal.create(
                 userId.value(), cmd.name(), cmd.targetAmount(), cmd.targetDate(), cmd.fundingJarId(), today(), now()));
         events.publishEvent(new GoalCreated(Uuids.v7(), goal.getId(), userId, goal.target(), goal.getTargetDate()));
+        // the name is free text the user chose: not recorded
+        AuditEntry entry =
+                Audit.entity(goal.getId()).with("targetAmount", goal.target()).with("targetDate", goal.getTargetDate());
+        if (goal.getFundingJarId() != null) {
+            entry.with("fundingJarId", goal.getFundingJarId());
+        }
         return GoalView.of(goal);
     }
 
     @Transactional
+    @Audited(AuditAction.GOAL_UPDATED)
     public GoalView update(UserId userId, UUID goalId, UpdateGoal cmd) {
         Goal goal = require(userId, goalId);
         Instant now = now();
+        List<String> changed = new ArrayList<>();
         if (cmd.fundingJarId() != null) {
             requireOwnJar(userId, cmd.fundingJarId());
         }
         if (cmd.name() != null) {
             goal.rename(cmd.name(), now);
+            changed.add("name");
         }
         if (cmd.targetAmount() != null) {
             goal.changeTarget(cmd.targetAmount(), now);
+            changed.add("targetAmount");
         }
         if (cmd.targetDate() != null) {
             goal.changeTargetDate(cmd.targetDate(), today(), now);
+            changed.add("targetDate");
         }
         if (cmd.fundingJarId() != null) {
             goal.fundWith(cmd.fundingJarId(), now);
+            changed.add("fundingJarId");
         }
         if (cmd.status() != null) {
+            changed.add("status");
             switch (cmd.status()) {
                 case ACHIEVED -> goal.markAchieved(now);
                 case ACTIVE -> goal.reactivate(now);
@@ -118,12 +137,19 @@ public class GoalService {
                             GoalProblems.INVALID_GOAL, "Dùng DELETE /api/v1/goals/{id} để lưu trữ mục tiêu.");
             }
         }
+        // which fields changed and where the goal ended up, not the new name (free text)
+        Audit.entity(goal.getId())
+                .withCodes("changed", changed)
+                .with("targetAmount", goal.target())
+                .with("status", goal.getStatus());
         return GoalView.of(goal);
     }
 
     @Transactional
+    @Audited(AuditAction.GOAL_ARCHIVED)
     public void archive(UserId userId, UUID goalId) {
         require(userId, goalId).archive(now());
+        Audit.entity(goalId);
     }
 
     /** The caller's goal that is not archived, or 404. */

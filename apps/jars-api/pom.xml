@@ -145,6 +145,14 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-opentelemetry</artifactId>
         </dependency>
+        <!-- Spring AOP + AspectJ annotations for the audit aspect (ADR-0025). aspectjweaver already arrives through
+             spring-boot-starter-data-jpa (spring-aspects), but an aspect is a direct dependency of this code, so it is
+             declared here (Boot 4 renamed spring-boot-starter-aop to spring-boot-starter-aspectj); the resolved
+             versions do not change -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-aspectj</artifactId>
+        </dependency>
         <!-- dev only: `spring-boot:run` starts local/compose.yaml; excluded from the packaged jar -->
         <dependency>
             <groupId>org.springframework.boot</groupId>

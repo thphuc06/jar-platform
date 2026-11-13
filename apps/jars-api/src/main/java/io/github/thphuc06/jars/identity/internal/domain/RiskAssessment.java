@@ -49,6 +49,10 @@ public class RiskAssessment {
         this.assessedAt = assessedAt;
     }
 
+    public UUID getId() {
+        return id;
+    }
+
     public int getScore() {
         return score;
     }
