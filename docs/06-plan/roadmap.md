@@ -99,8 +99,9 @@ Ký hiệu: 👤 bạn tự làm (console, quyết định) · 🤖 làm cùng t
 
 - **Tách `insights-worker`:** SNS FIFO → SQS FIFO, `@Externalized`, inbox `processed_messages`, schema `insights` riêng.
 - [x] **Job đối soát `balance == SUM(entries)` hằng đêm** (13/11, code và test xong, **chưa deploy**): `ReconciliationService` trong module `ledger` (một câu SQL chỉ đọc, chỉ phát hiện và báo, không tự sửa số dư), queue riêng `jars-reconciliation` (retention 1 giờ) + DLQ, schedule `ledger-reconciliation` 02:30 giờ Việt Nam, gauge `jars.ledger.reconciliation.mismatches` và alarm trong `JarsApp`. **Trước lần deploy `JarsApp` kế tiếp phải `cdk deploy JarsMessaging`** (workflow `deploy-dev.yml` chỉ deploy `JarsApp`; thiếu queue thì listener không tìm thấy `jars-reconciliation`). Sau lần chạy đầu trên AWS cần kiểm metric có đúng không có dimension (`aws cloudwatch list-metrics --namespace Jars/Api`), nếu lệch thì alarm im lặng.
+- [x] **Audit log bằng AOP** (13/11, code và test xong, **chưa deploy**): bảng `audit_log` append-only (migration V11, trigger chặn `UPDATE`/`DELETE`/`TRUNCATE`), `@Audited` + aspect trong `platform.audit` ghi **cùng transaction** với nghiệp vụ (thứ tự advisor: transaction ngoài, audit trong; annotation nằm trong vòng retry và trong `action` của idempotency nên retry không nhân dòng và bản phát lại không thêm dòng), actor từ JWT hoặc `system`, `traceId`, payload chỉ có id/số tiền/enum, `GET /api/v1/audit-log` chỉ trả dòng của người gọi (keyset), `userId` trong MDC, luật ArchUnit chống đặt `@Audited` ngoài tầm với của proxy ([ADR-0025](../04-adr/0025-audit-log-aop-same-transaction.md)). Chưa audit: chat AI (không có actor và MDC trên thread SSE), từng dòng import.
 - **Resilience:** ECS native blue/green, game day, thử restore Aurora, Well-Architected Tool lần 1 và 2.
-- **Khác:** audit log bằng AOP, lab Kafka local, WAF rate-based rule, chuyển sang IAM user (ADR-0018).
+- **Khác:** lab Kafka local, WAF rate-based rule, chuyển sang IAM user (ADR-0018).
 
 ---
 

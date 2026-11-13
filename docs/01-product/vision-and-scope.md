@@ -43,7 +43,7 @@ Người trẻ Việt Nam (sinh viên, người mới đi làm) có thu nhập k
 | F11 | Khép sổ cuối tháng tự động (tổng kết, chuyển số dư sang tháng mới) | 1 |
 | F12 | Chat AI streaming, có tool calling vào dữ liệu thật của user và guardrails | 2 |
 | ~~F13~~ | ~~Tra cứu cổ phiếu VN + mô phỏng tối ưu danh mục~~ (đã bỏ, ADR-0024) | – |
-| F14 | Audit log: ai làm gì, lúc nào (chưa làm: backlog) | 3+ |
+| F14 | Audit log: ai làm gì, lúc nào; ghi bằng AOP trong cùng transaction với nghiệp vụ ([ADR-0025](../04-adr/0025-audit-log-aop-same-transaction.md)) (đã làm) | 3+ |
 
 ### Ngoài phạm vi (Out of scope) và lý do
 

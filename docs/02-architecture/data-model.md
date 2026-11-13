@@ -222,7 +222,7 @@ erDiagram
 | `allocation_decisions` (`user_id`, `idempotency_key`) UNIQUE | budgeting | Lưu user chấp nhận (`ACCEPTED`), sửa (`EDITED`) hay bỏ qua (`SKIPPED`) gợi ý phân bổ, kèm gợi ý và phần đã áp dụng (JSONB) để cải thiện gợi ý sau này. Unique theo khóa idempotency nên gửi lại cùng request không ghi dòng thứ hai và không cộng `planned_amount` hai lần |
 | `jar_periods` (`jar_id`, `period_month`) UNIQUE | budgeting | Kế hoạch và thực chi của hũ theo tháng. `planned_amount` cộng khi áp dụng một lần phân bổ; `spent_amount` cộng dồn (delta) từ `TransactionPosted` / `TransactionRecategorized`, nên chi tiêu chuyển sang hũ khác chỉ là delta âm và dương. Job khép sổ đặt `closed_at` (không bao giờ dời) và tạo dòng tháng sau |
 | `advisor_usage` (`user_id`, `window_kind`, `window_start`) PK, `count` | advisor | Rate limit trợ lý AI theo cửa sổ cố định giờ/ngày ([ADR-0023](../04-adr/0023-advisor-guardrail-and-rate-limit.md)); cửa sổ cũ của user bị xóa ở tin nhắn kế tiếp (V10) |
-| `audit_log` | platform | `actor`, `action`, `entity_type`, `entity_id`, `trace_id`, `payload JSONB` |
+| `audit_log` (`id` UUIDv7 PK, `occurred_at`, `actor`, `action`, `entity_type`, `entity_id`, `trace_id`, `payload JSONB`) | platform | Ai làm gì, lúc nào ([ADR-0025](../04-adr/0025-audit-log-aop-same-transaction.md), V11). Aspect `@Audited` ghi **một dòng** trong cùng transaction với thay đổi nghiệp vụ: rollback hay retry thua cuộc đua thì không còn dòng nào, request `Idempotency-Key` phát lại không thêm dòng. `actor` là user id (UUID dạng text) hoặc `system` cho job không có người gọi; `action` và `entity_type` là tên ổn định (`TRANSACTION_POSTED`, `JAR_TRANSFERRED`, `MONTH_CLOSED`... ); `trace_id` là `traceId` của log; `payload` chỉ có id, số tiền dạng chuỗi, enum, cờ, không bao giờ có ghi chú, tên, email, prompt hay nội dung LLM. **Append-only**: trigger từ chối `UPDATE`, `DELETE`, `TRUNCATE`; không có khóa ngoại |
 | `statement_import_errors` (`import_id`, `line_number`) PK, `reason` | imports | Các dòng sao kê bị bỏ qua và lý do (tiếng Việt, cho user xem). Ghi cùng transaction với chunk của nó, nên import chạy lại không ghi trùng (V9) |
 | `BATCH_*` | Spring Batch 6.0 (schema chép nguyên từ `spring-batch-core`, tạo bằng Flyway V9) | Metadata của job import: job instance theo `importId`, vị trí đọc trong `BATCH_STEP_EXECUTION_CONTEXT`, nhờ đó import thất bại chạy lại từ chunk cuối đã commit |
 | `SPRING_AI_CHAT_MEMORY` (tùy chọn) | advisor | Nếu dùng JDBC chat memory repository của Spring AI |
@@ -237,6 +237,7 @@ erDiagram
 | `notifications (user_id, read_at NULLS FIRST, created_at DESC)` | Danh sách thông báo chưa đọc |
 | `anomalies (user_id, status, detected_at DESC)` | Màn hình Alerts |
 | `users (cognito_sub)` UNIQUE | Map JWT → user |
+| `audit_log (actor, occurred_at DESC, id DESC)` | `GET /audit-log`: dòng của chính người gọi, mới nhất trước, keyset |
 
 ## 5. Khác gì so với `schema.sql` của bản hackathon?
 

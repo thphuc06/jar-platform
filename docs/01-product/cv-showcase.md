@@ -17,7 +17,7 @@ Mọi số dưới đây lấy từ một lần chạy thật, không phải ư�
 | Khởi động trên Fargate | `Started JarsApplication in 53,3 s` (0,5 vCPU, Aurora vừa resume từ paused) | CloudWatch Logs |
 | Dựng cả hệ thống | `JarsApp` lần đầu 18 phút (CloudFront VPC origin 9 phút là phần chậm nhất) + 4 phút đẩy web | CloudFormation events |
 | Aurora Serverless v2 | scale-to-zero: 0 ACU khi không dùng, lên tối đa 2 ACU khi app kết nối lần đầu | CloudWatch `ServerlessDatabaseCapacity` |
-| Tài liệu | 24 ADR, trong đó có những quyết định phải đổi vì thực tế khác thiết kế (Java 21 thay 25, không dùng Identity Center, CloudFront Function cho SPA fallback) | `docs/04-adr` |
+| Tài liệu | 25 ADR, trong đó có những quyết định phải đổi vì thực tế khác thiết kế (Java 21 thay 25, không dùng Identity Center, CloudFront Function cho SPA fallback) | `docs/04-adr` |
 
 **Bullet CV dùng được ngay** (tiếng Anh, chỉ gồm điều đã chạy thật):
 
@@ -75,7 +75,7 @@ Mọi số dưới đây lấy từ một lần chạy thật, không phải ư�
 - **AI có kiểm soát**: LLM chỉ diễn giải, số liệu do Java tính; guardrails; rate limit; streaming.
 - **Hạ tầng 100% bằng code** (CDK Java), CI/CD không dùng access key (OIDC), dựng lại toàn bộ trong khoảng 15 phút.
 - **Tối ưu chi phí có chủ đích**: khoảng $1/tháng khi teardown, scale-to-zero, có số liệu chi phí thật.
-- **Tài liệu như một team thật**: 24 ADR, Well-Architected review, runbook, threat model.
+- **Tài liệu như một team thật**: 25 ADR, Well-Architected review, runbook, threat model.
 
 ## 2. Những điểm "đắt giá" nhất cho CV (xếp theo mức nhà tuyển dụng ngân hàng/fintech VN quan tâm)
 
