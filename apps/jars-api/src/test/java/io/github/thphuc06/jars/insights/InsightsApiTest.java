@@ -11,6 +11,7 @@ import io.github.thphuc06.jars.shared.Uuids;
 import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.YearMonth;
 import java.time.ZoneId;
 import java.util.List;
@@ -18,7 +19,7 @@ import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 
-/** The read-only views the goals module (and later the advisor) use: monthly cashflow and open anomalies. */
+/** The read-only views the goals module and the advisor use: cashflow, open anomalies, spending behaviour. */
 class InsightsApiTest extends UserApiTestSupport {
 
     private static final ZoneId VIETNAM = ZoneId.of("Asia/Ho_Chi_Minh");
@@ -120,5 +121,263 @@ class InsightsApiTest extends UserApiTestSupport {
         assertThat(insights.openAnomalyCount(user)).isEqualTo(2);
         assertThat(insights.openAnomalyCount(other)).isEqualTo(1);
         assertThat(insights.openAnomalyCount(newTestUser().id())).isZero();
+    }
+
+    // --- openAnomalies ---
+
+    private void addAnomaly(
+            UserId user,
+            UUID jar,
+            String detector,
+            String direction,
+            String severity,
+            String amount,
+            String status,
+            Instant at) {
+        jdbc.sql("""
+                        INSERT INTO anomalies (id, user_id, jar_id, transaction_id, detector, direction, severity,
+                                               score, threshold, amount, status, detected_at)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, 9, 3.5, ?, ?, ?)
+                        """)
+                .params(
+                        Uuids.v7(),
+                        user.value(),
+                        jar,
+                        UUID.randomUUID(),
+                        detector,
+                        direction,
+                        severity,
+                        new BigDecimal(amount),
+                        status,
+                        java.time.OffsetDateTime.ofInstant(at, java.time.ZoneOffset.UTC))
+                .update();
+    }
+
+    private void setDetectorMean(UserId user, UUID jar, double mean) {
+        jdbc.sql("""
+                        INSERT INTO anomaly_detector_state (jar_id, user_id, sample_count, mean, updated_at)
+                        VALUES (?, ?, 12, ?, now())
+                        ON CONFLICT (jar_id) DO UPDATE SET sample_count = 12, mean = EXCLUDED.mean
+                        """).params(jar, user.value(), mean).update();
+    }
+
+    @Test
+    void openAnomalies_listsOpenOnesNewestFirst_withKindJarAndUsualLevel() {
+        TestUser user = newTestUser();
+        UUID nec = jarId(user.token(), "NEC");
+        UUID play = jarId(user.token(), "PLAY");
+        Instant now = Instant.now();
+        addAnomaly(user.id(), nec, "MAD", "UP", "HIGH", "1800000", "OPEN", now.minusSeconds(300));
+        addAnomaly(user.id(), play, "CUSUM", "UP", "MEDIUM", "250000", "OPEN", now.minusSeconds(100));
+        addAnomaly(user.id(), play, "CUSUM", "DOWN", "LOW", "20000", "OPEN", now.minusSeconds(500));
+        addAnomaly(user.id(), nec, "MAD", "UP", "HIGH", "9000000", "CONFIRMED", now); // already answered
+        setDetectorMean(user.id(), nec, 149_999.6);
+
+        List<OpenAnomaly> open = insights.openAnomalies(user.id(), 10);
+
+        assertThat(open)
+                .extracting(OpenAnomaly::kind)
+                .containsExactly(OpenAnomaly.Kind.DRIFT_UP, OpenAnomaly.Kind.SPIKE, OpenAnomaly.Kind.DRIFT_DOWN);
+        OpenAnomaly spike = open.get(1);
+        assertThat(spike.severity()).isEqualTo("HIGH");
+        assertThat(spike.amount()).isEqualTo(Money.vnd("1800000"));
+        assertThat(spike.usualAmount()).as("the detector's mean, whole VND").isEqualTo(Money.vnd("150000"));
+        assertThat(spike.detectedOn()).isEqualTo(LocalDate.now(VIETNAM));
+        assertThat(spike.jarName())
+                .isEqualTo(jdbc.sql("SELECT name FROM jars WHERE id = ?")
+                        .param(nec)
+                        .query(String.class)
+                        .single());
+        assertThat(open.getFirst().usualAmount())
+                .as("a jar without a baseline has none")
+                .isNull();
+    }
+
+    @Test
+    void openAnomalies_isCappedByTheLimit_andTheCountStaysTheTotal() {
+        TestUser user = newTestUser();
+        UUID nec = jarId(user.token(), "NEC");
+        for (int i = 0; i < 4; i++) {
+            addAnomaly(
+                    user.id(),
+                    nec,
+                    "MAD",
+                    "UP",
+                    "MEDIUM",
+                    "100000",
+                    "OPEN",
+                    Instant.now().minusSeconds(i * 10L));
+        }
+
+        assertThat(insights.openAnomalies(user.id(), 2)).hasSize(2);
+        assertThat(insights.openAnomalyCount(user.id())).isEqualTo(4);
+        assertThatThrownBy(() -> insights.openAnomalies(user.id(), 0)).isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void openAnomalies_neverShowsAnotherUsersAlerts() {
+        TestUser alice = newTestUser();
+        TestUser bob = newTestUser();
+        addAnomaly(alice.id(), jarId(alice.token(), "NEC"), "MAD", "UP", "HIGH", "1000000", "OPEN", Instant.now());
+
+        assertThat(insights.openAnomalies(bob.id(), 5)).isEmpty();
+        assertThat(insights.openAnomalies(alice.id(), 5)).hasSize(1);
+    }
+
+    // --- spendingBehaviour ---
+
+    private void setCategorySpend(UserId user, UUID category, YearMonth month, String spent) {
+        jdbc.sql("""
+                        INSERT INTO monthly_category_spend (user_id, category_id, month, spent, txn_count)
+                        VALUES (?, ?, ?, ?, 1)
+                        """)
+                .params(user.value(), category, month.atDay(1), new BigDecimal(spent))
+                .update();
+    }
+
+    @Test
+    void spendingBehaviour_comparesThisMonthWithTheAverageOfThePrecedingMonths() {
+        UserId user = newTestUser().id();
+        YearMonth now = YearMonth.now(VIETNAM);
+        setCategorySpend(user, CATEGORY_FOOD, now, "1800000");
+        setCategorySpend(user, CATEGORY_FOOD, now.minusMonths(1), "1000000");
+        setCategorySpend(user, CATEGORY_FOOD, now.minusMonths(2), "1500000");
+        setCategorySpend(user, CATEGORY_FOOD, now.minusMonths(3), "1100000");
+        setCategorySpend(user, CATEGORY_TRANSPORT, now, "300000");
+        setCategorySpend(user, CATEGORY_TRANSPORT, now.minusMonths(1), "600000");
+
+        SpendingBehaviour b = insights.spendingBehaviour(user);
+
+        assertThat(b.month()).isEqualTo(now);
+        assertThat(b.baselineMonths()).isEqualTo(3);
+        assertThat(b.comparable()).isTrue();
+        assertThat(b.categories())
+                .extracting(SpendingBehaviour.CategoryBehaviour::category)
+                .containsExactly("Ăn uống", "Di chuyển");
+        SpendingBehaviour.CategoryBehaviour food = b.categories().getFirst();
+        assertThat(food.spent()).isEqualTo(Money.vnd("1800000"));
+        assertThat(food.usual())
+                .as("(1.000.000 + 1.500.000 + 1.100.000) / 3, rounded")
+                .isEqualTo(Money.vnd("1200000"));
+        assertThat(food.difference()).isEqualTo(Money.vnd("600000"));
+        assertThat(food.changePercent()).isEqualTo(50);
+        SpendingBehaviour.CategoryBehaviour transport = b.categories().get(1);
+        assertThat(transport.usual())
+                .as("a month with other spending but none here counts as zero: (600.000 + 0 + 0) / 3")
+                .isEqualTo(Money.vnd("200000"));
+        assertThat(transport.changePercent()).isEqualTo(50);
+    }
+
+    @Test
+    void spendingBehaviour_reportsHowFarThroughTheMonthWeAre() {
+        UserId user = newTestUser().id();
+        YearMonth now = YearMonth.now(VIETNAM);
+        setCategorySpend(user, CATEGORY_FOOD, now, "100000");
+
+        SpendingBehaviour b = insights.spendingBehaviour(user);
+
+        assertThat(b.dayOfMonth()).isEqualTo(LocalDate.now(VIETNAM).getDayOfMonth());
+        assertThat(b.daysInMonth()).isEqualTo(now.lengthOfMonth());
+        assertThat(b.categories().getFirst().spent())
+                .as("this month's figure is as recorded, not scaled up to a whole month")
+                .isEqualTo(Money.vnd("100000"));
+    }
+
+    @Test
+    void spendingBehaviour_withoutAnyHistory_isEmpty() {
+        SpendingBehaviour b = insights.spendingBehaviour(newTestUser().id());
+
+        assertThat(b.baselineMonths()).isZero();
+        assertThat(b.comparable()).isFalse();
+        assertThat(b.categories()).isEmpty();
+    }
+
+    @Test
+    void spendingBehaviour_withOneEarlierMonthOnly_offersNoUsualLevel() {
+        UserId user = newTestUser().id();
+        YearMonth now = YearMonth.now(VIETNAM);
+        setCategorySpend(user, CATEGORY_FOOD, now, "500000");
+        setCategorySpend(user, CATEGORY_FOOD, now.minusMonths(1), "400000");
+
+        SpendingBehaviour b = insights.spendingBehaviour(user);
+
+        assertThat(b.baselineMonths()).isEqualTo(1);
+        assertThat(b.comparable()).isFalse();
+        assertThat(b.categories()).singleElement().satisfies(c -> {
+            assertThat(c.spent()).isEqualTo(Money.vnd("500000"));
+            assertThat(c.usual()).isNull();
+            assertThat(c.difference()).isNull();
+            assertThat(c.changePercent()).isNull();
+        });
+    }
+
+    @Test
+    void spendingBehaviour_aCategoryWithoutHistory_hasZeroUsualAndNoPercentage() {
+        UserId user = newTestUser().id();
+        YearMonth now = YearMonth.now(VIETNAM);
+        setCategorySpend(user, CATEGORY_TRANSPORT, now.minusMonths(1), "600000");
+        setCategorySpend(user, CATEGORY_TRANSPORT, now.minusMonths(2), "600000");
+        setCategorySpend(user, CATEGORY_FOOD, now, "250000"); // never spent on food before
+
+        SpendingBehaviour b = insights.spendingBehaviour(user);
+
+        assertThat(b.comparable()).isTrue();
+        assertThat(b.categories()).singleElement().satisfies(c -> {
+            assertThat(c.category()).isEqualTo("Ăn uống");
+            assertThat(c.usual()).isEqualTo(Money.vnd("0"));
+            assertThat(c.difference()).isEqualTo(Money.vnd("250000"));
+            assertThat(c.changePercent()).isNull();
+        });
+    }
+
+    @Test
+    void spendingBehaviour_monthsWithoutAnySpendingAreNotCountedAsZero() {
+        UserId user = newTestUser().id();
+        YearMonth now = YearMonth.now(VIETNAM);
+        setCategorySpend(user, CATEGORY_FOOD, now, "920000");
+        setCategorySpend(user, CATEGORY_FOOD, now.minusMonths(1), "600000");
+        // nothing two months ago: the app was not in use
+        setCategorySpend(user, CATEGORY_FOOD, now.minusMonths(3), "1000000");
+        setCategorySpend(user, CATEGORY_FOOD, now.minusMonths(4), "50000000"); // older than the window
+
+        SpendingBehaviour b = insights.spendingBehaviour(user);
+
+        assertThat(b.baselineMonths()).isEqualTo(2);
+        assertThat(b.categories().getFirst().usual()).isEqualTo(Money.vnd("800000"));
+        assertThat(b.categories().getFirst().changePercent()).isEqualTo(15); // 120.000 / 800.000
+    }
+
+    @Test
+    void spendingBehaviour_listsAtMostEightCategories_largestFirst_andNamesTheUncategorised() {
+        UserId user = newTestUser().id();
+        YearMonth now = YearMonth.now(VIETNAM);
+        setCategorySpend(user, new UUID(0L, 0L), now, "999000000");
+        for (int i = 1; i <= 9; i++) {
+            setCategorySpend(user, UUID.randomUUID(), now, i + "000");
+        }
+
+        SpendingBehaviour b = insights.spendingBehaviour(user);
+
+        assertThat(b.categories()).hasSize(InsightsApi.MAX_CATEGORIES);
+        assertThat(b.categories().getFirst().category()).isEqualTo("Chưa phân loại");
+        assertThat(b.categories().get(1).category()).isEqualTo("Danh mục khác");
+        assertThat(b.categories().getLast().spent()).as("the smallest is cut").isEqualTo(Money.vnd("3000"));
+    }
+
+    @Test
+    void spendingBehaviour_neverMixesInAnotherUsersSpending() {
+        UserId alice = newTestUser().id();
+        UserId bob = newTestUser().id();
+        YearMonth now = YearMonth.now(VIETNAM);
+        setCategorySpend(alice, CATEGORY_FOOD, now.minusMonths(1), "700000");
+        setCategorySpend(alice, CATEGORY_FOOD, now.minusMonths(2), "700000");
+        setCategorySpend(bob, CATEGORY_FOOD, now, "10000");
+
+        SpendingBehaviour b = insights.spendingBehaviour(bob);
+
+        assertThat(b.baselineMonths()).isZero();
+        assertThat(b.categories())
+                .singleElement()
+                .satisfies(c -> assertThat(c.spent()).isEqualTo(Money.vnd("10000")));
     }
 }

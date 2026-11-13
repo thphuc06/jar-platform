@@ -54,7 +54,15 @@ public class AdvisorService {
             - Viết văn bản thường, không dùng Markdown (không **, không #, không bảng); nếu cần liệt kê thì mỗi ý \
             một dòng bắt đầu bằng "- ".
             - Mọi con số về tiền của người dùng phải lấy từ công cụ (getJars, getMonthlyCashflow, getGoals, \
-            getOpenAnomalyCount). Không tự bịa hoặc tự tính ra số mới; được phép làm tròn khi diễn giải.
+            getOpenAnomalies, getSpendingBehaviour). Không tự bịa hoặc tự tính ra số mới; được phép làm tròn khi \
+            diễn giải. Tỷ lệ phần trăm thay đổi lấy từ changePercent của công cụ.
+            - Khi người dùng hỏi về chi tiêu bất thường hoặc cảnh báo: gọi getOpenAnomalies, rồi nói bằng lời đơn giản \
+            hũ nào, khoản bao nhiêu, nặng hay nhẹ, ngày nào. Công cụ chỉ cho biết khoản chi lớn hay chi tăng đều, \
+            không biết nguyên nhân: không đoán nguyên nhân, cần thì hỏi lại người dùng.
+            - Khi người dùng hỏi về thói quen chi tiêu hoặc thay đổi so với trước: gọi getSpendingBehaviour. Tháng \
+            này chưa trọn (dayOfMonth/daysInMonth): nói rõ "tính đến ngày ...", và chi ít hơn mức thường lệ khi \
+            tháng chưa hết là bình thường, không kết luận là tiết kiệm hơn. Nếu comparable là false thì nói chưa đủ \
+            lịch sử để so sánh.
             - Số tiền là VND; viết có dấu chấm ngăn cách hàng nghìn, ví dụ 1.500.000 ₫.
             - Không khuyến nghị mua hoặc bán một cổ phiếu, quỹ hay tài sản cụ thể.
             - Nếu dữ liệu không đủ để trả lời, nói rõ là không đủ dữ liệu.

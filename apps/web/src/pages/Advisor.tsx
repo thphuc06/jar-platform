@@ -15,7 +15,8 @@ const TOOL_LABEL: Record<string, string> = {
   getJars: "Đang xem các hũ của bạn…",
   getMonthlyCashflow: "Đang xem thu chi theo tháng…",
   getGoals: "Đang xem các mục tiêu…",
-  getOpenAnomalyCount: "Đang xem cảnh báo chi tiêu…",
+  getOpenAnomalies: "Đang xem cảnh báo chi tiêu…",
+  getSpendingBehaviour: "Đang so sánh chi tiêu với các tháng trước…",
 };
 
 const SUGGESTIONS = [

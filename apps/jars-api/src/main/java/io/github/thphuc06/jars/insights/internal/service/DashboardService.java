@@ -130,7 +130,7 @@ public class DashboardService {
                     boolean none = ReadModelWriter.UNCATEGORIZED.equals(id);
                     return new CategorySpend(
                             none ? null : id,
-                            none ? "Chưa phân loại" : names.getOrDefault(id, "Danh mục khác"),
+                            categoryName(id, names),
                             new Money(rs.getBigDecimal("spent"), Money.VND),
                             rs.getInt("txn_count"));
                 })
@@ -138,6 +138,11 @@ public class DashboardService {
         result.sort(
                 Comparator.comparing((CategorySpend c) -> c.spent().amount()).reversed());
         return result;
+    }
+
+    /** The name shown for a read-model category id: the all-zero id stands for "no category". */
+    static String categoryName(UUID id, Map<UUID, String> names) {
+        return ReadModelWriter.UNCATEGORIZED.equals(id) ? "Chưa phân loại" : names.getOrDefault(id, "Danh mục khác");
     }
 
     private Map<String, MonthFlow> trendFlows(UUID user, YearMonth month) {
