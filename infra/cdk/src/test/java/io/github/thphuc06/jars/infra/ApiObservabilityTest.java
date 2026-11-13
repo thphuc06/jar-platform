@@ -106,6 +106,41 @@ class ApiObservabilityTest {
     }
 
     @Test
+    void ledgerReconciliationAlarmWatchesTheLastRunsMismatchGaugeInTheJarsApiNamespace() {
+        template.hasResourceProperties(
+                "AWS::CloudWatch::Alarm",
+                like(
+                        "AlarmName", "jars-dev-ledger-reconciliation-mismatches",
+                        "Namespace", "Jars/Api",
+                        "MetricName", "jars.ledger.reconciliation.mismatches",
+                        "Statistic", "Maximum",
+                        "Period", 300,
+                        "ComparisonOperator", "GreaterThanThreshold",
+                        "Threshold", 0,
+                        "EvaluationPeriods", 1,
+                        "DatapointsToAlarm", 1,
+                        // the task is replaced or destroyed between runs: no data must not keep the alarm in ALARM
+                        "TreatMissingData", "notBreaching"));
+        Map<String, Object> alarm = properties(template, "AWS::CloudWatch::Alarm").stream()
+                .filter(a -> "jars-dev-ledger-reconciliation-mismatches".equals(a.get("AlarmName")))
+                .findFirst()
+                .orElseThrow();
+        // EMF publishes the untagged gauge without dimensions, and the alarm must name exactly the same set
+        assertThat(alarm).doesNotContainKey("Dimensions");
+        // routed to the existing alarm topic of JarsFoundation
+        assertThat(alarm.get("AlarmActions").toString()).contains("JarsFoundation:ExportsOutputRef");
+    }
+
+    @Test
+    void ledgerReconciliationMetricPassesTheCollectorsJarsFilterAndTheAlarmsMetricNameIsTheApplicationsOne() {
+        String config = collectorConfig();
+        // the collector drops every metric whose name does not match ^jars.
+        assertThat(config).contains("not IsMatch(name, \"^jars\\\\.\")");
+        assertThat(ApiObservability.RECONCILIATION_MISMATCHES_METRIC).matches("^jars\\..*");
+        assertThat(ApiObservability.RECONCILIATION_MISMATCHES_METRIC).isEqualTo("jars.ledger.reconciliation.mismatches");
+    }
+
+    @Test
     void oneDashboardNamedAfterTheEnvironment() {
         template.resourceCountIs("AWS::CloudWatch::Dashboard", 1);
         template.hasResourceProperties("AWS::CloudWatch::Dashboard", like("DashboardName", "jars-dev"));

@@ -86,6 +86,7 @@ class AppStackTest {
                         "JARS_ISSUER_URI",
                         "JARS_ALLOWED_CLIENT_IDS",
                         "JARS_JOBS_QUEUE",
+                        "JARS_RECONCILIATION_QUEUE",
                         "JARS_IMPORTS_BUCKET",
                         "JARS_IMPORTS_QUEUE",
                         "JARS_GUARDRAIL_ID",
@@ -97,6 +98,7 @@ class AppStackTest {
         assertThat(environment).containsEntry("JARS_IMPORTS_QUEUE", "jars-imports");
         assertThat(environment).containsEntry("SPRING_PROFILES_ACTIVE", "aws");
         assertThat(environment).containsEntry("JARS_JOBS_QUEUE", "jars-jobs");
+        assertThat(environment).containsEntry("JARS_RECONCILIATION_QUEUE", "jars-reconciliation");
         assertThat(environment).containsEntry("JAVA_TOOL_OPTIONS", "-XX:MaxRAMPercentage=75");
         // token-bearing values are serialized with their Fn::Join parts, enough to check the shape
         assertThat(environment.get("SPRING_DATASOURCE_URL"))
@@ -232,7 +234,7 @@ class AppStackTest {
     // ---- IAM ----
 
     @Test
-    void taskRoleMayConsumeItsTwoQueuesAndUseTheUploadPrefixOfTheStatementsBucket_andNothingElse() {
+    void taskRoleMayConsumeItsThreeQueuesAndUseTheUploadPrefixOfTheStatementsBucket_andNothingElse() {
         template.hasResourceProperties("AWS::IAM::Role", like("RoleName", "jars-dev-api-task"));
         List<Map<String, Object>> statements = statementsOfPolicyFor("ApiTaskRoleDefaultPolicy");
         List<String> consume = List.of(
@@ -241,7 +243,7 @@ class AppStackTest {
                 "sqs:GetQueueAttributes",
                 "sqs:GetQueueUrl",
                 "sqs:ReceiveMessage");
-        assertThat(statements).hasSize(3);
+        assertThat(statements).hasSize(4);
         assertThat(statements).allSatisfy(s -> assertThat(s).containsEntry("Effect", "Allow"));
 
         Map<String, Object> jobs = statements.get(0);
@@ -265,6 +267,22 @@ class AppStackTest {
         assertThat(imports)
                 .containsEntry("Action", consume)
                 .containsEntry("Resource", "arn:aws:sqs:ap-southeast-1:626212071763:jars-imports");
+
+        Map<String, Object> reconciliation = statements.stream()
+                .filter(s -> "ConsumeReconciliationQueue".equals(s.get("Sid")))
+                .findFirst()
+                .orElseThrow();
+        assertThat(reconciliation)
+                .containsEntry("Action", consume)
+                .containsEntry("Resource", "arn:aws:sqs:ap-southeast-1:626212071763:jars-reconciliation");
+    }
+
+    @Test
+    void reconciliationQueueIsReachedByNameSoJarsAppImportsNothingNewFromJarsMessaging() {
+        // a new cross-stack export would break "cdk deploy JarsApp --exclusively" until JarsMessaging is deployed
+        // (StableExportsTest): the queue name and ARN are built from the fixed name instead
+        String json = template.toJSON().toString();
+        assertThat(json).doesNotContain("ExportsOutputFnGetAttReconciliation").doesNotContain("JarsMessaging:ExportsOutputFnGetAttReconciliation");
     }
 
     @Test

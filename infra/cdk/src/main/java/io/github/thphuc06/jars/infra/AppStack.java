@@ -531,6 +531,20 @@ public final class AppStack extends Stack {
                 .resources(List.of("arn:" + getPartition() + ":sqs:" + getRegion() + ":" + getAccount() + ":"
                         + MessagingStack.IMPORTS_QUEUE_NAME))
                 .build());
+        // Nightly ledger reconciliation. By name, like the imports queue: the queue has a fixed name, so JarsApp needs no
+        // new export from JarsMessaging (StableExportsTest).
+        taskRole.addToPolicy(PolicyStatement.Builder.create()
+                .sid("ConsumeReconciliationQueue")
+                .effect(Effect.ALLOW)
+                .actions(List.of(
+                        "sqs:ReceiveMessage",
+                        "sqs:DeleteMessage",
+                        "sqs:ChangeMessageVisibility",
+                        "sqs:GetQueueAttributes",
+                        "sqs:GetQueueUrl"))
+                .resources(List.of("arn:" + getPartition() + ":sqs:" + getRegion() + ":" + getAccount() + ":"
+                        + MessagingStack.RECONCILIATION_QUEUE_NAME))
+                .build());
         Validations.of(taskRole)
                 .acknowledge(Acknowledgment.builder()
                         .id("AwsSolutions-IAM5[Resource::arn:aws:s3:::" + statementsBucket + "/uploads/*]")
@@ -604,6 +618,7 @@ public final class AppStack extends Stack {
                                         spaClient.getUserPoolClientId() + ","
                                                 + auth.smokeClient().getUserPoolClientId()),
                                 Map.entry("JARS_JOBS_QUEUE", MessagingStack.JOBS_QUEUE_NAME),
+                                Map.entry("JARS_RECONCILIATION_QUEUE", MessagingStack.RECONCILIATION_QUEUE_NAME),
                                 Map.entry("JARS_IMPORTS_BUCKET", DataStack.statementsBucketName(cfg, getAccount())),
                                 Map.entry("JARS_IMPORTS_QUEUE", MessagingStack.IMPORTS_QUEUE_NAME),
                                 Map.entry("JARS_GUARDRAIL_ID", guardrail.id()),
