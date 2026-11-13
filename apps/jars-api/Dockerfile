@@ -19,7 +19,10 @@ COPY src src
 RUN --mount=type=cache,target=/root/.m2 ./mvnw -B -q -DskipTests -Dspotless.check.skip=true -Djacoco.skip=true package \
     && java -Djarmode=tools -jar target/jars-api-*.jar extract --layers --launcher --destination /layers
 
-FROM eclipse-temurin:21-jre AS runtime
+# A full JDK, not the -jre image: eclipse-temurin:21-jre is a trimmed runtime without the jdk.random module, so
+# RandomGeneratorFactory.of("L64X128MixRandom") (goals simulation) fails there with "No implementation of the random
+# number generator algorithm". A jlink'd runtime would need a RUN step on the target platform (QEMU on an x86 build host).
+FROM eclipse-temurin:21-jdk AS runtime
 WORKDIR /app
 # dependencies change rarely, application code often: separate layers keep image pushes small
 COPY --from=build /layers/dependencies/ ./
