@@ -34,8 +34,12 @@ import software.constructs.Construct;
  */
 public final class FoundationStack extends Stack {
 
-    /** The only GitHub OIDC subject allowed to assume the deploy role. No wildcards (ADR-0016). */
-    public static final String GITHUB_SUBJECT = "repo:thphuc06/jar-platform:ref:refs/heads/main";
+    /**
+     * The only GitHub OIDC subject allowed to assume the deploy role. No wildcards (ADR-0016). The repository uses
+     * GitHub's immutable subject format, owner and repository with their numeric ids, so a repository re-created later
+     * under the same name cannot assume the role; the name-only format was rejected on the first workflow run.
+     */
+    public static final String GITHUB_SUBJECT = "repo:thphuc06@185325027/jar-platform@1431052736:ref:refs/heads/main";
 
     private static final String GITHUB_ISSUER = "token.actions.githubusercontent.com";
 

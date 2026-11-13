@@ -151,7 +151,7 @@ class GuardrailTest {
                 Map<String, Object> equals = (Map<String, Object>) condition.get("StringEquals");
                 assertThat(equals)
                         .containsEntry(
-                                "token.actions.githubusercontent.com:sub", "repo:thphuc06/jar-platform:ref:refs/heads/main")
+                                "token.actions.githubusercontent.com:sub", "repo:thphuc06@185325027/jar-platform@1431052736:ref:refs/heads/main")
                         .containsEntry("token.actions.githubusercontent.com:aud", "sts.amazonaws.com");
             }
         }

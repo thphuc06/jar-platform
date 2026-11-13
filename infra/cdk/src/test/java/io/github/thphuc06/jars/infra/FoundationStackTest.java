@@ -71,7 +71,7 @@ class FoundationStackTest {
                 "StringEquals",
                 map(
                         "token.actions.githubusercontent.com:aud", "sts.amazonaws.com",
-                        "token.actions.githubusercontent.com:sub", "repo:thphuc06/jar-platform:ref:refs/heads/main"));
+                        "token.actions.githubusercontent.com:sub", "repo:thphuc06@185325027/jar-platform@1431052736:ref:refs/heads/main"));
         template.hasResourceProperties(
                 "AWS::IAM::Role",
                 like(
