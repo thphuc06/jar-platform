@@ -35,7 +35,7 @@ Nguyên tắc **least privilege**: không dùng `*` ở resource, trừ khi API 
 |---|---|---|
 | `jars-dev-api-exec` (execution role) | ECS agent | `ecr:GetAuthorizationToken` (`Resource: *` vì IAM không hỗ trợ resource-level cho action này); `ecr:BatchCheckLayerAvailability`, `ecr:BatchGetImage`, `ecr:GetDownloadUrlForLayer` trên repo `jars/jars-api`; `logs:CreateLogStream`, `logs:PutLogEvents` trên log group `/jars/dev/api`; `secretsmanager:GetSecretValue`, `secretsmanager:DescribeSecret` trên secret DB |
 | `jars-dev-api-task` (task role) | Code của jars-api | `bedrock:InvokeModel`, `bedrock:InvokeModelWithResponseStream` trên ARN inference profile + foundation model đã chọn; `bedrock:ApplyGuardrail` trên guardrail; `sqs:ReceiveMessage`, `sqs:DeleteMessage`, `sqs:ChangeMessageVisibility`, `sqs:GetQueueAttributes`, `sqs:GetQueueUrl` (app cấu hình theo tên queue nên Spring Cloud AWS phải tra URL) trên các queue của API; `sns:Publish` trên topic ledger; `s3:PutObject` (để ký presigned URL) + `s3:GetObject` trên `jars-dev-statements-<account>/uploads/*` (đã cài ở Phase 2 WP3, cùng quyền consume `jars-imports`) |
-| `jars-dev-worker-task` (Phase 5) | insights-worker | Nhận và xóa message trên `jars-insights-ledger.fifo`; publish lên `jars-insights-events.fifo` |
+| `jars-dev-worker-task` (Phase 3+, backlog; chưa có) | insights-worker | Nhận và xóa message trên `jars-insights-ledger.fifo`; publish lên `jars-insights-events.fifo` |
 | `jars-dev-github-deploy` | GitHub Actions qua OIDC | Trust policy chỉ chấp nhận `StringEquals` với `token.actions.githubusercontent.com:sub = repo:thphuc06@185325027/jar-platform@1431052736:ref:refs/heads/main` và `aud = sts.amazonaws.com` (không wildcard, không environment). Repo dùng định dạng subject bất biến của GitHub (có id số của owner và repo), nên một repo tạo lại cùng tên không assume được role. Quyền: (1) `sts:AssumeRole` trên 4 role bootstrap của CDK (`cdk-hnb659fds-deploy-role`, `-file-publishing-role`, `-image-publishing-role`, `-lookup-role`) của đúng account và region này; (2) policy riêng `GitHubDeployRuntimePolicy` cho việc làm ngoài CloudFormation: push image vào **đúng repo** `jars/jars-api` (+ `ecr:GetAuthorizationToken`), `cloudformation:DescribeStacks` trên stack `Jars*`, `elasticloadbalancing:DescribeLoadBalancers` (smoke test kiểm ALB internal); (3) policy trong `JarsAuth`: `AdminCreateUser/SetUserPassword/InitiateAuth/DeleteUser` trên **đúng user pool** cho user tạm của smoke test. Workflow chỉ deploy `JarsApp` (`--exclusively`), không đụng stack chứa chính role này |
 | `jars-dev-scheduler` | EventBridge Scheduler (kèm điều kiện `aws:SourceAccount`) | `sqs:SendMessage` trên `jars-jobs` và trên `jars-jobs-scheduler-dlq` (DLQ cho lần gửi lỗi của schedule) |
 
@@ -46,8 +46,8 @@ Nguyên tắc **least privilege**: không dùng `*` ở resource, trừ khi API 
 Xem [aws-infrastructure.md §3](aws-infrastructure.md#3-network-vpc).
 - ALB **internal**, chỉ nhận traffic từ CloudFront (VPC origin).
 - Task nhận inbound **chỉ từ SG của ALB** (dù task có IP public).
-- DB và cache nằm ở subnet không có route ra internet.
-- Aurora bắt buộc TLS (`rds.force_ssl=1`); Valkey Serverless dùng TLS mặc định.
+- DB nằm ở subnet không có route ra internet.
+- Aurora bắt buộc TLS (`rds.force_ssl=1`).
 
 ## 5. Secret và cấu hình
 
@@ -85,7 +85,7 @@ Xem [aws-infrastructure.md §3](aws-infrastructure.md#3-network-vpc).
 | **T**ampering | Sửa `jarId` của người khác trong body | Kiểm tra quyền sở hữu ở service; trả 404 |
 | **R**epudiation | "Tôi không tạo giao dịch này" | `audit_log` + `traceId` + CloudTrail cho thao tác hạ tầng |
 | **I**nformation disclosure | Gọi thẳng ALB, bỏ qua CloudFront | ALB internal, SG chỉ cho phép CloudFront prefix list |
-| **D**enial of service | Spam endpoint chat | Rate limit; (Phase 6) AWS WAF rate-based rule |
+| **D**enial of service | Spam endpoint chat | Rate limit trong PostgreSQL (ADR-0023); AWS WAF rate-based rule (backlog Phase 3+) |
 | **E**levation of privilege | Prompt injection khiến AI gọi tool với `userId` khác | Tool bỏ qua mọi `userId` do LLM truyền vào, chỉ dùng security context |
 
 ## 8. Sự cố của repo cũ (hackathon) và việc cần làm

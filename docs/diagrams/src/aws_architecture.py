@@ -1,4 +1,6 @@
-"""Target AWS architecture of Jars Platform (end of Phase 5).
+"""Target AWS architecture of Jars Platform (original design, incl. the Phase 3+ backlog).
+
+Not built yet: insights-worker, SNS/SQS FIFO and the Valkey cache (rate limit lives in PostgreSQL, ADR-0023).
 
 Render: see docs/diagrams/README.md
 """
@@ -20,7 +22,7 @@ OUT = Path(__file__).resolve().parent.parent / "aws-architecture"
 
 graph_attr = {"fontsize": "22", "pad": "0.5", "nodesep": "0.7", "ranksep": "1.1", "splines": "spline"}
 
-with Diagram("Jars Platform - AWS target architecture (ap-southeast-1, end of Phase 5)",
+with Diagram("Jars Platform - AWS target architecture (ap-southeast-1, incl. Phase 3+ backlog)",
              filename=str(OUT), show=False, direction="LR", outformat="png", graph_attr=graph_attr):
     users = Users("Browser\nReact PWA")
 
@@ -37,10 +39,10 @@ with Diagram("Jars Platform - AWS target architecture (ap-southeast-1, end of Ph
                 alb = ALB("internal ALB")
             with Cluster("public subnets  (SG: inbound only from ALB)"):
                 api = Fargate("jars-api\nJava 21 / Spring Boot 4.1\nmodular monolith")
-                worker = Fargate("insights-worker\nJava (Phase 5)")
+                worker = Fargate("insights-worker\nJava (Phase 3+ backlog)")
             with Cluster("isolated subnets"):
                 db = Aurora("Aurora PostgreSQL\nServerless v2  0-2 ACU")
-                cache = ElastiCache("ElastiCache Serverless\nValkey")
+                cache = ElastiCache("ElastiCache Serverless\nValkey (not built)")
 
         with Cluster("Messaging"):
             topic = SNS("SNS FIFO topics\nledger / insights events")
@@ -69,7 +71,7 @@ with Diagram("Jars Platform - AWS target architecture (ap-southeast-1, end of Ph
 
     # data + dependencies of jars-api
     api >> Edge(label="JDBC") >> db
-    api >> Edge(label="cache / rate limit") >> cache
+    api >> Edge(label="cache (not built)") >> cache
     api >> Edge(label="ConverseStream") >> llm
 
     # async: outbox -> SNS FIFO -> SQS FIFO

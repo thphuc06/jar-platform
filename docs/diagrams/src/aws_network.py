@@ -36,7 +36,7 @@ with Diagram("Jars Platform - VPC & security groups (dev)", filename=str(OUT), s
             with Cluster("public 10.20.1.0/24"):
                 task_b = Fargate("jars-api task\n(when desired=2)")
             with Cluster("isolated 10.20.21.0/24"):
-                cache = ElastiCache("Valkey endpoints\nsg-cache: 6379 from sg-app")
+                cache = ElastiCache("Valkey endpoints (not built)\nsg-cache: 6379 from sg-app")
 
     cdn >> Edge(label="HTTP :80 (AWS network)") >> alb_a
     cdn >> Edge(style="dashed") >> alb_b

@@ -4,7 +4,7 @@
 
 | Loại | Ví dụ | Đi qua đâu |
 |---|---|---|
-| **Domain event**: điều đã xảy ra trong nghiệp vụ | `TransactionPosted`, `AnomalyDetected` | Phase 0–4: **in-process** qua Spring Modulith (outbox trong bảng `event_publication`). Phase 5: externalize ra **SNS FIFO → SQS FIFO** |
+| **Domain event**: điều đã xảy ra trong nghiệp vụ | `TransactionPosted`, `AnomalyDetected` | Hiện tại (Phase 1–2): **in-process** qua Spring Modulith (outbox trong bảng `event_publication`). Phase 3+ (backlog, chưa lên lịch): externalize ra **SNS FIFO → SQS FIFO** |
 | **Platform event**: điều do AWS phát ra | S3 `Object Created`, lịch chạy của EventBridge Scheduler | EventBridge → SQS → `@SqsListener` trong jars-api |
 
 ## 2. Envelope (khi đã externalize)
@@ -29,7 +29,7 @@ Mọi domain event ra khỏi process đều có cấu trúc chung (JSON, đặt 
 
 ## 3. Danh sách domain event
 
-| Event | Phát bởi | Nghe bởi | Payload chính | Externalize (Phase 5) |
+| Event | Phát bởi | Nghe bởi | Payload chính | Externalize (Phase 3+, backlog) |
 |---|---|---|---|---|
 | `UserRegistered` | identity | ledger (tạo 6 hũ mặc định) | `userId`, `locale` | Không. **Nghe đồng bộ trong cùng transaction** với việc tạo user (`@EventListener`, không phải `@ApplicationModuleListener`), để user không bao giờ tồn tại mà thiếu 6 hũ |
 | `RiskProfileAssessed` | identity | advisor (ngữ cảnh chat) | `riskLevel`, `score` | Không |
@@ -82,4 +82,4 @@ JD thường yêu cầu Kafka. Project này dùng SNS/SQS FIFO vì chi phí ([AD
 | Replay từ đầu | **Không có sẵn** → muốn rebuild read model phải đọc lại từ DB | Đây là điểm Kafka mạnh hơn |
 | Exactly-once (transactions) | Không có → at-least-once + idempotent consumer | Thực tế phần lớn hệ thống Kafka cũng dùng cách này |
 
-**Lab Kafka (tùy chọn, Phase 6):** chạy Kafka (KRaft) bằng docker compose ở local, thêm `spring-modulith-events-kafka` và chuyển externalization sang Kafka bằng profile `kafka`. Như vậy chứng minh được outbox không phụ thuộc broker. **Không** deploy MSK.
+**Lab Kafka (tùy chọn, backlog Phase 3+):** chạy Kafka (KRaft) bằng docker compose ở local, thêm `spring-modulith-events-kafka` và chuyển externalization sang Kafka bằng profile `kafka`. Như vậy chứng minh được outbox không phụ thuộc broker. **Không** deploy MSK.

@@ -8,7 +8,7 @@
 |---|---|---|
 | `ius_backend_agent_mcp` (public) | FastAPI proxy SSE; orchestrator Strands trên Bedrock AgentCore; MCP specialist server (planner/service/stock); logic tài chính bằng Python; Lambda CUSUM; Terraform ECS; KB markdown | **Port logic** sang Java; bỏ runtime AI; giữ `kb/*.md` để làm RAG (tùy chọn) |
 | `ius_financial_ui` | React + Vite + shadcn, PWA. 138/144 commit do Lovable bot sinh. Gọi **thẳng Supabase**; `lib/api.ts` không được dùng; signup là giả | **Giữ**, chuyển vào `apps/web`, viết lại tầng data |
-| `ius_dexter_vnstock_PyPortfolioOpt_intergration` | Dexter (fork, TypeScript/Bun) + vnstock FastAPI + PyPortfolioOpt, chạy trên App Runner | **Bỏ Dexter**; gộp vnstock + PyPortfolioOpt thành `quant-fn` (ADR-0017) |
+| `ius_dexter_vnstock_PyPortfolioOpt_intergration` | Dexter (fork, TypeScript/Bun) + vnstock FastAPI + PyPortfolioOpt, chạy trên App Runner | **Bỏ Dexter**; ~~gộp vnstock + PyPortfolioOpt thành `quant-fn` (ADR-0017)~~ → **cũng bỏ** vnstock + PyPortfolioOpt vì giấy phép ([ADR-0024](../04-adr/0024-drop-market-and-quant-fn.md), 2026-11-13) |
 | `demo-repository` (private) | **Repo mẫu GitHub tự sinh khi tạo org**: `index.html` 1 dòng, 1 commit. **Không phải UI** | Archive / xóa |
 
 ## 2. Bảng ánh xạ thành phần
@@ -34,7 +34,7 @@
 | `schema.sql` | Dữ liệu | Thiết kế lại ([data-model.md §5](../02-architecture/data-model.md#5-khác-gì-so-với-schemasql-của-bản-hackathon)) |
 | `backend/seed/seed.json`, `sparkov_category_mapping.json` | Dữ liệu mẫu | Ý tưởng cho `SeedDataRunner` |
 | `kb/*.md` (sản phẩm ngân hàng, điều khoản, disclaimer) | Nội dung | RAG tùy chọn (P4.9) + disclaimer cho advisor |
-| `vnstock_service.py`, `pypfopt_optimizer.py` | Python quant | `functions/quant-fn` |
+| `vnstock_service.py`, `pypfopt_optimizer.py` | Python quant | ~~`functions/quant-fn`~~ → **bỏ** ([ADR-0024](../04-adr/0024-drop-market-and-quant-fn.md)) |
 | `src/types/roadmap.ts` (UI) | Contract | Response của `GET /goals/{id}/roadmap` phải khớp type này |
 
 ## 3. Phát hiện bảo mật
