@@ -194,7 +194,7 @@ erDiagram
         uuid id PK "UUIDv7"
         uuid session_id FK
         text role "USER|ASSISTANT"
-        text content
+        text content "đã qua guardrail: PII được che, ADR-0026"
         int input_tokens
         int output_tokens
         text guardrail "INPUT|OUTPUT khi guardrail can thiệp"

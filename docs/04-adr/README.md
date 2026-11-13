@@ -34,3 +34,4 @@ ADR ghi lại **vì sao** một quyết định kiến trúc được đưa ra, 
 | [0023](0023-advisor-guardrail-and-rate-limit.md) | Trợ lý AI: guardrail qua ApplyGuardrail, rate limit trong PostgreSQL (bổ sung ADR-0011) | Accepted | 2026-11-13 |
 | [0024](0024-drop-market-and-quant-fn.md) | Bỏ module `market` và Lambda `quant-fn` (giấy phép vnstock) | Accepted | 2026-11-13 |
 | [0025](0025-audit-log-aop-same-transaction.md) | Audit log ghi bằng AOP trong cùng transaction với nghiệp vụ (bổ sung ADR-0022) | Accepted | 2026-11-13 |
+| [0026](0026-guardrail-input-pii-masking.md) | Guardrail che dữ liệu nhạy cảm ở đầu vào, denied topic chỉ ở đầu vào (bổ sung ADR-0023) | Accepted | 2026-11-13 |
