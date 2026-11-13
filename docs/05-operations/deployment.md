@@ -33,7 +33,7 @@ Tham chiếu đầy đủ: [well-architected-review.md](../02-architecture/well-
 | Phase 1 | `cdk deploy JarsAuth` | Cần Cognito để có JWT thật khi chạy local |
 | Phase 3, lần đầu | `cdk deploy JarsFoundation JarsNetwork JarsData JarsMessaging` | Hạ tầng nền (ECR, VPC, Aurora, SQS) |
 | Phase 3 | Push image đầu tiên lên ECR (bằng CI hoặc tay), rồi `cdk deploy JarsApp -c imageTag=<sha>` | Lên app |
-| Phase 4 | `cdk deploy JarsQuant JarsApp` | Thêm quant-fn, Valkey, quyền Bedrock |
+| Phase 4 | `cdk deploy JarsApp` | Thêm Valkey (nếu cần) |
 | Phase 5 | `cdk deploy JarsMessaging JarsApp` (+ service worker) | SNS/SQS FIFO + insights-worker |
 | Phase 6 | `cdk deploy JarsObservability` | Dashboard, alarm |
 
@@ -104,7 +104,6 @@ Toàn workflow: `permissions: contents: read`; dùng `concurrency` để push m�
 
 ```
 paths: apps/web/**           → npm ci → lint → test → build                 (P1.11)
-paths: functions/quant-fn/** → pip install → pytest                           (P4.2)
 paths: infra/cdk/**          → ./mvnw test (CDK assertions + cdk-nag) → cdk synth      (đã có: .github/workflows/infra.yml)
 ```
 

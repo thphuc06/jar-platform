@@ -18,10 +18,9 @@ Hạ tầng chia thành nhiều stack theo **vòng đời**: stack nào hay bị
 | `JarsAuth` | Cognito User Pool, managed login domain, resource server/scopes, app client `smoke` cho script smoke test | Giữ mãi (user không mất) | – |
 | `JarsMessaging` | SQS (jobs, imports) + DLQ, EventBridge rules, Scheduler; từ Phase 5: SNS FIFO + SQS FIFO. **Hiện có:** `jars-jobs` + DLQ, schedule `month-close`, `jars-imports` + DLQ, rule `statement-uploaded`, alarm cho 3 DLQ | Giữ mãi (gần như $0) | Foundation (alarm topic). Tên bucket statements suy ra từ env + account, không phụ thuộc stack Data |
 | `JarsApp` | ECS cluster, task definition, service, internal ALB, CloudFront + VPC origin, web bucket, Cognito app client, alarm Aurora không pause, (Phase 4) Valkey. Chỉ được synth khi có context `imageTag` | **Xóa khi không demo lâu ngày** | Foundation, Network, Data, Auth, Messaging |
-| `JarsQuant` | Lambda `quant-fn` (container image) | Giữ (chỉ tính tiền khi gọi) | Foundation (ECR) |
 | ~~`JarsObservability`~~ | Gộp vào `JarsApp` (construct `ApiObservability`, Phase 2 WP2): collector ADOT, dashboard `jars-dev`, alarm 5xx và p95. Xem [§11](#11-observability) | Theo `JarsApp` | – |
 
-**Thứ tự deploy lần đầu:** Foundation → Network → Auth → Data → Messaging → Quant → App → Observability. CDK tự suy ra thứ tự khi chạy `cdk deploy --all`.
+**Thứ tự deploy lần đầu:** Foundation → Network → Auth → Data → Messaging → App. CDK tự suy ra thứ tự khi chạy `cdk deploy --all`.
 
 > **Vì sao Cognito *app client* nằm ở `JarsApp` chứ không ở `JarsAuth`?** Callback URL của app client phải là domain CloudFront, mà CloudFront nằm trong `JarsApp`. Đặt app client ở `JarsAuth` sẽ tạo phụ thuộc vòng. User pool (chứa user) vẫn nằm ở `JarsAuth` nên xóa `JarsApp` không làm mất user.
 
@@ -169,20 +168,13 @@ Chi tiết schema và đảm bảo giao nhận: [event-catalog.md](event-catalog
 | Quyền IAM | Policy `ApiAdvisorPolicy` theo mẫu 3 phần của AWS cho global cross-region inference: `InvokeModel` và `InvokeModelWithResponseStream` trên inference profile ở `ap-southeast-1`, foundation model ở `ap-southeast-1` và foundation model không region (`aws:RequestedRegion = unspecified`), đều có điều kiện `bedrock:InferenceProfileArn`; `bedrock:ApplyGuardrail` trên đúng guardrail |
 | Kiểm soát chi phí | Rate limit theo user trong PostgreSQL (20 tin/giờ, 60 tin/ngày), `max-tokens` 800, metric `jars.advisor.messages`, `jars.advisor.tokens`, `jars.advisor.ungrounded`. Đo thật ngày 2026-11-13 (Haiku 4.5, dữ liệu demo): một lượt có gọi tool tốn khoảng 3.600–3.900 token vào, 150–250 token ra; byte đầu tiên sau 1,3–2,1 giây |
 
-## 9. Quant: Lambda `quant-fn`
+## 9. ~~Quant: Lambda `quant-fn`~~ (đã bỏ)
 
-| Hạng mục | Cấu hình |
-|---|---|
-| Runtime | Container image `public.ecr.aws/lambda/python:3.13` (arm64; nếu wheel `cvxpy` gặp vấn đề trên arm64 thì chuyển x86_64) |
-| Memory / timeout | 1024 MB / 30 s |
-| Gọi từ | jars-api qua `LambdaClient.invoke` (IAM); **không** có Function URL hay API Gateway |
-| Operations | `quote`, `history`, `optimize` (JSON contract trong `contracts/quant/`, tạo ở Phase 4) |
-| Network | Không đặt trong VPC (cần internet để gọi nguồn dữ liệu của vnstock) |
-| Rủi ro | Nguồn dữ liệu có thể chặn IP datacenter → làm spike sớm ở Phase 4; kiểm tra license của vnstock (dùng phi thương mại) |
+Lambda Python lấy giá cổ phiếu bằng vnstock và tối ưu danh mục bằng PyPortfolioOpt đã bị bỏ khỏi thiết kế vì giấy phép của vnstock không cho dùng trong sản phẩm cho bên thứ ba ([ADR-0024](../04-adr/0024-drop-market-and-quant-fn.md)).
 
 ## 10. Cache: ElastiCache Serverless (Valkey), Phase 4
 
-Dùng cho: cache giá cổ phiếu (TTL 60 s), cache dashboard, **rate limit chat**, **pub/sub fan-out thông báo** khi có ≥ 2 task jars-api. Chi phí tối thiểu khoảng $6/tháng (tối thiểu 100 MB dữ liệu được tính phí, theo nguồn bên thứ ba, cần kiểm tra lại). Resource này nằm trong `JarsApp` nên bị xóa cùng app khi teardown. Ở local dùng container `valkey/valkey`.
+Dùng cho: cache dashboard, **rate limit chat**, **pub/sub fan-out thông báo** khi có ≥ 2 task jars-api. Chi phí tối thiểu khoảng $6/tháng (tối thiểu 100 MB dữ liệu được tính phí, theo nguồn bên thứ ba, cần kiểm tra lại). Resource này nằm trong `JarsApp` nên bị xóa cùng app khi teardown. Ở local dùng container `valkey/valkey`.
 
 ## 11. Observability
 
@@ -212,7 +204,7 @@ Chưa làm (Phase 3+): `traceparent` trong message attributes khi **app gửi** 
 
 | Dịch vụ | Dùng làm gì | Ghi chú |
 |---|---|---|
-| ECR | `jars/jars-api`, `jars/insights-worker`, `jars/quant-fn` | Lifecycle: giữ 10 image gần nhất; bật basic scan on push; **tag immutable** (git SHA không bị ghi đè) |
+| ECR | `jars/jars-api`, `jars/insights-worker` (Phase 3+) | Lifecycle: giữ 10 image gần nhất; bật basic scan on push; **tag immutable** (git SHA không bị ghi đè) |
 | S3 (`statements`, `web`) | Upload sao kê, static web | Block Public Access; bucket policy `enforceSSL`; SSE-S3; `statements/uploads/` **tự xóa sau 7 ngày** (lifecycle) |
 | Cost Anomaly Detection | Phát hiện chi phí tăng bất thường | Không tính phí; email alert hằng ngày |
 | IAM Access Analyzer | Phát hiện resource bị chia sẻ public hoặc cross-account | External access analyzer miễn phí (unused access analyzer **có phí**, không bật) |

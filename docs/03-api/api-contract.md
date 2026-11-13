@@ -39,7 +39,7 @@
 | 409 | Xung đột đồng thời (version hoặc deadlock) còn lại sau khi đã retry tối đa 5 lần |
 | 422 | Sai quy tắc nghiệp vụ (validation, số dư, Idempotency-Key bị dùng lại với request khác) |
 | 429 | Vượt rate limit (có header `Retry-After`) |
-| 503 | Phụ thuộc bên ngoài lỗi (quant-fn, Bedrock); circuit đang mở |
+| 503 | Phụ thuộc bên ngoài lỗi (Bedrock); circuit đang mở |
 
 ## 2. Endpoint
 
@@ -112,13 +112,6 @@
 | GET | `/chat/sessions/{id}/messages` | 100 tin nhắn gần nhất (`role` `USER`/`ASSISTANT`) | 2 ✅ |
 | POST | `/chat/sessions/{id}/messages` | `{content}` (1–2000 ký tự) → **SSE** stream. Lỗi trả **trước** khi stream bắt đầu, dạng problem+json thường: 404 phiên không phải của user, 422 tin nhắn rỗng/quá dài, 429 `advisor-rate-limited` kèm `Retry-After` (mặc định 20 tin/giờ, 60 tin/ngày), 503 `advisor-unavailable` khi môi trường không có model (local) | 2 ✅ |
 
-### Market (giáo dục)
-| Method | Path | Mô tả | Phase |
-|---|---|---|---|
-| GET | `/market/quotes/{symbol}` | Giá (cache 60 s) | 4 |
-| GET | `/market/history/{symbol}?from&to` | Lịch sử giá | 4 |
-| POST | `/market/portfolio/optimize` | `{symbols[], riskLevel}` → trọng số (tham khảo) | 4 |
-
 ## 3. Hợp đồng SSE
 
 Dùng **`fetch` + ReadableStream** (ví dụ thư viện `@microsoft/fetch-event-source`). `EventSource` gốc của trình duyệt **không gửi được header `Authorization`** và chỉ hỗ trợ GET.
@@ -187,6 +180,6 @@ UI hiện tại (`ius_financial_ui`) gọi thẳng Supabase. Bảng dưới đâ
 | Budget Jars (`pages/BudgetJars.tsx`) | `useJars`, `useAddJar`, `useUpdateJarAllocation`, `useDeleteJar`, `useJarSpending`, `useJarMonthlyTrend`, `useLatestBalance` | `GET/POST/PATCH/DELETE /jars`, `GET /budget/periods/{month}`, `GET /dashboard` |
 | Goal Planner (`pages/GoalPlanner.tsx`) + `components/roadmap/*` (đang dùng mock) | `useGoals`, `useAddGoal`, `useDeleteGoal`, `useBalanceHistory`, `mock-roadmap.ts` | `/goals/*`, `/goals/{id}/roadmap`, `/balances/daily` |
 | Alerts (`pages/Alerts.tsx`) | `useNotifications`, `useDismissNotification` | `/notifications`, `/notifications/stream`, `/anomalies/{id}/feedback` |
-| AI Chat (`pages/AIChat.tsx`, `FloatingChat.tsx`) | `POST {CHAT_STREAM_URL}` + `POST {STOCK_AGENT_URL}/ask` | `/chat/sessions/*` (một endpoint; câu hỏi cổ phiếu do tool `market` xử lý) |
+| AI Chat (`pages/AIChat.tsx`, `FloatingChat.tsx`) | `POST {CHAT_STREAM_URL}` + `POST {STOCK_AGENT_URL}/ask` | `/chat/sessions/*` (một endpoint; câu hỏi mua bán cổ phiếu bị guardrail từ chối, ADR-0024) |
 | `lib/api.ts` | **Không file nào dùng** | Xóa; thay bằng client sinh từ OpenAPI |
 | `lib/supabase.ts`, `hooks/useSupabaseData.ts` | Supabase client | Xóa sau khi chuyển xong |

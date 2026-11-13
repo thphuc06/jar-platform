@@ -26,6 +26,13 @@ python -m venv .venv-diagrams
 for f in docs/diagrams/src/*.py; do .venv-diagrams/Scripts/python "$f"; done
 ```
 
+Không muốn cài Graphviz thì render trong container (đã dùng ngày 2026-11-13):
+
+```bash
+docker run --rm -v "$PWD/docs/diagrams:/d" python:3.13-slim bash -c \
+  "apt-get update -qq && apt-get install -y -qq graphviz fonts-dejavu-core && pip install -q diagrams==0.25.1 && cd /d && for f in src/*.py; do python \$f; done"
+```
+
 Mỗi script ghi file PNG cùng tên vào `docs/diagrams/`. Đã kiểm tra với `diagrams 0.25.1` + `Graphviz 16.0.0` ngày 2026-10-23.
 
 **Mẹo layout:** dùng `splines="spline"` để nhãn cạnh nằm đúng chỗ (`ortho` hay đặt nhãn sai vị trí). Hạn chế nối dây cho các dịch vụ "dùng chung" (ECR, Secrets, CloudWatch); gom chúng vào một cluster riêng để sơ đồ đỡ rối.

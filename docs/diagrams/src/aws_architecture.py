@@ -5,7 +5,7 @@ Render: see docs/diagrams/README.md
 from pathlib import Path
 
 from diagrams import Cluster, Diagram, Edge
-from diagrams.aws.compute import ECR, Fargate, Lambda
+from diagrams.aws.compute import ECR, Fargate
 from diagrams.aws.database import Aurora, ElastiCache
 from diagrams.aws.devtools import XRay
 from diagrams.aws.integration import SNS, SQS, Eventbridge, EventbridgeScheduler
@@ -50,9 +50,8 @@ with Diagram("Jars Platform - AWS target architecture (ap-southeast-1, end of Ph
             sched = EventbridgeScheduler("EventBridge Scheduler\nmonth-close cron")
             q_jobs = SQS("SQS\nimports / jobs (+DLQ)")
 
-        with Cluster("AI & quant"):
+        with Cluster("AI"):
             llm = Bedrock("Bedrock\nClaude Haiku + Guardrails")
-            quant = Lambda("quant-fn  Python\nvnstock + PyPortfolioOpt")
 
         with Cluster("Platform (used by every service)"):
             ECR("ECR")
@@ -72,7 +71,6 @@ with Diagram("Jars Platform - AWS target architecture (ap-southeast-1, end of Ph
     api >> Edge(label="JDBC") >> db
     api >> Edge(label="cache / rate limit") >> cache
     api >> Edge(label="ConverseStream") >> llm
-    api >> Edge(label="lambda:Invoke") >> quant
 
     # async: outbox -> SNS FIFO -> SQS FIFO
     api >> Edge(color="darkgreen", label="outbox relay") >> topic

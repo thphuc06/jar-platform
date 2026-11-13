@@ -188,7 +188,7 @@ sequenceDiagram
     participant RL as Valkey (rate limit)
     participant G as Bedrock Guardrails
     participant B as Bedrock ConverseStream
-    participant T as Tools (ledger, goals, insights, market)
+    participant T as Tools (ledger, goals, insights)
 
     W->>API: POST /api/v1/chat/sessions/{id}/messages (Accept: text/event-stream)
     API->>RL: Bucket4j: còn token cho user?

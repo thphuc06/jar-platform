@@ -5,7 +5,7 @@ Render: see docs/diagrams/README.md
 from pathlib import Path
 
 from diagrams import Cluster, Diagram, Edge
-from diagrams.aws.compute import ECR, ECS, Lambda
+from diagrams.aws.compute import ECR, ECS
 from diagrams.aws.devtools import CloudDevelopmentKit
 from diagrams.aws.management import Cloudformation
 from diagrams.aws.network import CloudFront
@@ -32,7 +32,6 @@ with Diagram("Jars Platform - CI/CD", filename=str(OUT), show=False, direction="
         cdk = CloudDevelopmentKit("cdk deploy\n-c imageTag=<sha>")
         cfn = Cloudformation("CloudFormation\nJars* stacks")
         ecs = ECS("ECS service\nrolling + circuit breaker")
-        fn = Lambda("quant-fn image")
         web = S3("web bucket")
         cdn = CloudFront("CloudFront\ninvalidation")
 
@@ -42,7 +41,6 @@ with Diagram("Jars Platform - CI/CD", filename=str(OUT), show=False, direction="
     role >> Edge(label="docker push") >> ecr
     role >> cdk >> cfn
     cfn >> ecs
-    cfn >> fn
     cfn >> Edge(label="BucketDeployment") >> web
     web >> cdn
     ecr >> Edge(style="dashed", label="pull") >> ecs

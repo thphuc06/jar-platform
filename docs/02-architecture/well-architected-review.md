@@ -15,7 +15,7 @@ Ký hiệu: ✅ có trong thiết kế · 🔧 bổ sung sau review này · ⚠�
 | Observability: log có cấu trúc, metric, trace | JSON log + `traceId`; OTel → X-Ray/CloudWatch | ✅ | 3, 6 |
 | Runbook cho thao tác lặp lại | [runbook.md](../05-operations/runbook.md) | ✅ | – |
 | Học từ sự cố | Bảng "Sự cố đã gặp" trong runbook; postmortem ngắn | ✅ | – |
-| **Game day / diễn tập lỗi** | Tắt task đang chạy, đẩy message lỗi vào DLQ, chặn quant-fn; đo thời gian phát hiện và phục hồi. (AWS FIS tính phí theo action-phút, có thể dùng thử) | 🔧 | 6 |
+| **Game day / diễn tập lỗi** | Tắt task đang chạy, đẩy message lỗi vào DLQ, chặn Bedrock; đo thời gian phát hiện và phục hồi. (AWS FIS tính phí theo action-phút, có thể dùng thử) | 🔧 | 6 |
 | Well-Architected review định kỳ | WA Tool (miễn phí) ở cuối Phase 3 và Phase 6 | 🔧 | 3, 6 |
 
 ## 2. Security
@@ -43,7 +43,7 @@ Ký hiệu: ✅ có trong thiết kế · 🔧 bổ sung sau review này · ⚠�
 | Tự phục hồi | ECS thay task lỗi; deployment circuit breaker rollback | ✅ | 3 |
 | **Graceful shutdown + connection draining** | Spring `server.shutdown=graceful`; ECS `stopTimeout` ≥ thời gian shutdown của app; target group **deregistration delay khoảng 30 s** (mặc định 300 s là quá lâu); client SSE tự reconnect với `Last-Event-ID` vì ALB cắt kết nối dài khi hết thời gian draining | 🔧 | 3 |
 | **Health check hợp với JVM** | `healthCheckGracePeriod` khoảng 60–90 s cho JVM khởi động; readiness tách khỏi liveness; không check DB (giữ cho Aurora pause được) | 🔧 | 3 |
-| Timeout, retry có jitter, circuit breaker | AWS SDK retry mặc định có jitter; Resilience4j cho quant-fn; timeout Bedrock | ✅ | 4 |
+| Timeout, retry có jitter, circuit breaker | AWS SDK retry mặc định có jitter; timeout Bedrock | ✅ | 4 |
 | Tách rời bằng queue, có DLQ | SQS + DLQ + alarm; consumer idempotent | ✅ | 3, 5 |
 | Visibility timeout > thời gian xử lý | `jars-imports` 15 phút (batch), `jars-jobs` 5 phút | ✅ | 3 |
 | Backup & khôi phục | Aurora automated backup + snapshot khi xóa stack; **thử restore 1 lần** để chắc chắn backup dùng được | 🔧 | 6 |

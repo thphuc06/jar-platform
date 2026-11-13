@@ -87,7 +87,7 @@ apps/web/          React web client
 infra/cdk/         AWS CDK (Java)
 contracts/openapi/ OpenAPI file generated from the controllers; a test fails when it drifts
 scripts/           push-image, smoke-test and load-test
-docs/              architecture, API contract, 23 ADRs, operations, roadmap
+docs/              architecture, API contract, 24 ADRs, operations, roadmap
 ```
 
 ## Status

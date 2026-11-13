@@ -38,7 +38,7 @@ apps/jars-api/
     │   ├── platform/               # security, error handling, audit, observability config
     │   ├── shared/                 # Money, UserId, ProblemTypes
     │   ├── identity/ ledger/ budgeting/ goals/ insights/
-    │   └── notification/ advisor/ market/ imports/
+    │   └── notification/ advisor/ imports/
     ├── main/resources/
     │   ├── application.yaml        # chung
     │   ├── application-local.yaml

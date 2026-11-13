@@ -7,7 +7,7 @@
 JD Java ở Việt Nam hay ghi "microservices". Nhưng project có 1 người phát triển, ngân sách AWS khoảng $197, và nghiệp vụ chính (ghi giao dịch, trừ số dư hũ) cần **nhất quán mạnh**. Tách sớm sẽ gây ra distributed transaction, chi phí mỗi service (mỗi task Fargate khoảng $18/tháng + IP), và tốn thời gian vào hạ tầng thay vì nghiệp vụ.
 
 ## Quyết định
-- `jars-api` là **modular monolith**: các module `identity`, `ledger`, `budgeting`, `goals`, `insights`, `notification`, `advisor`, `market`, `imports`, cùng `shared` ([modules.md](../02-architecture/modules.md)).
+- `jars-api` là **modular monolith**: các module `identity`, `ledger`, `budgeting`, `goals`, `insights`, `notification`, `advisor`, `imports` (`market` đã bỏ theo ADR-0024), cùng `shared` ([modules.md](../02-architecture/modules.md)).
 - **Spring Modulith 2.1** kiểm tra ranh giới module trong test, cung cấp **event publication registry** (outbox) và `@ApplicationModuleTest`.
 - **Phase 5** tách đúng một service: `insights-worker`. Lý do chọn insights: nó vốn bất đồng bộ, chịu được trễ, tính toán độc lập, chỉ cần event `TransactionPosted`. Đây là đường cắt "tự nhiên" nhất.
 

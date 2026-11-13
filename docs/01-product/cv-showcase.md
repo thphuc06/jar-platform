@@ -46,7 +46,7 @@ Mọi số dưới đây lấy từ một lần chạy thật, không phải ư�
 - Built **CSV bank-statement import** with **Spring Batch** (chunked, skip-with-reason, restartable, idempotent per row): presigned S3 upload → EventBridge → SQS → batch job → ledger, with a live notification when the import finishes.
 - Instrumented the service with **OpenTelemetry** (ADOT sidecar → X-Ray and CloudWatch EMF), a dashboard and alarms; load-tested through CloudFront with k6 at **p95 117 ms (reads) / 200 ms (writes), 0% errors** on a single 0.5 vCPU Fargate task.
 
-**Vẫn chưa được ghi:** CD qua GitHub OIDC (workflow có rồi nhưng chưa chạy lần nào), market và `quant-fn` (dừng vì giấy phép vnstock), tách microservice, chi phí theo hóa đơn tháng (Cost Explorer chưa có đủ dữ liệu).
+**Vẫn chưa được ghi:** CD qua GitHub OIDC (workflow có rồi nhưng chưa chạy lần nào), tách microservice, chi phí theo hóa đơn tháng (Cost Explorer chưa có đủ dữ liệu).
 
 ## 1. Khi code xong (hết Phase 6), hệ thống làm được gì
 
@@ -62,12 +62,12 @@ Mọi số dưới đây lấy từ một lần chạy thật, không phải ư�
 | 6 | Chi đột biến ở hũ PLAY | Cảnh báo "chi tiêu bất thường" **hiện ngay**, không cần tải lại trang | Outbox → SNS/SQS FIFO → insights-worker → SSE |
 | 7 | Tạo mục tiêu "Laptop 25 triệu trong 8 tháng" | Biết có khả thi không, mỗi tháng cần để dành bao nhiêu, kịch bản what-if, lộ trình theo giai đoạn | Mô phỏng (Monte Carlo có seed), strategy pattern |
 | 8 | Hỏi AI: "Tháng này tôi tiêu lố ở đâu, có kịp mua laptop không?" | Câu trả lời tiếng Việt chạy dần ra (streaming), có số liệu đúng và hiện các tool đã gọi | Spring AI + Bedrock, tool calling, Guardrails |
-| 9 | Hỏi "nên mua FPT không?" | Từ chối khuyến nghị và giải thích; kèm dữ liệu giá mang tính giáo dục | Guardrails denied topic, Lambda Python |
+| 9 | Hỏi "nên mua FPT không?" | Từ chối khuyến nghị và giải thích, gợi ý hỏi về hũ và mục tiêu | Guardrails denied topic (đã chạy thật, xem §0) |
 | 10 | (Người xem kỹ thuật) mở dashboard CloudWatch / X-Ray | Thấy một trace đi xuyên HTTP → DB → SNS → SQS → worker | OpenTelemetry, observability |
 
 ### Góc nhìn kỹ thuật: năng lực hệ thống
 
-- **Modular monolith** Java 21 / Spring Boot 4.1 với 9 module, ranh giới được kiểm tra tự động trong CI, cộng **1 microservice** tách ra theo event và **1 Lambda Python**.
+- **Modular monolith** Java 21 / Spring Boot 4.1 với 9 module, ranh giới được kiểm tra tự động trong CI, cộng **1 microservice** tách ra theo event.
 - **Tiền đúng tuyệt đối**: ledger append-only, optimistic locking, idempotency, job đối soát.
 - **Event-driven**: transactional outbox, SNS/SQS FIFO có thứ tự theo user, DLQ, idempotent consumer.
 - **AI có kiểm soát**: LLM chỉ diễn giải, số liệu do Java tính; guardrails; rate limit; streaming.

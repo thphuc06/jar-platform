@@ -19,7 +19,6 @@ io.github.thphuc06.jars
 ├── insights/
 ├── notification/
 ├── advisor/
-├── market/
 └── imports/
 ```
 
@@ -41,7 +40,6 @@ io.github.thphuc06.jars
 | `insights` | Phân tích chi tiêu, phát hiện bất thường, read model cho dashboard | `anomaly_detector_state`, `anomalies`, `monthly_jar_spend`, `monthly_category_spend`, `monthly_cashflow` | `InsightsApi`: `monthlyCashflow(userId, lastMonths)` (thu chi theo tháng), `openAnomalyCount(userId)`. Dashboard, cảnh báo là REST | `AnomalyDetected` | `TransactionPosted`, `TransactionRecategorized` | `cusum_engine`, `anomaly.py` (MAD), `spend.py`, `recurring.py` |
 | `notification` | Lưu thông báo, đẩy SSE, (tùy chọn) email SES | `notifications` | `stream(userId)` (REST/SSE) | – | `AnomalyDetected`, `MonthClosed` (đã cài), `StatementImportCompleted` | `tier1_notifications` cũ |
 | `advisor` | Chat AI: phiên chat, tool calling chỉ đọc (user lấy từ JWT qua `ToolContext`), guardrail (`ApplyGuardrail`), rate limit trong PostgreSQL ([ADR-0023](../04-adr/0023-advisor-guardrail-and-rate-limit.md)) | `chat_sessions`, `chat_messages`, `advisor_usage` | – (chỉ có REST/SSE) | – | – | `agent/` (Strands), `kb/*.md` |
-| `market` | Gateway tới `quant-fn`, cache giá | – | `quote(symbol)`, `history(...)`, `optimize(...)` | – | – | `vnstock_service.py`, `pypfopt_optimizer.py` (vẫn chạy bằng Python) |
 | `imports` | Import sao kê CSV: presigned URL, Spring Batch job (chunk 50, skip, retry, restart) | `statement_imports`, `statement_import_errors` (+ bảng metadata của Spring Batch) | Chưa có `XxxApi`: REST `/imports` và listener SQS; ghi vào ledger qua `LedgerApi.recordImported` (tham gia transaction của chunk) | `StatementImportCompleted` | SQS `jars-imports` | `ingest_statement_vn` |
 | `shared` | Value object và tiện ích dùng chung | – | `Money`, `UserId`, `Month`, `ProblemTypes` | – | – | – |
 
@@ -68,7 +66,6 @@ flowchart LR
     advisor --> budgeting
     advisor --> goals
     advisor --> insights
-    advisor --> market
     advisor --> identity
 ```
 
