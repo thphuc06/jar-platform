@@ -9,7 +9,7 @@ Mỗi luồng ghi rõ **có từ phase nào** (đánh số theo [roadmap](../06-
 | [F3](#f3) | Phát hiện bất thường → thông báo realtime (SSE) | 1 (in-process, đã có), 3+ (qua SNS/SQS, backlog) |
 | [F4](#f4) | Chat AI streaming với tool calling + guardrails | 2 |
 | [F5](#f5) | Import sao kê CSV | 2 |
-| [F6](#f6) | Khép sổ cuối tháng theo lịch | 1 |
+| [F6](#f6) | Job theo lịch: khép sổ cuối tháng (1), đối soát sổ cái hằng đêm (sau Phase 2) | 1 |
 | [F7](#f7) | Định tuyến request ở edge | 1 |
 | [F8](#f8) | Aurora auto-pause / resume | 1 |
 
@@ -68,7 +68,7 @@ sequenceDiagram
     participant DB as Aurora
 
     W->>API: POST /api/v1/transactions<br/>Idempotency-Key: 7f9c...<br/>{type: EXPENSE, amount: 85000, jarId, categoryId}
-    loop tối đa 3 lần (vòng retry nằm NGOÀI transaction, mỗi lần là một transaction mới)
+    loop tối đa 5 lần (vòng retry nằm NGOÀI transaction, mỗi lần là một transaction mới)
         API->>DB: BEGIN
         API->>DB: INSERT idempotency_keys (user_id, key, request_hash) ON CONFLICT DO NOTHING
         alt không chèn được dòng nào (key đã có)
@@ -85,11 +85,12 @@ sequenceDiagram
         API->>DB: INSERT jar_entries (SPEND, -85000, balance_after)
         API->>DB: UPDATE jars SET balance=..., version=8 WHERE id=? AND version=7
         API->>DB: INSERT event_publication (TransactionPosted)
+        API->>DB: INSERT audit_log (TRANSACTION_POSTED), cùng transaction (@Audited, ADR-0025)
         API->>DB: UPDATE idempotency_keys SET status_code, response_body
         API->>DB: COMMIT
         Note over API,DB: UPDATE jars trả về 0 dòng thì ném OptimisticLockException, transaction rollback (cả dòng idempotency) rồi vòng lặp thử lại
     end
-    API-->>W: 201 Created {transaction, jarBalance} (409 nếu hết 3 lần vẫn xung đột)
+    API-->>W: 201 Created {transaction, jarBalance} (409 nếu hết 5 lần vẫn xung đột)
     API--)API: AFTER_COMMIT: phát TransactionPosted cho insights và budgeting (async)
 ```
 
@@ -262,7 +263,7 @@ sequenceDiagram
 ---
 
 <a id="f6"></a>
-## F6. Khép sổ cuối tháng
+## F6. Job theo lịch: khép sổ cuối tháng và đối soát sổ cái hằng đêm
 
 ```mermaid
 sequenceDiagram
@@ -309,6 +310,38 @@ sequenceDiagram
 
 **Vì sao không dùng `@Scheduled`:** khi có 2 task, cả hai sẽ cùng chạy job (khi đó cần ShedLock). Đưa lịch ra EventBridge Scheduler thì chỉ có **một message**, và chỉ một task nhận được nó. Ngoài ra Scheduler hỗ trợ timezone, có retry và DLQ.
 
+### Đối soát sổ cái hằng đêm
+
+Cùng cơ chế với khép sổ nhưng có queue riêng. Đây là biện pháp vận hành, không phải tính năng cho người dùng: kiểm tra bất biến `jars.balance == SUM(jar_entries.amount)` của từng hũ, thứ mà trước đó chỉ test đồng thời mới khẳng định.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant SCH as EventBridge Scheduler
+    participant Q as SQS jars-reconciliation
+    participant L as ReconciliationQueueListener (chỉ profile aws)
+    participant R as ReconciliationService (ledger)
+    participant DB as Aurora
+    participant CW as CloudWatch
+
+    SCH->>Q: 02:30 hằng đêm (Asia/Ho_Chi_Minh): {"job":"LEDGER_RECONCILIATION"}
+    L->>Q: @SqsListener(${jars.jobs.reconciliation-queue-name})
+    L->>R: ReconciliationJob.handle(payload) → reconcile()
+    R->>DB: một câu SELECT chỉ đọc: so balance với SUM(entries) của mọi hũ
+    alt có hũ lệch
+        R->>R: log WARN "Ledger mismatch: jar=… stored=… computed=… difference=…" (tối đa 50 dòng mỗi lần chạy)
+        R->>CW: gauge jars.ledger.reconciliation.mismatches > 0 → alarm jars-dev-ledger-reconciliation-mismatches
+    else sạch
+        R->>CW: gauge mismatches = 0, jars.checked = số hũ đã kiểm
+    end
+    L->>Q: DeleteMessage (hũ lệch không phải là lỗi: giao lại cũng ra kết quả cũ)
+```
+
+- **Chỉ phát hiện và báo, không tự sửa:** không rõ bên nào sai (số dư cache hay thiếu bút toán), việc đó cần người xem sổ. Cách xử lý khi alarm kêu: [runbook](../05-operations/runbook.md).
+- **Không cần idempotency marker:** một câu lệnh chỉ đọc, chạy hai lần (hoặc song song với giao dịch đang ghi) vô hại.
+- **Lỗi thật** (không đọc được DB) thì ném lỗi, message quay lại sau visibility timeout 5 phút và sau `maxReceiveCount=3` vào `jars-reconciliation-dlq` (có alarm). Message chỉ sống 1 giờ: khi `JarsApp` đang bị destroy thì message đêm đó hết hạn thay vì dồn lại.
+- Chi phí: đánh thức Aurora một lần mỗi đêm, và chỉ khi `JarsApp` đang chạy. Metric `jars.ledger.reconciliation.{mismatches,jars.checked,runs}`; xem [aws-infrastructure §11](aws-infrastructure.md#11-observability).
+
 ---
 
 <a id="f7"></a>
@@ -321,8 +354,10 @@ flowchart LR
     CF -->|"/api/*  (no cache, forward Authorization)"| VO[VPC origin ENI]
     VO -->|HTTP :80| ALB[internal ALB<br/>private subnet]
     ALB -->|:8080 health /actuator/health/readiness| T1[jars-api task]
-    S3 -.->|403/404 → /index.html| B
+    CF -. "viewer-request Function: đường dẫn không có đuôi file → /index.html" .-> S3
 ```
+
+SPA fallback là một **CloudFront Function** ở viewer-request của behavior mặc định (S3), không phải custom error response 403/404 ([ADR-0020](../04-adr/0020-spa-fallback-cloudfront-function.md)): custom error response áp dụng cho cả distribution và sẽ biến 404 của API (ví dụ 404 che tài nguyên của user khác) thành trang SPA với status 200.
 
 ---
 

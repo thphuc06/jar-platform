@@ -13,7 +13,7 @@
 
 | Chủ đề | Quy ước |
 |---|---|
-| Format | Spotless 3.10 + `palantir-java-format` 2.102 (dòng 120 ký tự). `./mvnw spotless:apply` để format; `./mvnw verify` **fail** nếu còn file chưa format |
+| Format | Spotless 3.11.0 + `palantir-java-format` 2.102 (dòng 120 ký tự). `./mvnw spotless:apply` để format; `./mvnw verify` **fail** nếu còn file chưa format |
 | Dependency | Version thư viện ngoài Boot quản lý bằng BOM trong `dependencyManagement`. **Thứ tự BOM có ý nghĩa: BOM import trước thắng** (xem ADR-0004, phát hiện #5). Sau khi thêm BOM hoặc dependency thì kiểm tra bằng `./mvnw dependency:tree -Dincludes=<groupId>` |
 | Module | Mỗi package con trực tiếp của `io.github.thphuc06.jars` là một module Modulith; `platform` là shared module (`@Modulithic(sharedModules = "platform")`). `ModularityTests` chạy ở mọi build |
 | Package | `io.github.thphuc06.jars.<module>`; public API nằm ở root package của module, còn lại ở `internal` ([modules.md](../02-architecture/modules.md)) |
@@ -49,7 +49,7 @@
 - [ ] Đã viết ADR nếu có quyết định kiến trúc mới.
 - [ ] Không có secret; gitleaks xanh.
 - [ ] Tick roadmap và ghi nhật ký.
-- [ ] Đã viết phần giải thích "thầy giáo" (đã làm gì / vì sao / kiến thức / phương án khác / lỗi hay gặp / câu hỏi phỏng vấn / bài tập) vào mô tả PR.
+- [ ] ~~Phần giải thích "thầy giáo" trong mô tả PR~~ Không còn bắt buộc từ Phase 2 (xem [roadmap](../06-plan/roadmap.md)); chỉ áp dụng cho các bước Phase 0–1.
 
 ## 5. PR checklist (template nằm ở `.github/pull_request_template.md`)
 

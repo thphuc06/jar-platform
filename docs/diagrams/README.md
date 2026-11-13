@@ -2,18 +2,22 @@
 
 Sơ đồ hạ tầng AWS được vẽ bằng thư viện Python [`diagrams`](https://diagrams.mingrammer.com/) (dùng icon AWS chính thức, layout do Graphviz tính). Các sơ đồ luồng và logic thì viết bằng **Mermaid** ngay trong file Markdown, GitHub tự render.
 
-| File PNG | Source | Nội dung |
-|---|---|---|
-| [aws-architecture.png](aws-architecture.png) | [src/aws_architecture.py](src/aws_architecture.py) | Kiến trúc đích theo thiết kế ban đầu (gồm backlog Phase 3+: `insights-worker`, SNS/SQS FIFO; Valkey không được dựng): edge, VPC, messaging, AI, platform |
-| [aws-phase3-mvp.png](aws-phase3-mvp.png) | [src/aws_phase3_mvp.py](src/aws_phase3_mvp.py) | Bản deploy tối thiểu đầu tiên (dựng ở Phase 1 WP8–WP9; tên file giữ cách đánh số phase cũ) |
-| [aws-network.png](aws-network.png) | [src/aws_network.py](src/aws_network.py) | VPC, subnet theo AZ, quy tắc security group |
-| [aws-cicd.png](aws-cicd.png) | [src/aws_cicd.py](src/aws_cicd.py) | GitHub Actions → OIDC → ECR + CDK → ECS/S3/CloudFront |
+Cả bốn sơ đồ mô tả **đúng những gì code CDK (`infra/cdk`) và các workflow (`.github/workflows`) đang dựng**, không có thành phần dự kiến. Khi code đổi thì sơ đồ phải được vẽ lại.
 
-**Quy ước màu cạnh** trong `aws-architecture.png`:
+| File PNG | Source | Nội dung | Lấy từ |
+|---|---|---|---|
+| [aws-deployment.png](aws-deployment.png) | [src/aws_deployment.py](src/aws_deployment.py) | Bản tổng quan (dev, ap-southeast-1): browser, CloudFront, S3, Cognito, ALB nội bộ, một task Fargate `jars-api` kèm ADOT sidecar, Aurora, luồng import sao kê, hai schedule, Bedrock, X-Ray và CloudWatch. Sơ đồ đầu tiên của README gốc | `AppStack`, `DataStack`, `AuthStack`, `MessagingStack`, `ApiObservability`, `AdvisorResources` |
+| [aws-architecture.png](aws-architecture.png) | [src/aws_architecture.py](src/aws_architecture.py) | Bản chi tiết: subnet theo tầng, từng queue kèm DLQ, EventBridge rule và hai schedule, Bedrock + Guardrail, ECR, Secrets Manager, CloudWatch (log, metric EMF, dashboard, alarm), SNS alarm topic, Budgets, X-Ray | tất cả stack `Jars*` |
+| [aws-network.png](aws-network.png) | [src/aws_network.py](src/aws_network.py) | VPC `10.20.0.0/16`, ba tầng subnet (public / lb / data, mỗi tầng hai AZ), quy tắc security group, đường ra internet của task | `NetworkStack`, `AppStack`, `DataStack` |
+| [aws-cicd.png](aws-cicd.png) | [src/aws_cicd.py](src/aws_cicd.py) | `ci.yml`, `web.yml`, `infra.yml` (PR và push lên main, không chạm AWS) và `deploy-dev.yml` (chỉ `workflow_dispatch`, chạy từ main): OIDC role, image ARM64 lên ECR, `cdk deploy JarsApp`, smoke test | `.github/workflows/*.yml`, `FoundationStack` |
+
+Những thứ **cố ý không vẽ** để sơ đồ còn đọc được: các Lambda custom resource do CDK sinh (`BucketDeployment`, bật EventBridge cho bucket), CDK bootstrap roles, quyền IAM chi tiết, fallback `-c dbMode=rds` của `DataStack`, quyền đọc/ghi `uploads/` của task trên statements bucket.
+
+**Quy ước cạnh** trong `aws-architecture.png`:
 - Xám: request đồng bộ.
-- Xanh lá: domain event đi qua outbox → SNS FIFO → SQS FIFO (đích, backlog Phase 3+; hiện event chạy in-process).
-- Tím: platform event (S3 → EventBridge, Scheduler).
-- Nét đứt: browser gọi thẳng dịch vụ AWS (Cognito, presigned S3).
+- Tím: sự kiện nền tảng (S3 → EventBridge → SQS, Scheduler → SQS, queue → `jars-api`).
+- Đỏ chấm: chuyển sang DLQ (redrive của queue, hoặc Scheduler không giao được).
+- Nét đứt: browser gọi thẳng dịch vụ AWS (Cognito, presigned PUT), hoặc thứ được nạp khi task khởi động (image từ ECR, secret từ Secrets Manager).
 
 ## Cách render lại
 
@@ -21,18 +25,19 @@ Yêu cầu: Python 3.10+ và **Graphviz** (có lệnh `dot` trong `PATH`).
 
 ```bash
 # Windows: winget install Graphviz.Graphviz   |  macOS: brew install graphviz  |  Ubuntu: apt install graphviz
-python -m venv .venv-diagrams
-.venv-diagrams/Scripts/pip install diagrams==0.25.1      # macOS/Linux: .venv-diagrams/bin/pip
+# Windows, nếu `dot` chưa có trong PATH (Git Bash): export PATH="$PATH:/c/Program Files (x86)/Graphviz/bin"
+python -m venv .venv-diagrams   # đặt venv ngoài repo (không có trong .gitignore)
+.venv-diagrams/Scripts/python -m pip install diagrams==0.25.1      # macOS/Linux: .venv-diagrams/bin/python
 for f in docs/diagrams/src/*.py; do .venv-diagrams/Scripts/python "$f"; done
 ```
 
-Không muốn cài Graphviz thì render trong container (đã dùng ngày 2026-11-13):
+Không muốn cài Graphviz thì render trong container:
 
 ```bash
 docker run --rm -v "$PWD/docs/diagrams:/d" python:3.13-slim bash -c \
   "apt-get update -qq && apt-get install -y -qq graphviz fonts-dejavu-core && pip install -q diagrams==0.25.1 && cd /d && for f in src/*.py; do python \$f; done"
 ```
 
-Mỗi script ghi file PNG cùng tên vào `docs/diagrams/`. Đã kiểm tra với `diagrams 0.25.1` + `Graphviz 16.0.0` ngày 2026-10-23.
+Mỗi script ghi file PNG cùng tên vào `docs/diagrams/` (chạy từ thư mục nào cũng được). Lần render lại gần nhất: 2026-11-13, với `diagrams 0.25.1` + Graphviz 14.1.2.
 
-**Mẹo layout:** dùng `splines="spline"` để nhãn cạnh nằm đúng chỗ (`ortho` hay đặt nhãn sai vị trí). Hạn chế nối dây cho các dịch vụ "dùng chung" (ECR, Secrets, CloudWatch); gom chúng vào một cluster riêng để sơ đồ đỡ rối.
+**Mẹo layout:** dùng `splines="spline"` để nhãn cạnh nằm đúng chỗ (`ortho` hay đặt nhãn sai vị trí). Hạn chế nối dây cho các dịch vụ "dùng chung" (ECR, Secrets, CloudWatch) và đừng gom chúng vào một cluster lớn: Graphviz sẽ ép cả cluster xuống cùng một hàng và các cạnh dài cắt ngang sơ đồ. Với sơ đồ nhiều node, `direction="TB"` (nguồn ở trên, phụ thuộc ở dưới) dễ đọc hơn `LR`.

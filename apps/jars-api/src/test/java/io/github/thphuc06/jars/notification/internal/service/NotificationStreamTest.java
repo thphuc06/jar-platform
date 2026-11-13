@@ -2,8 +2,11 @@ package io.github.thphuc06.jars.notification.internal.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doAnswer;
 
 import io.github.thphuc06.jars.TestcontainersConfiguration;
+import io.github.thphuc06.jars.shared.UserId;
 import java.io.IOException;
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -32,6 +35,7 @@ import org.springframework.context.annotation.Primary;
 import org.springframework.security.oauth2.jwt.BadJwtException;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
@@ -73,6 +77,10 @@ class NotificationStreamTest {
 
     @Autowired
     SseRegistry registry;
+
+    // passes through to the real service; one test makes it publish while a stream is being opened
+    @MockitoSpyBean
+    NotificationService notifications;
 
     @Autowired
     JsonMapper json;
@@ -148,6 +156,35 @@ class NotificationStreamTest {
             String data = client.awaitLine(l -> l.startsWith("data:"));
 
             assertThat(data).contains(secondId).doesNotContain(firstId);
+        }
+    }
+
+    @Test
+    void aNotificationPublishedWhileTheStreamIsOpening_isNotLost() throws Exception {
+        String sub = newSubject();
+        necJar(sub); // creates the user
+        UUID id = UUID.randomUUID();
+        NotificationView raced = new NotificationView(
+                id,
+                "ANOMALY",
+                "HIGH",
+                "raced",
+                "created after the reconnect query started",
+                null,
+                null,
+                null,
+                Instant.now());
+        // the missed-notifications lookup is the window: whatever is published while it runs must still arrive. Nothing
+        // is stored for `raced`, so the lookup cannot return it and only the live push can deliver it.
+        doAnswer(call -> {
+                    registry.publish(call.getArgument(0, UserId.class), raced);
+                    return call.callRealMethod();
+                })
+                .when(notifications)
+                .missedSince(any(), any());
+
+        try (SseClient client = SseClient.open(http, url("/api/v1/notifications/stream"), sub, null)) {
+            assertThat(client.awaitLine(l -> l.startsWith("id:"))).isEqualTo("id:" + id);
         }
     }
 

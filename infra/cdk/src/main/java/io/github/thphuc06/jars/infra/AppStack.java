@@ -490,7 +490,7 @@ public final class AppStack extends Stack {
             DataStack data,
             MessagingStack messaging,
             ISecurityGroup appSecurityGroup) {
-        // the task role is deliberately almost empty for now
+        // the task role holds one statement per resource the application uses (queues, statement bucket, Bedrock)
         Role taskRole = Role.Builder.create(this, "ApiTaskRole")
                 .roleName(cfg.name("api-task"))
                 .description("jars-api application code (least privilege, extended phase by phase)")

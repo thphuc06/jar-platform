@@ -9,7 +9,7 @@
 
 ## 2. Envelope (khi đã externalize)
 
-Mọi domain event ra khỏi process đều có cấu trúc chung (JSON, đặt trong message body). Schema nằm ở `contracts/events/*.schema.json`.
+Mọi domain event ra khỏi process (backlog Phase 3+, chưa làm) sẽ có cấu trúc chung (JSON, đặt trong message body). Chưa có file JSON Schema nào: thư mục `contracts/events/` chưa tồn tại, schema sẽ được thêm khi externalize.
 
 ```json
 {
@@ -32,7 +32,7 @@ Mọi domain event ra khỏi process đều có cấu trúc chung (JSON, đặt 
 | Event | Phát bởi | Nghe bởi | Payload chính | Externalize (Phase 3+, backlog) |
 |---|---|---|---|---|
 | `UserRegistered` | identity | ledger (tạo 6 hũ mặc định) | `userId`, `locale` | Không. **Nghe đồng bộ trong cùng transaction** với việc tạo user (`@EventListener`, không phải `@ApplicationModuleListener`), để user không bao giờ tồn tại mà thiếu 6 hũ |
-| `RiskProfileAssessed` | identity | advisor (ngữ cảnh chat) | `riskLevel`, `score` | Không |
+| `RiskProfileAssessed` (dự kiến, chưa có class) | identity | advisor (ngữ cảnh chat) | `riskLevel`, `score` | Không |
 | `TransactionPosted` | ledger | insights (MAD + CUSUM, read model), budgeting (đã chi của kỳ: chỉ tính `EXPENSE` có `jarId`) | `eventId` (UUIDv7), `transactionId`, `userId`, `type`, `amount`, `jarId`, `categoryId`, `occurredAt`, `source`. Một lần `LedgerApi.allocateIncome` phát **một** event `INCOME` với `jarId = null` (tiền chia cho nhiều hũ) | **Có** → `jars-ledger-events.fifo`, group = `userId` |
 | `TransactionRecategorized` | ledger | insights, budgeting (chuyển `spent_amount` giữa hai hũ khi khoản chi đổi hũ) | `transactionId`, `oldCategoryId`, `newCategoryId`, `oldJarId`, `newJarId` | **Có** |
 | `JarCreated` | ledger | insights (khởi tạo detector state) | `jarId`, `code` | **Có** |
@@ -47,12 +47,13 @@ Mọi domain event ra khỏi process đều có cấu trúc chung (JSON, đặt 
 |---|---|---|---|
 | S3 `jars-dev-statements`, prefix `uploads/{userId}/{importId}.csv` | Rule `statement-uploaded`: `source=aws.s3`, `detail-type=Object Created` | SQS `jars-imports` | Event EventBridge gốc (`detail.object.key`). jars-api tách `userId` / `importId` từ key **rồi kiểm tra với bảng `statement_imports`** (không tin key) |
 | EventBridge Scheduler `month-close` | `cron(5 0 1 * ? *)`, TZ `Asia/Ho_Chi_Minh` | SQS `jars-jobs` | `{"job":"MONTH_CLOSE"}`. Tháng cần khép không nằm trong message: job tự tính **tháng trước** theo giờ Việt Nam. Có thể gửi tay `{"job":"MONTH_CLOSE","month":"2026-10"}` để chạy lại một tháng ([F6](flows.md#f6)) |
+| EventBridge Scheduler `ledger-reconciliation` | `cron(30 2 * * ? *)`, TZ `Asia/Ho_Chi_Minh` | SQS `jars-reconciliation` (queue riêng, giữ message 1 giờ) | `{"job":"LEDGER_RECONCILIATION"}`. Chỉ đọc nên giao lại không sao; hũ lệch không làm message lỗi ([F6](flows.md#f6)) |
 
 ## 4b. Cách event in-process được giao nhận (đã cài đặt)
 
 - Event được publish **trong transaction nghiệp vụ**; Spring Modulith ghi một dòng `event_publication` cho **mỗi listener** (outbox) trong cùng transaction đó.
 - Sau commit, `@ApplicationModuleListener` chạy bất đồng bộ trong transaction riêng. Listener xong thì dòng bị xóa (`completion-mode: delete`); listener lỗi thì dòng **ở lại** và không mất event.
-- **Chưa bật** tự publish lại các dòng còn tồn khi khởi động; hiện chúng là hàng đợi cần xem tay (`SELECT * FROM event_publication`). Việc này nằm trong backlog.
+- Các dòng còn tồn được **publish lại khi ứng dụng khởi động** (`spring.modulith.events.republish-outstanding-events-on-restart: true`, kiểm bằng `OutboxRepublishTest`). Một listener lỗi mãi sẽ được thử lại ở mỗi lần khởi động; xem các dòng tồn bằng `SELECT * FROM event_publication`.
 - Consumer luôn kiểm tra `processed_messages(consumer, eventId)` ở đầu transaction để bỏ qua event bị giao lại.
 - `UserRegistered` là ngoại lệ có chủ đích: ledger nghe **đồng bộ** trong transaction tạo user.
 
@@ -60,17 +61,17 @@ Mọi domain event ra khỏi process đều có cấu trúc chung (JSON, đặt 
 
 | Đảm bảo | Cách đạt được |
 |---|---|
-| **Không mất event khi DB commit** | Outbox: Spring Modulith ghi `event_publication` **trong cùng transaction** với dữ liệu nghiệp vụ. Nếu publish ra SNS lỗi thì bản ghi vẫn ở trạng thái chưa hoàn thành và được gửi lại (khi restart hoặc qua `IncompleteEventPublications`) |
+| **Không mất event khi DB commit** | Outbox: Spring Modulith ghi `event_publication` **trong cùng transaction** với dữ liệu nghiệp vụ. Nếu listener lỗi (hoặc, khi đã externalize ở backlog Phase 3+, publish ra SNS lỗi) thì bản ghi vẫn ở trạng thái chưa hoàn thành và được gửi lại (khi restart hoặc qua `IncompleteEventPublications`) |
 | **Không phát event "ma" khi DB rollback** | Listener dùng `@TransactionalEventListener` (AFTER_COMMIT), nên rollback thì không có gì được phát |
-| **At-least-once** | SQS chỉ xóa message sau khi listener xử lý thành công |
+| **At-least-once** | SQS (queue standard) chỉ xóa message sau khi listener xử lý thành công |
 | **Idempotent consumer** | Kiểm tra rồi ghi `processed_messages(consumer, eventId)` trong **cùng transaction** với xử lý nghiệp vụ; nếu đã có thì bỏ qua |
-| **Thứ tự** | FIFO + message group = `userId`: các giao dịch của một user được xử lý **theo thứ tự**, các user khác nhau chạy song song. CUSUM cần thứ tự này |
-| **Poison message** | Sau `maxReceiveCount=5` lần lỗi → DLQ; có alarm khi DLQ > 0; quy trình xử lý ở [runbook.md](../05-operations/runbook.md#xử-lý-message-trong-dlq) |
-| **Dedup phía SNS/SQS FIFO** | Content-based deduplication trong cửa sổ 5 phút. Đây chỉ là lớp phụ, **không thay thế** được idempotent consumer |
+| **Thứ tự** (backlog Phase 3+, chưa làm) | Khi externalize: FIFO + message group = `userId`, các giao dịch của một user được xử lý **theo thứ tự**, các user khác nhau chạy song song. CUSUM cần thứ tự này. Hiện event đi in-process, không có FIFO |
+| **Poison message** | Chỉ có queue SQS standard, mỗi queue một DLQ và alarm khi DLQ > 0: `jars-jobs` `maxReceiveCount=5`, `jars-imports` 3, `jars-reconciliation` 3. Quy trình xử lý ở [runbook.md](../05-operations/runbook.md#xử-lý-message-trong-dlq) |
+| **Dedup phía SNS/SQS FIFO** (backlog Phase 3+, chưa làm) | Content-based deduplication trong cửa sổ 5 phút. Đây chỉ là lớp phụ, **không thay thế** được idempotent consumer |
 
 ## 6. Ánh xạ sang khái niệm Kafka (để trả lời phỏng vấn)
 
-JD thường yêu cầu Kafka. Project này dùng SNS/SQS FIFO vì chi phí ([ADR-0009](../04-adr/0009-messaging-sns-sqs-eventbridge.md)), nhưng các khái niệm tương đương nhau:
+JD thường yêu cầu Kafka. Project này dùng SQS (SNS/SQS FIFO là thiết kế cho backlog Phase 3+, chưa làm) vì chi phí ([ADR-0009](../04-adr/0009-messaging-sns-sqs-eventbridge.md)), nhưng các khái niệm tương đương nhau:
 
 | Kafka | Trong project này | Khác biệt cần biết |
 |---|---|---|

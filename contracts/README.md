@@ -5,6 +5,6 @@ Các hợp đồng giao tiếp giữa các thành phần. Đây là nguồn sự
 | Thư mục | Nội dung | Ai sinh / ai dùng |
 |---|---|---|
 | `openapi/jars-api.yaml` | OpenAPI 3.1 của jars-api | jars-api sinh (springdoc, bước P1.10) → web sinh TypeScript client |
-| `events/*.schema.json` | JSON Schema của envelope + payload từng domain event ([event-catalog](../docs/02-architecture/event-catalog.md)) | jars-api, insights-worker (Phase 5) |
+| `events/*.schema.json` | **Chưa có** (thư mục chưa tồn tại). Dự kiến: JSON Schema của envelope + payload từng domain event ([event-catalog](../docs/02-architecture/event-catalog.md)), khi externalize event | jars-api, insights-worker (backlog Phase 3+, chưa làm) |
 
 Quy tắc: đổi contract theo kiểu phá vỡ tương thích thì phải tăng version (`/v2`, `eventVersion`) và ghi chú trong PR.

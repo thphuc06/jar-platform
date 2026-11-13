@@ -9,11 +9,15 @@
 |---|---|---|---|
 | V1 | `V1__baseline_users.sql` | Bảng `users`: `id` UUID (app sinh), `cognito_sub` UNIQUE, `email` UNIQUE **không phân biệt hoa/thường** (unique index trên `lower(email)`), `locale` mặc định `vi-VN`, `created_at`/`updated_at` | P0.6 |
 | V2 | `V2__idempotency_keys.sql` | Bảng `idempotency_keys` (PK `user_id` + `key`), chủ sở hữu là `platform` | WP1 |
+| V3 | `V3__identity.sql` | Bỏ unique index email và cho phép `email` NULL (danh tính chỉ dựa trên `cognito_sub`; access token Cognito không có claim email); thêm `risk_assessments` (một dòng mỗi lần nộp bảng hỏi, dòng mới nhất là hồ sơ hiện tại) | WP2 |
+| V4 | `V4__ledger.sql` | `jars` (có `version`, `balance` cache, index unique `(user_id, code)` cho 6 hũ mặc định), `categories` (+ 19 danh mục hệ thống, id cố định), `transactions` (có `to_jar_id` cho chuyển hũ và các CHECK ràng buộc loại giao dịch), `jar_entries` (chỉ ghi thêm). `currency` là `VARCHAR(3)` thay vì `CHAR(3)` để Hibernate `validate` khớp kiểu. `jar_entries.created_at` là thời điểm **phát sinh** của giao dịch (để vẽ số dư theo ngày), còn `balance_after` là số dư chạy theo **thứ tự ghi sổ** | WP3 |
 | V5 | `V5__modulith_event_publication.sql` | `event_publication` (+ `_archive`): outbox của Spring Modulith (cột theo bản 2.1; chế độ hoàn tất `delete`, listener xong thì xóa dòng) | WP4 |
 | V6 | `V6__insights_notifications.sql` | `processed_messages` (inbox), `anomaly_detector_state`, `anomalies`, `monthly_jar_spend`, `monthly_category_spend`, `monthly_cashflow`, `notifications`. Không có khóa ngoại sang bảng của ledger (module chỉ tham chiếu nhau bằng id) | WP4 |
-| V4 | `V4__ledger.sql` | `jars` (có `version`, `balance` cache, index unique `(user_id, code)` cho 6 hũ mặc định), `categories` (+ 19 danh mục hệ thống, id cố định), `transactions` (có `to_jar_id` cho chuyển hũ và các CHECK ràng buộc loại giao dịch), `jar_entries` (chỉ ghi thêm). `currency` là `VARCHAR(3)` thay vì `CHAR(3)` để Hibernate `validate` khớp kiểu. `jar_entries.created_at` là thời điểm **phát sinh** của giao dịch (để vẽ số dư theo ngày), còn `balance_after` là số dư chạy theo **thứ tự ghi sổ** | WP3 |
 | V7 | `V7__budgeting.sql` | `jar_periods` (mỗi hũ mỗi tháng một dòng, `UNIQUE (jar_id, period_month)`, `period_month` là ngày đầu tháng giờ VN, `planned_amount`, `spent_amount`, `closed_at`) và `allocation_decisions` (`UNIQUE (user_id, idempotency_key)`, `decision` ACCEPTED / EDITED / SKIPPED, `suggested`/`applied` JSONB). Không có khóa ngoại sang bảng của ledger hay `users` (giống V6) | WP5 |
-| V3 | `V3__identity.sql` | Bỏ unique index email và cho phép `email` NULL (danh tính chỉ dựa trên `cognito_sub`; access token Cognito không có claim email); thêm `risk_assessments` (một dòng mỗi lần nộp bảng hỏi, dòng mới nhất là hồ sơ hiện tại) | WP2 |
+| V8 | `V8__goals.sql` | `goals` (`target_amount > 0`, `status` ACTIVE / ACHIEVED / ARCHIVED, `funding_jar_id` chỉ tham chiếu bằng id, `version`, `archived_at`; index `(user_id, status, created_at, id)`). Không có khóa ngoại sang `users` hay ledger | WP5 |
+| V9 | `V9__imports.sql` | `statement_imports` (`status` AWAITING_UPLOAD / PROCESSING / COMPLETED / FAILED, `file_sha256` để chặn nhập cùng tệp hai lần), `statement_import_errors` (PK `(import_id, line_number)`) và các bảng metadata `BATCH_*` của Spring Batch 6.0 (chép nguyên từ `spring-batch-core`). Không có khóa ngoại sang ledger | Phase 2 WP3 |
+| V10 | `V10__advisor.sql` | `chat_sessions`, `chat_messages` (FK `session_id` → `chat_sessions`, `ON DELETE CASCADE`; `role` USER / ASSISTANT; cột `guardrail`) và `advisor_usage` (bộ đếm cửa sổ cố định HOUR / DAY cho rate limit, [ADR-0023](../04-adr/0023-advisor-guardrail-and-rate-limit.md)) | Phase 2 WP4 |
+| V11 | `V11__audit_log.sql` | `audit_log` (append-only: trigger từ chối `UPDATE`, `DELETE`, `TRUNCATE`; index `(actor, occurred_at DESC, id DESC)`), chủ sở hữu là `platform` ([ADR-0025](../04-adr/0025-audit-log-aop-same-transaction.md)) | F14 |
 
 ## 1. Quy ước
 
@@ -52,7 +56,6 @@ erDiagram
     jars ||--o{ anomalies : flags
     transactions ||--o{ anomalies : "may trigger"
     chat_sessions ||--o{ chat_messages : contains
-    statement_imports ||--o{ transactions : "imported into"
 
     users {
         uuid id PK
@@ -133,7 +136,6 @@ erDiagram
         text note
         timestamptz occurred_at
         text source "MANUAL|IMPORT"
-        uuid import_id FK
         timestamptz created_at
     }
     goals {
@@ -234,7 +236,7 @@ erDiagram
 | `transactions (user_id, occurred_at DESC, id DESC)` | Money Inbox, keyset pagination |
 | `transactions (user_id, jar_id, occurred_at)` | Chi tiêu theo hũ trong tháng |
 | `jar_entries (jar_id, created_at)` | Đối soát số dư hũ |
-| `notifications (user_id, read_at NULLS FIRST, created_at DESC)` | Danh sách thông báo chưa đọc |
+| `notifications (user_id, created_at DESC, id DESC)` và `notifications (user_id) WHERE read_at IS NULL` (partial) | Danh sách thông báo (keyset) và đếm thông báo chưa đọc (V6) |
 | `anomalies (user_id, status, detected_at DESC)` | Màn hình Alerts |
 | `users (cognito_sub)` UNIQUE | Map JWT → user |
 | `audit_log (actor, occurred_at DESC, id DESC)` | `GET /audit-log`: dòng của chính người gọi, mới nhất trước, keyset |

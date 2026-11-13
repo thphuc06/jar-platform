@@ -11,9 +11,11 @@
 - Hạ tầng **AWS-native**: ECS Fargate, Aurora Serverless v2, Cognito, SQS, EventBridge, Bedrock; tất cả dựng bằng **AWS CDK (Java)**.
 - Không có Python ở runtime: phần cổ phiếu (vnstock, PyPortfolioOpt) của bản hackathon đã bỏ vì giấy phép của nguồn dữ liệu ([ADR-0024](docs/04-adr/0024-drop-market-and-quant-fn.md)).
 
-> **Trạng thái (2026-11-13):** ✅ Backend lõi chạy được và đã deploy thử lên AWS bằng CDK (Cognito, VPC không NAT, Aurora Serverless v2 scale-to-zero, ECS Fargate ARM64, CloudFront). Có thêm ngân sách, khép sổ tháng, mục tiêu và web client React. Phase 2 thêm import sao kê CSV (Spring Batch, S3 → EventBridge → SQS), trợ lý AI trên Bedrock có guardrail, và OpenTelemetry → X-Ray/CloudWatch. 738 test backend, coverage dòng 94,8%; smoke test trên AWS 14/14; k6 qua CloudFront p95 đọc 117 ms, p95 ghi 200 ms. Phần cổ phiếu (market, `quant-fn`) đã bỏ ([ADR-0024](docs/04-adr/0024-drop-market-and-quant-fn.md)). Chi tiết tiến độ và những gì chưa làm: [docs/06-plan/roadmap.md](docs/06-plan/roadmap.md).
+> **Trạng thái (2026-11-13):** ✅ Backend lõi chạy được và đã deploy thử lên AWS bằng CDK (Cognito, VPC không NAT, Aurora Serverless v2 scale-to-zero, ECS Fargate ARM64, CloudFront). Có thêm ngân sách, khép sổ tháng, mục tiêu và web client React. Phase 2 thêm import sao kê CSV (Spring Batch, S3 → EventBridge → SQS), trợ lý AI trên Bedrock có guardrail, và OpenTelemetry → X-Ray/CloudWatch. 748 test backend, coverage dòng 94,8%; smoke test trên AWS 14/14; k6 qua CloudFront p95 đọc 117 ms, p95 ghi 200 ms. Có thêm **audit log** (bảng `audit_log` append-only, ghi bằng `@Audited` trong cùng transaction với nghiệp vụ, [ADR-0025](docs/04-adr/0025-audit-log-aop-same-transaction.md)) và **job đối soát sổ cái hằng đêm** (`balance == SUM(entries)`, chỉ phát hiện và báo; đã viết và test, chưa deploy lên AWS). Phần cổ phiếu (market, `quant-fn`) đã bỏ ([ADR-0024](docs/04-adr/0024-drop-market-and-quant-fn.md)). Chi tiết tiến độ và những gì chưa làm: [docs/06-plan/roadmap.md](docs/06-plan/roadmap.md).
 
-![AWS target architecture](docs/diagrams/aws-architecture.png)
+![Topology đã deploy](docs/diagrams/aws-deployment.png)
+
+*Topology đang được deploy (CloudFront, ALB internal, một task Fargate kèm sidecar ADOT, Aurora Serverless v2, S3 → EventBridge → SQS cho sao kê, Bedrock); tất cả do `infra/cdk` tạo. Bản chi tiết hơn của hệ thống hiện tại: [`aws-architecture.png`](docs/diagrams/aws-architecture.png).*
 
 ## Tech stack (tóm tắt)
 
@@ -37,16 +39,16 @@ Chi tiết và lý do của từng lựa chọn nằm ở [docs/02-architecture/
 jar-platform/
 ├── apps/
 │   ├── jars-api/          # Java 21 · Spring Boot 4.1 · modular monolith (Maven)
-│   ├── insights-worker/   # Java · service tách ra ở Phase 3+ (backlog; chưa có code)
 │   └── web/               # React + Vite PWA (chuyển từ ius_financial_ui)
 ├── infra/
 │   └── cdk/               # AWS CDK v2 viết bằng Java: toàn bộ hạ tầng
 ├── contracts/
 │   ├── openapi/           # OpenAPI spec do jars-api sinh ra (commit vào repo)
-│   └── events/            # JSON Schema cho domain events
-├── local/                 # docker compose cho môi trường dev local
+│   └── events/            # (chưa có) JSON Schema cho domain events, dự kiến khi externalize event
+├── local/                 # docker compose cho môi trường dev local (hiện chỉ có Postgres)
+├── scripts/               # push-image, smoke-test, load-test
 ├── docs/                  # toàn bộ tài liệu (bắt đầu từ docs/README.md)
-└── .github/workflows/     # CI (mỗi PR) và CD (deploy dev)
+└── .github/workflows/     # ci, web, infra (mỗi PR, có path filter) và deploy-dev (chạy tay)
 ```
 
 ## Đọc tài liệu theo thứ tự nào?

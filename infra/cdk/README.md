@@ -19,8 +19,10 @@ infra/cdk/
     │   ├── NetworkStack.java          # VPC, subnet, security group (sở hữu MỌI rule)
     │   ├── AuthStack.java             # Cognito user pool, domain, resource server, client smoke
     │   ├── DataStack.java             # Aurora Serverless v2 (hoặc RDS với dbMode=rds)
-    │   ├── MessagingStack.java        # SQS jars-jobs + DLQ, Scheduler month-close, alarm DLQ
-    │   ├── AppStack.java              # ECS, ALB, CloudFront + VPC origin, web bucket, client SPA
+    │   ├── MessagingStack.java        # SQS jars-jobs, jars-imports (+ rule statement-uploaded), jars-reconciliation, mỗi queue một DLQ + alarm; Scheduler month-close và ledger-reconciliation
+    │   ├── AppStack.java              # ECS, ALB, CloudFront + VPC origin, web bucket, client SPA, quyền của task role
+    │   ├── AdvisorResources.java      # Bedrock Guardrail và policy InvokeModel/ApplyGuardrail cho task role
+    │   ├── ApiObservability.java      # sidecar ADOT, log group EMF, dashboard, alarm 5xx/p95/đối soát
     │   └── config/EnvConfig.java      # đọc context thành record
     └── test/java/...                  # Template assertions, guardrail, cdk-nag
 ```
@@ -61,14 +63,14 @@ Script smoke test và bước deploy đọc các output này (`aws cloudformatio
 |---|---|
 | `JarsFoundation` | `EcrRepositoryUri`, `AlarmTopicArn`, `GitHubDeployRoleArn` |
 | `JarsAuth` | `UserPoolId`, `SmokeClientId`, `IssuerUri`, `ManagedLoginBaseUrl` |
-| `JarsData` | `DbClusterIdentifier`, `DbEndpoint`, `DbSecretArn` |
+| `JarsData` | `DbClusterIdentifier`, `DbEndpoint`, `DbSecretArn`, `StatementsBucketName` |
 | `JarsMessaging` | `JobsQueueUrl`, `JobsDeadLetterQueueUrl` |
 | `JarsApp` | `CloudFrontDomain`, `SpaClientId`, `DistributionId`, `WebBucketName`, `EcsClusterName`, `EcsServiceName` |
 | `JarsNetwork` | `VpcId` |
 
 ## Test
 
-`./mvnw test` chạy 95 test trong khoảng 1,5 phút (mỗi biến thể của app được synth một lần rồi dùng chung). Hai dòng `ERROR` về một S3 bucket (AwsSolutions-S1, S10) trong log là của `NagWiringTest`: nó cố ý dựng một stack sai để chứng minh cdk-nag chặn được.
+`./mvnw test` chạy 118 test trong khoảng 1,5 phút (mỗi biến thể của app được synth một lần rồi dùng chung). Hai dòng `ERROR` về một S3 bucket (AwsSolutions-S1, S10) trong log là của `NagWiringTest`: nó cố ý dựng một stack sai để chứng minh cdk-nag chặn được.
 
 | Test | Bảo vệ điều gì |
 |---|---|

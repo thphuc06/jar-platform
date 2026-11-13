@@ -67,6 +67,9 @@ spring:
     events:
       # a finished listener deletes its row from event_publication; unfinished rows stay as the outbox
       completion-mode: delete
+      # a row left by a stopped task or a failed listener is delivered again at startup; every listener goes through
+      # ProcessedMessages (or is idempotent by itself), so a repeat changes nothing
+      republish-outstanding-events-on-restart: true
 
 server:
   port: 8080

@@ -13,14 +13,14 @@
 | 3 | `aws login --profile jars-dev` (đăng nhập bằng `phuc-account`, region `ap-southeast-1`) | CLI/SDK dùng credential tạm thời (tối đa 12 giờ) | [local-development.md §5](local-development.md#5-aws-credentials-cho-local-không-dùng-root) |
 | 4 | Bật cost allocation tag `Project` | Lọc chi phí theo project | Billing → Cost allocation tags (tag xuất hiện sau khi resource đầu tiên được gắn tag, mất tới 24 giờ) |
 | 5 | Kiểm tra **Bedrock model access** ở ap-southeast-1 | Gọi model lần đầu cần được phép | Console Bedrock → Model access (hoặc thử gọi `converse` bằng CLI) |
-| 6 | `npx aws-cdk@2 bootstrap aws://626212071763/ap-southeast-1 --profile jars-dev` | CDK cần bucket và role bootstrap ở mỗi region | Hiện mới bootstrap ở us-east-1 |
+| 6 | `npx aws-cdk@2 bootstrap aws://626212071763/ap-southeast-1 --profile jars-dev` | CDK cần bucket và role bootstrap ở mỗi region | Các lần deploy lên ap-southeast-1 đã thành công (§2, §6) |
 | 7 | Tạo repo GitHub `thphuc06/jar-platform` (repo cá nhân), bật secret scanning + push protection | Chặn commit secret | Settings → Code security |
-| 8 | Bật **S3 Block Public Access ở cấp account** | Không bucket nào lỡ bị public | S3 console → Block Public Access settings for this account |
-| 9 | Bật **EBS encryption by default** (ap-southeast-1) | Volume mới tự được mã hóa (instance `sidewalk` hiện có cũng có EBS) | EC2 console → Settings → EBS encryption |
-| 10 | Tạo **IAM Access Analyzer** loại external access (cấp account) | Phát hiện resource bị chia sẻ ra ngoài; miễn phí | IAM → Access Analyzer → Create analyzer |
+| 8 | **S3 Block Public Access ở cấp account**: không bật (quyết định P0.2) | Sẽ chặn bucket lỡ bị public | S3 console → Block Public Access settings for this account |
+| 9 | **EBS encryption by default** (ap-southeast-1): không bật (quyết định P0.2) | Sẽ tự mã hóa volume mới (instance `sidewalk` hiện có cũng có EBS) | EC2 console → Settings → EBS encryption |
+| 10 | **IAM Access Analyzer** loại external access: không bật (quyết định P0.2) | Sẽ phát hiện resource bị chia sẻ ra ngoài; miễn phí | IAM → Access Analyzer → Create analyzer |
 | 11 | Bật **Cost Anomaly Detection** (monitor theo service + email hằng ngày) | Cảnh báo chi phí tăng bất thường; không tính phí | Billing → Cost Anomaly Detection |
 
-> **Bước 8–11 là "account baseline"**, không thuộc CDK stack nào của project. Chúng bảo vệ **cả account dùng chung** (có cả `sidewalk`, `FairTable`). Nếu đặt vào `JarsFoundation` thì `cdk destroy` sẽ gỡ luôn bảo vệ của các project khác, và tài nguyên tạo bằng tay sẽ bị trùng. Các bước này làm một lần bằng console hoặc CLI, rồi ghi lại trạng thái ở đây.
+> **Bước 8–11 là "account baseline"**, không thuộc CDK stack nào của project. Chúng bảo vệ **cả account dùng chung** (có cả `sidewalk`, `FairTable`). Nếu đặt vào `JarsFoundation` thì `cdk destroy` sẽ gỡ luôn bảo vệ của các project khác, và tài nguyên tạo bằng tay sẽ bị trùng. Vì vậy chúng làm một lần bằng console hoặc CLI. Bước 8–10 hiện **không bật** theo quyết định P0.2 ([roadmap](../06-plan/roadmap.md)); Cost Anomaly Detection (bước 11) có sẵn.
 
 Tham chiếu đầy đủ: [well-architected-review.md](../02-architecture/well-architected-review.md).
 
@@ -34,6 +34,7 @@ Tham chiếu đầy đủ: [well-architected-review.md](../02-architecture/well-
 | Phase 1 (WP9), lần đầu | `cdk deploy JarsFoundation JarsNetwork JarsData JarsMessaging` | Hạ tầng nền (ECR, VPC, Aurora, SQS) |
 | Phase 1 (WP9) | Push image đầu tiên lên ECR (bằng CI hoặc tay), rồi `cdk deploy JarsApp -c imageTag=<sha>` | Lên app (đã gồm dashboard, alarm và sidecar ADOT từ Phase 2 WP2: không có stack `JarsObservability`, xem [aws-infrastructure §11](../02-architecture/aws-infrastructure.md#11-observability)) |
 | Phase 2 (WP1) | Workflow `deploy-dev.yml` (`workflow_dispatch`, input `deploy`/`destroy`) | Deploy và dọn `JarsApp` qua GitHub OIDC thay cho chạy tay |
+| Mỗi khi `JarsMessaging` đổi | `cdk deploy JarsMessaging` (từ máy dev) **trước** lần deploy `JarsApp` kế tiếp | `deploy-dev.yml` chỉ deploy `JarsApp --exclusively`. Task hiện có listener trên queue `jars-reconciliation` (do `MessagingStack` tạo), nên queue chưa có thì task không khởi động được |
 | Phase 3+ (backlog, chưa lên lịch) | `cdk deploy JarsMessaging JarsApp` (+ service worker) | SNS/SQS FIFO + `insights-worker`; chưa có code, chưa có stack |
 
 Chỉ có sáu stack: `JarsFoundation`, `JarsNetwork`, `JarsAuth`, `JarsData`, `JarsMessaging`, `JarsApp`. Không có Valkey/ElastiCache (rate limit của advisor nằm trong PostgreSQL, [ADR-0023](../04-adr/0023-advisor-guardrail-and-rate-limit.md)).
@@ -81,7 +82,6 @@ Một điều chưa giải thích được: lượt 2 cũng đăng ký task defi
 | `imageTag` | (trống; bắt buộc với `JarsApp`) | Git SHA của image jars-api. Khi trống, `JarsApp` **không** được synth (các stack khác vẫn deploy được), `cdk deploy JarsApp` báo "No stacks match" |
 | `apiDesiredCount` | `1` | `0` = chế độ SLEEP |
 | `dbMode` | `aurora` | `rds` = chuyển sang RDS t4g.micro dự phòng (ADR-0008) |
-| `customDomain` | (trống) | Nếu có domain riêng: tạo ACM ở us-east-1 + bản ghi Route 53 |
 | `alertEmail` | (trống, không bao giờ commit email thật) | Nhận budget alarm và CloudWatch alarm. Truyền `-c alertEmail=<địa chỉ>` hoặc đặt biến môi trường `JARS_ALERT_EMAIL`; trống thì topic không có người đăng ký và synth in cảnh báo. SNS gửi email xác nhận, phải bấm xác nhận một lần |
 | `deployWeb` | `false` | `true` = `BucketDeployment` upload `apps/web/dist` (build bởi người khác) và invalidate CloudFront |
 | `webDistDir` | `../../apps/web/dist` | Thư mục build của SPA, chỉ đọc khi `deployWeb=true` (đường dẫn tính từ `infra/cdk`) |
@@ -100,12 +100,14 @@ Một điều chưa giải thích được: lượt 2 cũng đăng ký task defi
 
 Toàn workflow: `permissions: contents: read`; dùng `concurrency` để push mới hủy lần chạy cũ; mỗi job có `timeout-minutes`. Cấu hình [`.github/dependabot.yml`](../../.github/dependabot.yml) mở PR cập nhật Maven và Actions hằng tuần (gom nhóm Spring và Spring Cloud AWS để các version khớp nhau luôn đi cùng).
 
-**Thêm sau** (khi có app tương ứng, khi đó dùng path filter để chỉ build phần bị thay đổi):
+Hai workflow nữa có path filter, chỉ chạy khi phần tương ứng đổi (push lên `main` và PR):
 
-```
-paths: apps/web/**           → npm ci → lint → test → build                 (P1.11)
-paths: infra/cdk/**          → ./mvnw test (CDK assertions + cdk-nag) → cdk synth      (đã có: .github/workflows/infra.yml)
-```
+| Workflow | Path | Làm gì |
+|---|---|---|
+| [`web.yml`](../../.github/workflows/web.yml) | `apps/web/**`, `contracts/openapi/**` | `npm ci` → kiểm tra `src/api/schema.d.ts` đã sinh lại từ OpenAPI (`npm run gen:api` + `git diff --exit-code`) → lint → test → build; upload `web-dist` |
+| [`infra.yml`](../../.github/workflows/infra.yml) | `infra/cdk/**` | `./mvnw test` (CDK assertions + cdk-nag) → `cdk synth -c imageTag=ci`; không có credential AWS, không chạy bootstrap/diff/deploy |
+
+Cùng `deploy-dev.yml` (bên dưới) là bốn workflow của repo.
 
 Kiểm tra workflow ở local trước khi push: `docker run --rm -v "$PWD:/repo" -w /repo rhysd/actionlint:1.7.12`. Quét secret ở local: `docker run --rm -v "$PWD:/repo" ghcr.io/gitleaks/gitleaks:v8.30.1 git /repo --redact`.
 
@@ -127,6 +129,8 @@ Các bước của `deploy` (runner `ubuntu-24.04-arm`, build image không cần
 4. Smoke test; job summary ghi tag image và URL CloudFront.
 
 `--exclusively` là cố ý: không có cờ này, `cdk deploy JarsApp` deploy luôn các stack phụ thuộc, tức CI có thể sửa `JarsFoundation`, nơi chứa chính role của nó. Các stack nền vẫn deploy từ máy dev.
+
+**Quy tắc thứ tự:** vì workflow chỉ deploy `JarsApp`, mọi thay đổi ở `JarsMessaging` (queue, schedule, rule) phải được `cdk deploy JarsMessaging` từ máy dev **trước** lần chạy `deploy-dev.yml` kế tiếp. Task hiện có listener SQS trên queue `jars-reconciliation` (do `MessagingStack` tạo); thiếu queue thì ứng dụng không khởi động.
 
 **Cài đặt một lần:** biến repo `AWS_DEPLOY_ROLE_ARN` = output `GitHubDeployRoleArn` của `JarsFoundation` (Settings → Secrets and variables → Actions → Variables). Quyền của role: [security.md §3](../02-architecture/security.md#3-iam).
 
