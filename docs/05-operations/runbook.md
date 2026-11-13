@@ -50,7 +50,7 @@ X-Ray hiển thị trace id dạng `1-xxxxxxxx-yyyyyyyyyyyyyyyyyyyyyyyy`: 8 ký 
 ## Dashboard, alarm và load test
 
 - Dashboard `jars-dev` (CloudWatch → Dashboards): request, 5xx, p50/p95/p99 từ ALB, CPU/memory ECS, ACU Aurora, sự kiện nghiệp vụ, độ sâu queue.
-- Alarm: `jars-dev-api-5xx-rate`, `jars-dev-api-p95-latency`, `jars-dev-aurora-not-paused`, alarm DLQ. Gửi về SNS `jars-dev-alarms`; topic chỉ có người nhận khi deploy `JarsFoundation` kèm `-c alertEmail=<địa chỉ>`.
+- Alarm: `jars-dev-api-5xx-rate`, `jars-dev-api-p95-latency`, `jars-dev-aurora-not-paused`, `jars-dev-ledger-reconciliation-mismatches` (trong code, chưa deploy), alarm DLQ (gồm `jars-dev-reconciliation-dlq-not-empty`, chưa deploy). Gửi về SNS `jars-dev-alarms`; topic chỉ có người nhận khi deploy `JarsFoundation` kèm `-c alertEmail=<địa chỉ>`.
 - Load test: `pwsh scripts/load-test.ps1` (mặc định 5 user, tối đa 20 virtual user, 2 phút ổn định). Cần Docker. Kết quả p95 in ra cuối và lưu JSON ở thư mục tạm. Chạy thử ngắn: thêm `-e STEADY=20s` vào lệnh `docker run` trong script, hoặc sửa tham số `-PeakVus`.
 
 ## Xử lý message trong DLQ
@@ -60,6 +60,22 @@ X-Ray hiển thị trace id dạng `1-xxxxxxxx-yyyyyyyyyyyyyyyyyyyyyyyy`: 8 ký 
 3. Tìm nguyên nhân trong log (dùng `eventId` hoặc `traceparent`), sửa code rồi deploy.
 4. Redrive về queue gốc: `aws sqs start-message-move-task --source-arn <dlq-arn>` (consumer idempotent nên chạy lại an toàn).
 5. Ghi lại sự cố vào mục "Sự cố đã gặp" bên dưới.
+
+`jars-reconciliation-dlq` (alarm `jars-dev-reconciliation-dlq-not-empty`, trong code, chưa deploy) có nghĩa là đối soát đêm đó **thất bại 3 lần liên tiếp** (không đọc được DB), tức số dư chưa được kiểm tra. Xem log lỗi trong `/jars/dev/api`; message giữ trong DLQ 14 ngày. Không cần redrive: message gốc chỉ sống 1 giờ và đêm sau lịch tự gửi lại; chỉ cần sửa nguyên nhân (thường là Aurora không resume kịp hoặc mất kết nối) rồi chờ lần chạy tiếp theo, hoặc gửi tay `{"job":"LEDGER_RECONCILIATION"}` vào `jars-reconciliation`. Xóa message khỏi DLQ để alarm về OK.
+
+## Alarm đối soát sổ cái (`ledger-reconciliation-mismatches`)
+
+Job `ReconciliationService` chạy 02:30 mỗi đêm (giờ VN, khi `JarsApp` đang chạy) và so `jars.balance` với `SUM(jar_entries.amount)` của từng hũ ([flows.md F6](../02-architecture/flows.md#f6)). Alarm kêu nghĩa là có ít nhất một hũ lệch. **Không có gì được tự sửa.**
+
+1. Tìm chi tiết trong log group của API: `aws logs filter-log-events --log-group-name /jars/dev/api --filter-pattern '"Ledger mismatch"' --start-time <epoch-ms>`. Mỗi dòng có `jar`, `stored`, `computed`, `difference` (tối đa 50 dòng mỗi lần chạy, lệch nhiều nhất trước; dòng cuối cho biết còn bao nhiêu hũ không liệt kê).
+2. Kiểm tra lại bằng tay trên DB (chỉ đọc):
+   ```sql
+   SELECT j.id, j.balance AS stored, COALESCE(SUM(e.amount), 0) AS computed
+   FROM jars.jars j LEFT JOIN jars.jar_entries e ON e.jar_id = j.id
+   GROUP BY j.id HAVING j.balance <> COALESCE(SUM(e.amount), 0);
+   ```
+3. Quyết định bên nào sai (số dư cache hay thiếu bút toán) bằng cách xem `jar_entries` và `audit_log` của hũ đó; sửa bằng một bút toán điều chỉnh hoặc cập nhật `balance` có kiểm soát, rồi ghi vào "Sự cố đã gặp".
+4. Lần chạy sạch kế tiếp báo `mismatches = 0` và alarm tự về OK. Nếu `JarsApp` bị destroy hoặc task bị thay thế, metric biến mất và alarm cũng về OK dù hũ vẫn lệch; lần chạy đêm sau sẽ báo lại.
 
 ## Import sao kê bị kẹt hoặc thất bại
 

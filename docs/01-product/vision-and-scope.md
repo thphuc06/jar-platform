@@ -45,6 +45,8 @@ Người trẻ Việt Nam (sinh viên, người mới đi làm) có thu nhập k
 | ~~F13~~ | ~~Tra cứu cổ phiếu VN + mô phỏng tối ưu danh mục~~ (đã bỏ, ADR-0024) | – |
 | F14 | Audit log: ai làm gì, lúc nào; ghi bằng AOP trong cùng transaction với nghiệp vụ ([ADR-0025](../04-adr/0025-audit-log-aop-same-transaction.md)) (đã làm) | 3+ |
 
+Ngoài danh sách feature: **đối soát sổ cái hằng đêm** (kiểm `balance == SUM(entries)` của mọi hũ, chỉ phát hiện và báo, không tự sửa) là biện pháp vận hành, không phải tính năng cho người dùng ([flows.md F6](../02-architecture/flows.md#f6)).
+
 ### Ngoài phạm vi (Out of scope) và lý do
 
 | Không làm | Lý do |

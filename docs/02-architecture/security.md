@@ -6,12 +6,12 @@
 |---|---|
 | Người dùng ↔ web | Cognito managed login, **Authorization Code + PKCE**, app client **không có secret** |
 | web ↔ jars-api | `Authorization: Bearer <access_token>` qua cùng origin CloudFront |
-| jars-api xác thực | `spring-boot-starter-oauth2-resource-server`, `issuer-uri=https://cognito-idp.ap-southeast-1.amazonaws.com/<userPoolId>` |
+| jars-api xác thực | `spring-boot-starter-security-oauth2-resource-server`, `issuer-uri=https://cognito-idp.ap-southeast-1.amazonaws.com/<userPoolId>` |
 
 Cognito access token **không có claim `aud`** mà có `client_id`, nên phải viết thêm validator:
 
 ```java
-// Phác thảo — code thật viết ở Phase 1
+// Rút gọn từ platform/security/AccessTokenValidators.java (tokenUseIsAccess, clientIdIn, forIssuer)
 OAuth2TokenValidator<Jwt> tokenUse = jwt -> "access".equals(jwt.getClaimAsString("token_use"))
         ? OAuth2TokenValidatorResult.success()
         : OAuth2TokenValidatorResult.failure(new OAuth2Error("invalid_token", "token_use must be access", null));
@@ -34,12 +34,12 @@ Nguyên tắc **least privilege**: không dùng `*` ở resource, trừ khi API 
 | Role | Ai assume | Quyền |
 |---|---|---|
 | `jars-dev-api-exec` (execution role) | ECS agent | `ecr:GetAuthorizationToken` (`Resource: *` vì IAM không hỗ trợ resource-level cho action này); `ecr:BatchCheckLayerAvailability`, `ecr:BatchGetImage`, `ecr:GetDownloadUrlForLayer` trên repo `jars/jars-api`; `logs:CreateLogStream`, `logs:PutLogEvents` trên log group `/jars/dev/api`; `secretsmanager:GetSecretValue`, `secretsmanager:DescribeSecret` trên secret DB |
-| `jars-dev-api-task` (task role) | Code của jars-api | `bedrock:InvokeModel`, `bedrock:InvokeModelWithResponseStream` trên ARN inference profile + foundation model đã chọn; `bedrock:ApplyGuardrail` trên guardrail; `sqs:ReceiveMessage`, `sqs:DeleteMessage`, `sqs:ChangeMessageVisibility`, `sqs:GetQueueAttributes`, `sqs:GetQueueUrl` (app cấu hình theo tên queue nên Spring Cloud AWS phải tra URL) trên các queue của API; `sns:Publish` trên topic ledger; `s3:PutObject` (để ký presigned URL) + `s3:GetObject` trên `jars-dev-statements-<account>/uploads/*` (đã cài ở Phase 2 WP3, cùng quyền consume `jars-imports`) |
+| `jars-dev-api-task` (task role) | Code của jars-api | `bedrock:InvokeModel`, `bedrock:InvokeModelWithResponseStream` trên ARN inference profile + foundation model đã chọn; `bedrock:ApplyGuardrail` trên guardrail; `sqs:ReceiveMessage`, `sqs:DeleteMessage`, `sqs:ChangeMessageVisibility`, `sqs:GetQueueAttributes`, `sqs:GetQueueUrl` (app cấu hình theo tên queue nên Spring Cloud AWS phải tra URL) chỉ trên ba queue `jars-jobs`, `jars-imports`, `jars-reconciliation`; `s3:PutObject` (để ký presigned URL) + `s3:GetObject` (đọc file và HEAD) trên `jars-dev-statements-<account>/uploads/*`; `xray:PutTraceSegments`, `xray:PutTelemetryRecords`, `xray:GetSamplingRules`, `xray:GetSamplingTargets` (`Resource: *`, IAM không hỗ trợ resource-level) và `logs:CreateLogStream`, `logs:PutLogEvents`, `logs:DescribeLogStreams` trên log group EMF `/jars/dev/api/metrics`. Không có quyền SNS |
 | `jars-dev-worker-task` (Phase 3+, backlog; chưa có) | insights-worker | Nhận và xóa message trên `jars-insights-ledger.fifo`; publish lên `jars-insights-events.fifo` |
 | `jars-dev-github-deploy` | GitHub Actions qua OIDC | Trust policy chỉ chấp nhận `StringEquals` với `token.actions.githubusercontent.com:sub = repo:thphuc06@185325027/jar-platform@1431052736:ref:refs/heads/main` và `aud = sts.amazonaws.com` (không wildcard, không environment). Repo dùng định dạng subject bất biến của GitHub (có id số của owner và repo), nên một repo tạo lại cùng tên không assume được role. Quyền: (1) `sts:AssumeRole` trên 4 role bootstrap của CDK (`cdk-hnb659fds-deploy-role`, `-file-publishing-role`, `-image-publishing-role`, `-lookup-role`) của đúng account và region này; (2) policy riêng `GitHubDeployRuntimePolicy` cho việc làm ngoài CloudFormation: push image vào **đúng repo** `jars/jars-api` (+ `ecr:GetAuthorizationToken`), `cloudformation:DescribeStacks` trên stack `Jars*`, `elasticloadbalancing:DescribeLoadBalancers` (smoke test kiểm ALB internal); (3) policy trong `JarsAuth`: `AdminCreateUser/SetUserPassword/InitiateAuth/DeleteUser` trên **đúng user pool** cho user tạm của smoke test. Workflow chỉ deploy `JarsApp` (`--exclusively`), không đụng stack chứa chính role này |
-| `jars-dev-scheduler` | EventBridge Scheduler (kèm điều kiện `aws:SourceAccount`) | `sqs:SendMessage` trên `jars-jobs` và trên `jars-jobs-scheduler-dlq` (DLQ cho lần gửi lỗi của schedule) |
+| `jars-dev-scheduler` | EventBridge Scheduler (kèm điều kiện `aws:SourceAccount`) | `sqs:SendMessage` trên `jars-jobs`, `jars-reconciliation` và `jars-jobs-scheduler-dlq` (DLQ cho lần gửi lỗi của schedule) |
 
-> **Tài khoản người dùng** ([ADR-0018](../04-adr/0018-human-access-iam-user-aws-login.md)): thiết kế đích là IAM user **`phuc-account` (bật MFA) + `aws login`** để có credential tạm thời. **Trạng thái thực tế (2026-11-12): ADR-0018 đang hoãn, CLI vẫn đăng nhập bằng root** (root có MFA, không có access key; access key dài hạn của `phuc-account` đã bị vô hiệu hóa). Rủi ro này được chấp nhận trong giai đoạn dev và phải được xử lý trước khi bật CI/CD deploy. **Không dùng IAM Identity Center** vì tài khoản standalone; muốn có permission set thì phải có Organizations, mà Organizations làm mất credit.
+> **Tài khoản người dùng** ([ADR-0018](../04-adr/0018-human-access-iam-user-aws-login.md)): thiết kế đích là IAM user **`phuc-account` (bật MFA) + `aws login`** để có credential tạm thời. **Trạng thái thực tế (2026-11-12): ADR-0018 đang hoãn, CLI vẫn đăng nhập bằng root** (root có MFA, không có access key; access key dài hạn của `phuc-account` đã bị vô hiệu hóa). Rủi ro này được chấp nhận trong giai đoạn dev. CI/CD deploy đã bật và dùng role GitHub OIDC `jars-dev-github-deploy`, không dùng root; phần còn hoãn là truy cập CLI của người bằng IAM user (ADR-0018). **Không dùng IAM Identity Center** vì tài khoản standalone; muốn có permission set thì phải có Organizations, mà Organizations làm mất credit.
 
 ## 4. Network
 
@@ -54,8 +54,8 @@ Xem [aws-infrastructure.md §3](aws-infrastructure.md#3-network-vpc).
 | Loại | Lưu ở đâu | Không bao giờ |
 |---|---|---|
 | DB credentials | Secrets Manager (CDK `Credentials.fromGeneratedSecret`) → ECS `secrets:`. Rotation thủ công ở dev ([runbook](../05-operations/runbook.md#đổi-secret-db)) | Ghi trong biến môi trường plain text của CDK, file `.env` commit |
-| Cấu hình không nhạy cảm (tên queue, model id) | Biến môi trường do CDK truyền vào | – |
-| Cấu hình local | `apps/jars-api/.env.local` (**đã gitignore**) hoặc profile AWS SSO | Commit file `.env` |
+| Cấu hình không nhạy cảm (tên queue, bucket, guardrail id) | Biến môi trường do CDK truyền vào (`JARS_*_QUEUE`, `JARS_IMPORTS_BUCKET`, `JARS_GUARDRAIL_ID`/`VERSION`). Model id cố định trong `application-aws.yaml` và `AdvisorResources.MODEL`, không truyền qua env | – |
+| Cấu hình local | Profile `local` (`application-local.yaml`) và biến môi trường; web đọc `apps/web/.env.local` (**đã gitignore**, không chứa secret) | Commit file `.env` |
 | GitHub → AWS | OIDC, **không có access key** | `AWS_ACCESS_KEY_ID` trong GitHub secrets |
 
 **Kiểm soát rò rỉ:**
@@ -69,7 +69,7 @@ Xem [aws-infrastructure.md §3](aws-infrastructure.md#3-network-vpc).
 |---|---|
 | Injection (SQL) | JPA/Spring Data với tham số bind; không nối chuỗi SQL |
 | Mass assignment | DTO `record` riêng cho request; không bind thẳng vào entity |
-| Upload file độc | Presigned URL giới hạn `content-length` ≤ 5 MB, content-type `text/csv`; key do server sinh; parser CSV giới hạn số dòng và kích thước dòng |
+| Upload file độc | Presigned PUT không giới hạn được kích thước upload; `S3StatementStore` kiểm tra kích thước (≤ 5 MB) bằng HEAD trước khi đọc file; content-type `text/csv`; key do server sinh; parser CSV giới hạn số dòng và kích thước dòng |
 | SSRF | Không gọi URL do user cung cấp. Boot 4.1 có `InetAddressFilter` cho HTTP client nếu sau này cần |
 | Lạm dụng LLM (chi phí, prompt injection) | Rate limit theo user; `max-tokens`; tool chỉ đọc + scope theo user; Guardrails |
 | Lộ thông tin qua lỗi | `ProblemDetail` không chứa stack trace; log chi tiết có `traceId` |

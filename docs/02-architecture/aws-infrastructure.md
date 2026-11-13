@@ -3,7 +3,7 @@
 > Region: **ap-southeast-1 (Singapore)** ([ADR-0005](../04-adr/0005-region-ap-southeast-1.md)) · Môi trường: **`dev`** (duy nhất) · IaC: **AWS CDK v2 (Java)** ([ADR-0012](../04-adr/0012-iac-aws-cdk-java.md))
 > Giá trích dẫn ở đây lấy từ AWS Pricing API cho ap-southeast-1 ngày **2026-10-23**. Chi tiết xem [cost-and-budget.md](../05-operations/cost-and-budget.md).
 
-![AWS target architecture](../diagrams/aws-architecture.png)
+![AWS architecture (hệ thống hiện tại, chưa có thành phần backlog)](../diagrams/aws-architecture.png)
 
 ## 1. CDK stacks
 
@@ -11,8 +11,8 @@ Hạ tầng chia thành nhiều stack theo **vòng đời**: stack nào hay bị
 
 | Stack | Chứa gì | Vòng đời | Phụ thuộc |
 |---|---|---|---|
-| `JarsFoundation` | ECR repositories (immutable tags, scan on push), GitHub OIDC provider + deploy role, SNS topic cho alarm, AWS Budget theo tag `Project=jars` | Tạo 1 lần, giữ mãi | – |
-| *(không phải stack)* account baseline | S3 Block Public Access (account), EBS default encryption, IAM Access Analyzer, Cost Anomaly Detection: làm bằng tay ở Phase 0 vì áp dụng cho cả account dùng chung ([deployment.md §1](../05-operations/deployment.md#1-chuẩn-bị-tài-khoản-làm-1-lần)) | Giữ mãi | – |
+| `JarsFoundation` | ECR repository `jars/jars-api` (immutable tags, scan on push), GitHub OIDC provider + deploy role, SNS topic cho alarm, AWS Budget theo tag `Project=jars` | Tạo 1 lần, giữ mãi | – |
+| *(không phải stack)* account baseline | Cost Anomaly Detection (có sẵn). S3 Block Public Access (account), EBS default encryption, IAM Access Analyzer: **không bật** (quyết định P0.2). Không thuộc stack nào vì áp dụng cho cả account dùng chung ([deployment.md §1](../05-operations/deployment.md#1-chuẩn-bị-tài-khoản-làm-1-lần)) | Giữ mãi | – |
 | `JarsNetwork` | VPC 2 AZ (public / private / isolated subnets), security groups | Giữ mãi (không tốn phí giờ) | – |
 | `JarsData` | Aurora PostgreSQL Serverless v2 + secret (hoặc RDS với `-c dbMode=rds`). S3 `jars-dev-statements-<account>` (Phase 2 WP3: tên cố định để `JarsMessaging` và `JarsApp` không cần export; `RETAIN`; `uploads/` hết hạn sau 7 ngày; bật EventBridge; CORS `PUT` cho `https://*.cloudfront.net` và `http://localhost:5173`) | Giữ mãi (`RemovalPolicy.SNAPSHOT`) | Network |
 | `JarsAuth` | Cognito User Pool, managed login domain, resource server/scopes, app client `smoke` cho script smoke test | Giữ mãi (user không mất) | – |
@@ -30,7 +30,7 @@ Hạ tầng chia thành nhiều stack theo **vòng đời**: stack nào hay bị
 
 | Hạng mục | Cấu hình |
 |---|---|
-| Distribution | Một distribution, domain mặc định `dxxxx.cloudfront.net` (tùy chọn: domain riêng qua Route 53 + ACM ở us-east-1) |
+| Distribution | Một distribution, domain mặc định `dxxxx.cloudfront.net` (domain riêng chưa hỗ trợ: CDK không có Route 53/ACM) |
 | Behavior `/*` (default) | Origin = S3 `web` bucket qua **Origin Access Control (OAC)**; cache policy `CachingOptimized`; SPA fallback bằng **CloudFront Function** `viewer-request` (đường dẫn không có đuôi file → `/index.html`). Không dùng custom error response 403/404 vì nó áp dụng cả cho `/api/*` ([ADR-0020](../04-adr/0020-spa-fallback-cloudfront-function.md)) |
 | Behavior `/api/*` | Origin = **VPC origin** trỏ tới **internal ALB**; cache policy `CachingDisabled`; origin request policy `AllViewerExceptHostHeader`; allowed methods = ALL. CloudFront **mặc định bỏ header `Authorization`** và không cho thêm header này riêng lẻ vào origin request policy. Chỉ khi chuyển *toàn bộ* viewer header (và tắt cache) thì `Authorization` mới tới origin ([re:Post](https://repost.aws/knowledge-center/cloudfront-authorization-header), [managed policies](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/using-managed-origin-request-policies.html)) |
 | Timeout | Origin response timeout mặc định 30 s. SSE gửi **heartbeat mỗi 15 s** nên kết nối không bị coi là idle. Keep-alive timeout chỉnh được với custom/VPC origin |
@@ -56,7 +56,7 @@ Docs: [Restrict access with VPC origins](https://docs.aws.amazon.com/AmazonCloud
 | `lb` ("private") | `PRIVATE_ISOLATED` | 10.20.10.0/24, 10.20.11.0/24 | internal ALB, ENI của CloudFront VPC origin | Không |
 | `data` ("isolated") | `PRIVATE_ISOLATED` | 10.20.20.0/24, 10.20.21.0/24 | Aurora | Không |
 
-> Trong CDK, `PRIVATE_WITH_EGRESS` bắt buộc phải có NAT, nên cả hai nhóm không có NAT đều khai báo là `PRIVATE_ISOLATED`. Tách làm hai nhóm `lb` và `data` để quy tắc security group và NACL rõ ràng hơn.
+> Trong CDK, `PRIVATE_WITH_EGRESS` bắt buộc phải có NAT, nên cả hai nhóm không có NAT đều khai báo là `PRIVATE_ISOLATED`. Tách làm hai nhóm `lb` và `data` để quy tắc security group rõ ràng hơn (không có NACL tùy chỉnh, dùng NACL mặc định của VPC).
 
 **Không có NAT Gateway** ([ADR-0013](../04-adr/0013-networking-no-nat.md)). Task cần gọi ra ngoài (Bedrock, SQS, ECR, Cognito JWKS...) thì đi qua IP public của chính nó. An toàn được đảm bảo bằng security group:
 
@@ -80,7 +80,7 @@ Docs: [Restrict access with VPC origins](https://docs.aws.amazon.com/AmazonCloud
 | Deployment | Rolling + **deployment circuit breaker (auto rollback)**; Phase 3+ (backlog) thử **ECS native blue/green** | Rolling |
 | Logs | `awslogs` driver → CloudWatch Logs, log JSON, retention 14 ngày | như bên trái |
 | Secrets | `secrets:` trong task definition lấy từ Secrets Manager (DB credentials) | như bên trái |
-| Config | Biến môi trường (không phải secret): `SPRING_PROFILES_ACTIVE=aws`, `SPRING_DATASOURCE_URL`, `JARS_ISSUER_URI`, `JARS_ALLOWED_CLIENT_IDS`, `JARS_JOBS_QUEUE`, `JAVA_TOOL_OPTIONS=-XX:MaxRAMPercentage=75`, model id... | |
+| Config | Biến môi trường (không phải secret): `SPRING_PROFILES_ACTIVE=aws`, `SPRING_DATASOURCE_URL`, `JARS_ISSUER_URI`, `JARS_ALLOWED_CLIENT_IDS`, `JARS_JOBS_QUEUE`, `JARS_RECONCILIATION_QUEUE`, `JARS_IMPORTS_BUCKET`, `JARS_IMPORTS_QUEUE`, `JARS_GUARDRAIL_ID`, `JARS_GUARDRAIL_VERSION`, `JAVA_TOOL_OPTIONS=-XX:MaxRAMPercentage=75`. Model id không truyền qua env: cố định trong `application-aws.yaml` | |
 
 **Task role (quyền của ứng dụng)** và **execution role (quyền của agent ECS để kéo image, đọc secret, ghi log)** là 2 role khác nhau, xem [security.md](security.md#3-iam).
 
@@ -114,7 +114,7 @@ Docs: [ECS blue/green deployments](https://docs.aws.amazon.com/AmazonECS/latest/
 | TLS | Tham số `rds.force_ssl=1` |
 | Backup | Automated backup 1 ngày (tối thiểu); xóa stack thì tạo snapshot |
 | Kết nối từ app | HikariCP `minimum-idle=0`, `idle-timeout=60s`, `max-lifetime=5m`, `spring.datasource.connection-fetch=lazy` (tính năng mới của Boot 4.1) → **không giữ kết nối khi không có request** |
-| Schema | `jars` (jars-api), `insights` (insights-worker, Phase 3+ backlog). Mỗi service có DB user riêng |
+| Schema | `jars` (jars-api), `insights` (insights-worker, Phase 3+ backlog). App hiện dùng master user `jarsadmin` (`DataStack`); DB user riêng cho từng service là kế hoạch khi tách worker (backlog Phase 3+) |
 
 **Bẫy cần nhớ:**
 - Còn **bất kỳ kết nối nào** mở (pool, health check, scheduled job, tool GUI quên đóng) thì Aurora **không pause**, và 0.5 ACU × 24 h × 30 ngày × $0.20 = **$72/tháng**. Có alarm `ServerlessDatabaseCapacity > 0` liên tục 6 giờ để cảnh báo.
@@ -165,8 +165,8 @@ Chi tiết schema và đảm bảo giao nhận: [event-catalog.md](event-catalog
 | Loại endpoint | **Global cross-region inference profile**: request có thể được xử lý ở region khác. Chấp nhận được cho dev; nếu có yêu cầu lưu trữ dữ liệu trong nước thì đây là điểm cần xem lại |
 | API | `ConverseStream` qua Spring AI `spring-ai-starter-model-bedrock-converse` |
 | Guardrails | Guardrail `jars-dev-advisor` tạo bằng CDK trong `JarsApp` (Phase 2 WP4): denied topic "khuyến nghị mua/bán chứng khoán cụ thể", PII (số thẻ, CCCD 12 số; **không** lọc số tài khoản vì sẽ che luôn số tiền), content filter, prompt attack filter `HIGH` (chỉ đầu vào). Spring AI 2.0 không gắn được guardrail vào Converse nên app gọi `ApplyGuardrail` trước model và sau khi stream xong ([ADR-0023](../04-adr/0023-advisor-guardrail-and-rate-limit.md)). Kết quả kiểm trên AWS (WP6, 13/11): chặn đúng "nên mua cổ phiếu FPT không?" (tiếng Việt và tiếng Anh) trong khoảng 0,4 giây, trước khi gọi model; chặn prompt attack bằng tiếng Anh; **không** chặn prompt attack bằng tiếng Việt (tier Classic chủ yếu hỗ trợ tiếng Anh, muốn chặn thì cân nhắc tier Standard); mã hũ (`NEC`, `FFA`, ...) bị coi là mã cổ phiếu nên `BedrockGuardrail` đổi chúng thành tên hũ trước khi gửi đi |
-| RAG (tùy chọn) | Bedrock Knowledge Base + **S3 Vectors** (GA 12/2025, có ở Singapore) với `cohere.embed-multilingual-v3`, nguồn là các file `kb/*.md` về sản phẩm ngân hàng |
-| Quyền IAM | Policy `ApiAdvisorPolicy` theo mẫu 3 phần của AWS cho global cross-region inference: `InvokeModel` và `InvokeModelWithResponseStream` trên inference profile ở `ap-southeast-1`, foundation model ở `ap-southeast-1` và foundation model không region (`aws:RequestedRegion = unspecified`), đều có điều kiện `bedrock:InferenceProfileArn`; `bedrock:ApplyGuardrail` trên đúng guardrail |
+| RAG (tùy chọn; backlog Phase 3+, chưa có code) | Bedrock Knowledge Base + **S3 Vectors** (GA 12/2025, có ở Singapore) với `cohere.embed-multilingual-v3`, nguồn là các file `kb/*.md` về sản phẩm ngân hàng |
+| Quyền IAM | Policy `ApiAdvisorPolicy` theo mẫu 3 phần của AWS cho global cross-region inference: `InvokeModel` và `InvokeModelWithResponseStream` trên inference profile ở `ap-southeast-1`, foundation model ở `ap-southeast-1` và foundation model không region (`aws:RequestedRegion = unspecified`). Statement của inference profile chỉ có điều kiện `aws:RequestedRegion`; hai statement foundation model có thêm điều kiện `bedrock:InferenceProfileArn`; `bedrock:ApplyGuardrail` trên đúng guardrail |
 | Kiểm soát chi phí | Rate limit theo user trong PostgreSQL (20 tin/giờ, 60 tin/ngày), `max-tokens` 800, metric `jars.advisor.messages`, `jars.advisor.tokens`, `jars.advisor.ungrounded`. Đo thật ngày 2026-11-13 (Haiku 4.5, dữ liệu demo): một lượt có gọi tool tốn khoảng 3.600–3.900 token vào, 150–250 token ra; byte đầu tiên sau 1,3–2,1 giây |
 
 ## 9. ~~Quant: Lambda `quant-fn`~~ (đã bỏ)
@@ -192,9 +192,9 @@ ALB, ECS, RDS, SQS ── metric mặc định (miễn phí) ──► dashboard
 |---|---|
 | Logs | stdout JSON (ECS format, profile `aws`) → `/jars/dev/api`, retention 14 ngày. Mọi dòng có `traceId` qua MDC; `traceId` trong body lỗi RFC 9457 và header `traceparent` của response **là trace id của X-Ray** (`TraceIdFilter` lấy từ span hiện tại). Log **không** gửi qua OTLP để khỏi trả tiền hai lần |
 | Traces | `spring-boot-starter-opentelemetry` (Micrometer Tracing + OTel bridge), sampling 100% (lưu lượng dev nhỏ; X-Ray miễn phí 100.000 trace đầu mỗi tháng). Span cho request HTTP (bỏ `/actuator/**` và các span của Spring Security), JDBC qua Spring Data, listener SQS (`spring.cloud.aws.sqs.observation-enabled`), lần khép sổ tháng (`jars.month.close`). X-Ray exporter từ bản contrib 0.86.0 nhận trace id dạng W3C, nên không cần bộ sinh id của X-Ray |
-| Metrics nghiệp vụ | `jars.transactions.posted` (tag `type`, `source`), `jars.anomalies.detected` (tag `detector`, `severity`), timer `jars.month.close` (tag `trigger`). Đếm **sau khi transaction commit** (`AfterCommit`), nên lần thử bị rollback vì optimistic lock không bị đếm. Tag chỉ có vài giá trị; không bao giờ gắn user id hay jar id |
+| Metrics nghiệp vụ | `jars.transactions.posted` (tag `type`, `source`), `jars.anomalies.detected` (tag `detector`, `severity`), timer `jars.month.close` (tag `trigger`); advisor: `jars.advisor.messages` (tag `outcome`), `jars.advisor.tokens` (tag `direction`), `jars.advisor.ungrounded`; đối soát (code xong, chưa deploy): gauge `jars.ledger.reconciliation.mismatches` và `jars.ledger.reconciliation.jars.checked` (kết quả của lần chạy gần nhất, gauge chứ không phải counter vì exporter EMF bỏ điểm đầu của counter tích lũy) và counter `jars.ledger.reconciliation.runs` (tag `result`). Đếm **sau khi transaction commit** (`AfterCommit`), nên lần thử bị rollback vì optimistic lock không bị đếm. Tag chỉ có vài giá trị; không bao giờ gắn user id hay jar id |
 | Metrics hệ thống | Lấy từ metric mặc định của ALB (request, 5xx, `TargetResponseTime` p50/p95/p99), ECS (CPU, memory), RDS (ACU), SQS (độ sâu queue). Collector **lọc bỏ** metric JVM và HTTP của Micrometer (processor `filter/business`): cấu hình ECS mặc định của ADOT đẩy tất cả, tức vài trăm custom metric. Container Insights vẫn tắt |
-| Alarm | `jars-dev-api-5xx-rate`: tỷ lệ 5xx > 5% trong 2 chu kỳ 5 phút liên tiếp, chỉ tính khi có ≥ 20 request/chu kỳ; `jars-dev-api-p95-latency`: p95 > 1 s trong 15 phút (bỏ qua một chu kỳ chậm khi Aurora vừa resume); Aurora không pause 6 giờ (`JarsApp`); DLQ có message (`JarsMessaging`). Tất cả gửi về SNS `jars-dev-alarms` |
+| Alarm | `jars-dev-api-5xx-rate`: tỷ lệ 5xx > 5% trong 2 chu kỳ 5 phút liên tiếp, chỉ tính khi có ≥ 20 request/chu kỳ; `jars-dev-api-p95-latency`: p95 > 1 s trong 15 phút (bỏ qua một chu kỳ chậm khi Aurora vừa resume); `jars-dev-aurora-not-paused`: Aurora không pause 6 giờ (`JarsApp`); `jars-dev-ledger-reconciliation-mismatches` (`JarsApp`, trong code, chưa deploy): metric `jars.ledger.reconciliation.mismatches` > 0 (Maximum trong 5 phút, thiếu dữ liệu coi là bình thường); DLQ có message (`JarsMessaging`): `jars-jobs-dlq`, `jars-jobs-scheduler-dlq`, `jars-imports-dlq`, và `jars-reconciliation-dlq` (trong code, chưa deploy). Tất cả gửi về SNS `jars-dev-alarms` |
 | Dashboard | `jars-dev`: request và 5xx, thời gian phản hồi p50/p95/p99, CPU và memory của ECS, ACU của Aurora, sự kiện nghiệp vụ (`SEARCH` theo namespace `Jars/Api`), độ sâu queue jobs và DLQ |
 | Bộ nhớ trong task | Task 1 GB chia cứng: app 896 MiB (JVM `MaxRAMPercentage=75` tính heap từ con số này), collector 128 MiB, non-essential (collector chết thì API vẫn chạy) |
 | Load test | `scripts/load-test.ps1`: tạo user Cognito tạm, chạy `scripts/load-test.js` bằng `grafana/k6:2.3.0` trong Docker qua CloudFront, ngưỡng p95 đọc < 300 ms, ghi < 500 ms |
@@ -208,11 +208,11 @@ Chưa làm (Phase 3+): `traceparent` trong message attributes khi **app gửi** 
 | ECR | `jars/jars-api`, `jars/insights-worker` (Phase 3+) | Lifecycle: giữ 10 image gần nhất; bật basic scan on push; **tag immutable** (git SHA không bị ghi đè) |
 | S3 (`statements`, `web`) | Upload sao kê, static web | Block Public Access; bucket policy `enforceSSL`; SSE-S3; `statements/uploads/` **tự xóa sau 7 ngày** (lifecycle) |
 | Cost Anomaly Detection | Phát hiện chi phí tăng bất thường | Không tính phí; email alert hằng ngày |
-| IAM Access Analyzer | Phát hiện resource bị chia sẻ public hoặc cross-account | External access analyzer miễn phí (unused access analyzer **có phí**, không bật) |
+| IAM Access Analyzer | Phát hiện resource bị chia sẻ public hoặc cross-account | Không bật (quyết định P0.2). External access analyzer miễn phí nếu sau này muốn bật (unused access analyzer **có phí**) |
 | Secrets Manager | DB credentials (CDK sinh ra) | $0.40/secret/tháng. Config không nhạy cảm thì để biến môi trường. Chưa bật rotation tự động vì không có NAT ([runbook](../05-operations/runbook.md#đổi-secret-db)) |
 | AWS Budgets | Budget riêng cho project, lọc theo tag `Project=jars` | Cảnh báo ở 50/80/100% |
 | CloudTrail | Event history 90 ngày (mặc định, miễn phí) | Không tạo trail riêng ở dev |
-| IAM user `phuc-account` + `aws login` | Truy cập của người (console + CLI), thay cho root; bắt buộc MFA; không có access key dài hạn | Không dùng Identity Center: [ADR-0018](../04-adr/0018-human-access-iam-user-aws-login.md) |
+| IAM user `phuc-account` + `aws login` | Thiết kế đích cho truy cập của người (console + CLI), thay cho root; bắt buộc MFA; không có access key dài hạn. ADR-0018 đang hoãn: CLI hiện vẫn đăng nhập bằng root ([security.md §3](security.md#3-iam)) | Không dùng Identity Center: [ADR-0018](../04-adr/0018-human-access-iam-user-aws-login.md) |
 
 ## 13. Quy ước đặt tên
 

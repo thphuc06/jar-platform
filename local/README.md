@@ -8,4 +8,4 @@ Docker Compose cho môi trường dev local. Chi tiết: [local-development.md](
 
 `./mvnw spring-boot:run` (trong `apps/jars-api`, profile `local`) **tự khởi động** file này. Chạy tay thì dùng `docker compose -f local/compose.yaml up -d`.
 
-Sẽ thêm dần: `valkey` (P4), `localstack` (P2–P5, cần `LOCALSTACK_AUTH_TOKEN` trong `local/.env` đã gitignore), `lgtm` (P6), `kafka` (lab tùy chọn).
+Hiện compose chỉ có `postgres`. Valkey, LocalStack, `lgtm` và Kafka chưa được thêm (và Valkey không còn kế hoạch dùng: [ADR-0023](../docs/04-adr/0023-advisor-guardrail-and-rate-limit.md)); nếu thêm LocalStack thì cần `LOCALSTACK_AUTH_TOKEN` trong `local/.env` (đã gitignore).
