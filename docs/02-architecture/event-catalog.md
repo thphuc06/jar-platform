@@ -53,7 +53,7 @@ Mọi domain event ra khỏi process (backlog Phase 3+, chưa làm) sẽ có c�
 
 - Event được publish **trong transaction nghiệp vụ**; Spring Modulith ghi một dòng `event_publication` cho **mỗi listener** (outbox) trong cùng transaction đó.
 - Sau commit, `@ApplicationModuleListener` chạy bất đồng bộ trong transaction riêng. Listener xong thì dòng bị xóa (`completion-mode: delete`); listener lỗi thì dòng **ở lại** và không mất event.
-- **Chưa bật** tự publish lại các dòng còn tồn khi khởi động; hiện chúng là hàng đợi cần xem tay (`SELECT * FROM event_publication`). Việc này nằm trong backlog.
+- Các dòng còn tồn được **publish lại khi ứng dụng khởi động** (`spring.modulith.events.republish-outstanding-events-on-restart: true`, kiểm bằng `OutboxRepublishTest`). Một listener lỗi mãi sẽ được thử lại ở mỗi lần khởi động; xem các dòng tồn bằng `SELECT * FROM event_publication`.
 - Consumer luôn kiểm tra `processed_messages(consumer, eventId)` ở đầu transaction để bỏ qua event bị giao lại.
 - `UserRegistered` là ngoại lệ có chủ đích: ledger nghe **đồng bộ** trong transaction tạo user.
 

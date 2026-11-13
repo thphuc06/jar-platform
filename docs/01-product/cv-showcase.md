@@ -8,7 +8,7 @@ Mọi số dưới đây lấy từ một lần chạy thật, không phải ư�
 
 | Hạng mục | Số đo | Lấy từ đâu |
 |---|---|---|
-| Test backend | **738 test, 0 lỗi** (đo lại 13/11/2026) | `./mvnw verify`, surefire |
+| Test backend | **748 test, 0 lỗi** (đo lại 13/11/2026) | `./mvnw verify`, surefire |
 | Coverage dòng (JaCoCo) | **94,8%** toàn backend; build ép tối thiểu 80% trên `internal/domain` và `internal/service` | JaCoCo |
 | Test hạ tầng | **118 test** (không NAT Gateway, task ARM64, không ingress `0.0.0.0/0`, log retention, Aurora `min = 0`) + cdk-nag | `infra/cdk`, `./mvnw test` |
 | Test web | **134 test** trong 19 file | `npm test` (Vitest) |
@@ -22,7 +22,7 @@ Mọi số dưới đây lấy từ một lần chạy thật, không phải ư�
 **Bullet CV dùng được ngay** (tiếng Anh, chỉ gồm điều đã chạy thật):
 
 - Built a **modular monolith** (8 modules, boundaries verified on every build with Spring Modulith and ArchUnit) on Java 21 / Spring Boot 4 for a 6-jars personal-finance app: append-only money ledger, budgeting with a once-only month close, savings goals with seeded Monte Carlo what-ifs.
-- Made money postings safe under concurrency: **optimistic locking** with a retry loop outside the transaction, **idempotency keys** inserted inside the business transaction, and a reproduced-then-fixed PostgreSQL **deadlock** on two-way jar transfers. 738 tests (94.8% line coverage), including race tests with 8–12 parallel writers.
+- Made money postings safe under concurrency: **optimistic locking** with a retry loop outside the transaction, **idempotency keys** inserted inside the business transaction, and a reproduced-then-fixed PostgreSQL **deadlock** on two-way jar transfers. 748 tests (94.8% line coverage), including race tests with 8–12 parallel writers.
 - Implemented per-jar **spending anomaly detection** (robust MAD outlier test plus CUSUM drift, checked against golden vectors from the original Python prototype), delivered through the **Modulith transactional outbox** to idempotent consumers and pushed to the browser over **Server-Sent Events**.
 - Secured the API as a stateless **OAuth2 resource server for Amazon Cognito** (access tokens from our own app clients only, fail-closed validators), with every query scoped to the caller and IDOR tests for each resource endpoint.
 - Provisioned everything with **AWS CDK (Java)**, six stacks, 118 guardrail tests and cdk-nag: Fargate on Graviton, internal ALB behind a CloudFront VPC origin, Aurora Serverless v2 scaling to zero, no NAT gateway. Verified a real deployment end to end with a smoke test (11/11 checks) and tore the compute stack down afterwards.
@@ -33,7 +33,7 @@ Mọi số dưới đây lấy từ một lần chạy thật, không phải ư�
 
 | Hạng mục | Số đo | Lấy từ đâu |
 |---|---|---|
-| Test | **738 test backend** (coverage dòng 94,8%), **118 test CDK**, **134 test web** | `./mvnw verify`, JaCoCo, Vitest |
+| Test | **748 test backend** (coverage dòng 94,8%), **118 test CDK**, **134 test web** | `./mvnw verify`, JaCoCo, Vitest |
 | Smoke test trên AWS | **14/14 đạt** qua CloudFront. Thêm 3 bước so với Phase 1: import sao kê (presigned PUT → S3 → EventBridge → SQS → Spring Batch, `COMPLETED`), chat có gọi tool stream qua SSE, guardrail chặn prompt attack | `scripts/smoke-test.ps1` |
 | Tải (k6, 20 VU, 2 phút 45 giây, qua CloudFront) | **p95 đọc 117 ms, p95 ghi 200 ms, p99 toàn bộ 202 ms, 0% lỗi** trên 7.840 request (47 req/s) với 1 task Fargate 0,5 vCPU | `scripts/load-test.ps1` |
 | AI advisor (Bedrock Haiku 4.5) | Byte đầu tiên sau 1,3–2,1 giây; trả lời bằng số lấy từ tool; guardrail từ chối "nên mua FPT không?" trong 0,4 giây, trước khi gọi model | `probe-advisor`, smoke test |

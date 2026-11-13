@@ -46,7 +46,7 @@ Every row links to the code and to the test that proves it.
 | **Infrastructure as code** | AWS CDK in Java: six stacks, guardrail tests (no NAT gateway, ARM64 tasks, no `0.0.0.0/0` ingress, log retention) and `cdk-nag` | `infra/cdk` (118 tests), [ADR-0012](docs/04-adr/0012-iac-aws-cdk-java.md) |
 | **Cost engineering** | Aurora Serverless v2 scales to zero and auto-pauses, no NAT gateway, Graviton, teardown-by-default; the app is configured so nothing keeps a database connection open | [ADR-0008](docs/04-adr/0008-database-aurora-serverless-v2.md), [ADR-0013](docs/04-adr/0013-networking-no-nat.md), [cost doc](docs/05-operations/cost-and-budget.md) |
 
-**Backend: 738 tests, 94.8% line coverage** (the build enforces 80% on domain and service code), Spotless formatting and a secret scan (gitleaks) on every pull request. The web client has its own unit and component tests (`apps/web`).
+**Backend: 748 tests, 94.8% line coverage** (the build enforces 80% on domain and service code), Spotless formatting and a secret scan (gitleaks) on every pull request. The web client has its own unit and component tests (`apps/web`).
 
 Decisions are recorded as 25 [ADRs](docs/04-adr/README.md), including the ones where the design had to change because reality disagreed (Java 21 instead of 25, no IAM Identity Center, a CloudFront Function instead of error pages for the SPA fallback).
 
