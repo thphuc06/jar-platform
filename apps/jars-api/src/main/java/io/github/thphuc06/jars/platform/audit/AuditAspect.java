@@ -7,8 +7,6 @@ import io.micrometer.tracing.Tracer;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
-import java.util.LinkedHashMap;
-import java.util.Map;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
@@ -18,7 +16,6 @@ import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
-import tools.jackson.databind.json.JsonMapper;
 
 /**
  * Writes one {@code audit_log} row for every {@link Audited} call that returns normally, in the transaction the call
@@ -59,15 +56,12 @@ class AuditAspect {
     private final AuditStore store;
     private final CurrentUser currentUser;
     private final ObjectProvider<Tracer> tracer;
-    private final JsonMapper json;
     private final Clock clock;
 
-    AuditAspect(
-            AuditStore store, CurrentUser currentUser, ObjectProvider<Tracer> tracer, JsonMapper json, Clock clock) {
+    AuditAspect(AuditStore store, CurrentUser currentUser, ObjectProvider<Tracer> tracer, Clock clock) {
         this.store = store;
         this.currentUser = currentUser;
         this.tracer = tracer;
-        this.json = json;
         this.clock = clock;
     }
 
@@ -90,13 +84,12 @@ class AuditAspect {
             throw new IllegalStateException(
                     call.getSignature().toShortString() + " is @Audited(" + action + ") but did not call Audit.entity");
         }
-        Map<String, Object> payload = new LinkedHashMap<>(entry.facts());
         store.append(
                 currentUser.find().map(Object::toString).orElse(SYSTEM_ACTOR),
                 action,
                 entry.entityId(),
                 traceId(),
-                payload,
+                entry.facts(),
                 now());
         return result;
     }

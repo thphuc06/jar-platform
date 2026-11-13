@@ -10,10 +10,9 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  *     is rejected (tests use {@code jwt()} and never reach the decoder)
  * @param allowedClientIds Cognito app clients whose access tokens are accepted (Cognito access tokens have no
  *     {@code aud}, only {@code client_id})
- * @param localDevTokens local profile only: accept tokens minted by {@code /dev/token} instead of Cognito
  */
 @ConfigurationProperties("jars.security")
-public record SecurityProperties(String issuerUri, List<String> allowedClientIds, boolean localDevTokens) {
+public record SecurityProperties(String issuerUri, List<String> allowedClientIds) {
 
     public SecurityProperties {
         allowedClientIds = allowedClientIds == null ? List.of() : List.copyOf(allowedClientIds);
