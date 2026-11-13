@@ -232,10 +232,25 @@ public class AdvisorService {
         events.complete();
     }
 
-    private static List<org.springframework.ai.chat.messages.Message> historyMessages(List<Message> history) {
+    /**
+     * The earlier turns as model history: only complete USER + ASSISTANT pairs. A USER message without its reply (the
+     * model call failed) would make two user turns in a row, a reply whose question fell out of the window would start
+     * the history with an assistant turn, and a turn blocked by the input guardrail must not reach the model at all.
+     */
+    static List<org.springframework.ai.chat.messages.Message> historyMessages(List<Message> history) {
         List<org.springframework.ai.chat.messages.Message> messages = new ArrayList<>();
-        for (Message m : history) {
-            messages.add("USER".equals(m.role()) ? new UserMessage(m.content()) : new AssistantMessage(m.content()));
+        for (int i = 0; i + 1 < history.size(); i++) {
+            Message question = history.get(i);
+            Message reply = history.get(i + 1);
+            if (!"USER".equals(question.role()) || !"ASSISTANT".equals(reply.role())) {
+                continue; // an orphan; the next message may still start a pair
+            }
+            i++; // the reply belongs to this question
+            if ("INPUT".equals(reply.guardrail())) {
+                continue;
+            }
+            messages.add(new UserMessage(question.content()));
+            messages.add(new AssistantMessage(reply.content()));
         }
         return messages;
     }
