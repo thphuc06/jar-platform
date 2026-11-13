@@ -3,6 +3,7 @@
 - **Trạng thái:** Accepted
 - **Ngày:** 2026-11-13
 - **Bổ sung cho:** [ADR-0011](0011-ai-spring-ai-bedrock.md) (Spring AI + Bedrock); thay phần "rate limit Bucket4j + Valkey" của thiết kế ban đầu.
+- **Được sửa bởi:** [ADR-0026](0026-guardrail-input-pii-masking.md): PII ở đầu vào được che, denied topic chỉ áp dụng cho đầu vào, thông điệp chặn theo lý do. Bảng và đoạn guardrail dưới đây là bản gốc.
 
 ## Bối cảnh
 Khi cài đặt module `advisor` (Phase 2 WP4) có hai điểm thiết kế không làm được hoặc không đáng làm như đã viết:
@@ -16,10 +17,10 @@ Khi cài đặt module `advisor` (Phase 2 WP4) có hai điểm thiết kế khô
 
 | Lần | Khi nào | Bị chặn thì |
 |---|---|---|
-| Đầu vào (`source=INPUT`) | Trước khi gọi model | Không gọi model (không tốn token); trả câu trả lời của guardrail như một tin nhắn của trợ lý |
+| Đầu vào (`source=INPUT`) | Trước khi gọi model | Bị chặn: không gọi model (không tốn token); trả câu trả lời của guardrail như một tin nhắn của trợ lý. PII: che rồi đi tiếp (ADR-0026) |
 | Đầu ra (`source=OUTPUT`) | Sau khi stream xong toàn bộ câu trả lời | Gửi event SSE `replace` với nội dung đã che; lưu bản đã che vào lịch sử |
 
-Guardrail tạo bằng CDK trong `JarsApp` (không tốn phí theo giờ, chỉ tính theo lượng chữ được kiểm): denied topic "khuyến nghị mua/bán chứng khoán cụ thể", lọc PII (số tài khoản, số thẻ, CCCD), content filter mức medium, prompt attack filter mức high. Không cấu hình guardrail (local, test) thì bỏ qua bước này.
+Guardrail tạo bằng CDK trong `JarsApp` (không tốn phí theo giờ, chỉ tính theo lượng chữ được kiểm): denied topic "khuyến nghị mua/bán chứng khoán cụ thể" (chỉ đầu vào, ADR-0026), che PII (số thẻ, email, CCCD, số điện thoại, số tài khoản sau từ báo hiệu; ADR-0026), content filter mức medium, prompt attack filter mức high. Không cấu hình guardrail (local, test) thì bỏ qua bước này.
 
 **Rate limit bằng PostgreSQL:** bảng `advisor_usage (user_id, window_start, window_kind)` với cửa sổ cố định theo giờ và theo ngày. Mỗi tin nhắn tăng bộ đếm bằng một câu `INSERT ... ON CONFLICT DO UPDATE ... WHERE count < limit RETURNING count`; không có dòng trả về nghĩa là đã hết lượt (429 kèm `Retry-After`). Mặc định 20 tin nhắn/giờ và 60 tin nhắn/ngày cho mỗi user; `max-tokens` 800 cho mỗi câu trả lời.
 

@@ -9,7 +9,11 @@ import org.springframework.context.annotation.Configuration;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.bedrockruntime.BedrockRuntimeClient;
 
-/** A Bedrock guardrail when {@code jars.advisor.guardrail-id} is set (JarsApp sets it), else one that lets all pass. */
+/**
+ * A Bedrock guardrail when {@code jars.advisor.guardrail-id} is set (JarsApp sets it), else one that lets all pass.
+ * Without one nothing is blocked or masked and a message is stored as typed; the default local profile has no chat
+ * model either, so it never gets that far (ADR-0026).
+ */
 @Configuration(proxyBeanMethods = false)
 class GuardConfig {
 

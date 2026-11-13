@@ -149,7 +149,7 @@ event: done
 data: {"messageId":"0193...","usage":{"inputTokens":812,"outputTokens":164},"disclaimer":"Thông tin mang tính tham khảo..."}
 ```
 
-`tool` báo model đang tra dữ liệu (`getJars`, `getMonthlyCashflow`, `getGoals`, `getOpenAnomalies`, `getSpendingBehaviour`; chỉ đọc, user lấy từ JWT). `replace` chỉ xuất hiện khi guardrail đầu ra can thiệp: client thay toàn bộ phần đã hiện bằng `text` ([ADR-0023](../04-adr/0023-advisor-guardrail-and-rate-limit.md)). Event `roadmap` của thiết kế ban đầu chưa cài. Nếu có lỗi giữa chừng: `event: error` với `data` là ProblemDetail, sau đó đóng stream. Client không tự kết nối lại (một lượt chat không idempotent).
+`tool` báo model đang tra dữ liệu (`getJars`, `getMonthlyCashflow`, `getGoals`, `getOpenAnomalies`, `getSpendingBehaviour`; chỉ đọc, user lấy từ JWT). `replace` chỉ xuất hiện khi guardrail đầu ra can thiệp: client thay toàn bộ phần đã hiện bằng `text`: câu trả lời đã che PII, hoặc thông điệp theo lý do chặn ([ADR-0023](../04-adr/0023-advisor-guardrail-and-rate-limit.md), [ADR-0026](../04-adr/0026-guardrail-input-pii-masking.md)). Tin nhắn của user và `title` phiên được guardrail che PII trước khi lưu (`{CREDIT_DEBIT_CARD_NUMBER}`, `{EMAIL}`, ...), nên `GET .../messages` trả lại bản đã che. Event `roadmap` của thiết kế ban đầu chưa cài. Nếu có lỗi giữa chừng: `event: error` với `data` là ProblemDetail, sau đó đóng stream. Client không tự kết nối lại (một lượt chat không idempotent).
 
 ### Thông báo: `GET /notifications/stream`
 

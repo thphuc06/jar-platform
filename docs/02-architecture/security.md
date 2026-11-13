@@ -76,6 +76,7 @@ Xem [aws-infrastructure.md §3](aws-infrastructure.md#3-network-vpc).
 | Dependency có CVE | Dependabot + `mvn org.owasp:dependency-check` (hoặc GitHub dependency review); ECR scan on push |
 | Header bảo mật | CloudFront response headers policy (HSTS, CSP, nosniff, frame-ancestors none) |
 | Lộ dữ liệu cá nhân trong log | Không log body request có số tiền/ghi chú ở mức INFO; mask email trong log |
+| PII người dùng gõ vào chat (thẻ, CCCD, email, số điện thoại, số tài khoản) | Guardrail che trước khi lưu và trước khi gửi cho model; chỉ bản đã che vào `chat_messages`, tiêu đề phiên, `Grounding`; Spring AI không bật `log-prompt`/`include-content`. Phần còn lọt: [ADR-0026](../04-adr/0026-guardrail-input-pii-masking.md) |
 
 ## 7. Threat model (STRIDE rút gọn)
 

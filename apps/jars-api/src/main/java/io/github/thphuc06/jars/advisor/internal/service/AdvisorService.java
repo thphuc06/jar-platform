@@ -42,6 +42,7 @@ public class AdvisorService {
     private static final Logger log = LoggerFactory.getLogger(AdvisorService.class);
 
     static final int MAX_MESSAGE_LENGTH = 2000;
+    static final String DEFAULT_TITLE = "Cuộc trò chuyện mới";
     static final String DISCLAIMER =
             "Thông tin mang tính tham khảo, dựa trên dữ liệu trong ứng dụng; không phải khuyến nghị đầu tư.";
 
@@ -117,9 +118,18 @@ public class AdvisorService {
     }
 
     public SessionView createSession(UserId userId, String title) {
-        String name = title == null || title.isBlank() ? "Cuộc trò chuyện mới" : title.strip();
+        String name = title == null || title.isBlank() ? DEFAULT_TITLE : title.strip();
         if (name.length() > 80) {
             name = name.substring(0, 80);
+        }
+        if (!DEFAULT_TITLE.equals(name)) {
+            // the web client names a conversation after the first characters of its first message, so the title is
+            // user text too: it gets the same check, and is stored masked (ADR-0026)
+            ContentGuard.Verdict verdict = guard.checkInput(name);
+            name = verdict.blocked() ? DEFAULT_TITLE : verdict.text();
+            if (name.length() > 80) {
+                name = name.substring(0, 80);
+            }
         }
         return view(chats.createSession(userId.value(), name, clock.instant()));
     }
@@ -155,19 +165,26 @@ public class AdvisorService {
     /** Streams one answer. Every outcome ends the stream with {@code done} or {@code error}. */
     public void stream(Turn turn, Events events) {
         List<Message> history = chats.lastMessages(turn.session().id(), properties.historyMessages());
-        chats.append(turn.session().id(), "USER", turn.content(), null, null, null, clock.instant());
 
+        // Checked before anything is stored: from here on only the masked form of the message exists. It is what is
+        // stored, what the model gets and what the answer is grounded against; the original lives in this method's
+        // arguments only (ADR-0026). If the guardrail call fails, the turn fails and nothing was stored.
         ContentGuard.Verdict input = guard.checkInput(turn.content());
-        if (input.intervened()) {
+        String question = input.text();
+        chats.append(turn.session().id(), "USER", question, null, null, null, clock.instant());
+        if (input.blocked()) {
             Message saved =
-                    chats.append(turn.session().id(), "ASSISTANT", input.text(), null, null, "INPUT", clock.instant());
-            events.send("token", Map.of("text", input.text()));
+                    chats.append(turn.session().id(), "ASSISTANT", input.reply(), null, null, "INPUT", clock.instant());
+            events.send("token", Map.of("text", input.reply()));
             finish(events, saved, 0, 0, "blocked_input");
             return;
         }
+        if (input.action() == ContentGuard.Action.MASKED) {
+            meters.counter("jars.advisor.pii_masked", "direction", "input").increment();
+        }
 
         StringBuilder answer = new StringBuilder();
-        StringBuilder sources = new StringBuilder(turn.content());
+        StringBuilder sources = new StringBuilder(question);
         AtomicReference<Usage> usage = new AtomicReference<>();
         BiConsumer<String, Object> toolEvents = (name, result) -> {
             if ("started".equals(result)) {
@@ -186,7 +203,7 @@ public class AdvisorService {
                 .prompt()
                 .system(SYSTEM_PROMPT)
                 .messages(historyMessages(history))
-                .user(turn.content())
+                .user(question)
                 .tools(tools)
                 .toolContext(toolContext)
                 .stream()
@@ -209,10 +226,11 @@ public class AdvisorService {
         String outcome = "answered";
         String guardrail = null;
         ContentGuard.Verdict output = guard.checkOutput(finalText);
-        if (output.intervened()) {
-            finalText = output.text();
+        if (output.action() != ContentGuard.Action.PASS) {
+            // blocked: the message of the reason that applied; masked: the answer with the sensitive data replaced
+            finalText = output.blocked() ? output.reply() : output.text();
             guardrail = "OUTPUT";
-            outcome = "blocked_output";
+            outcome = output.blocked() ? "blocked_output" : "masked_output";
             events.send("replace", Map.of("text", finalText));
         } else {
             Set<String> ungrounded = Grounding.ungrounded(finalText, sources.toString());
