@@ -21,7 +21,7 @@
         <java.version>21</java.version>
         <!-- BOM versions first verified together with Boot 4.1.2 in the P0.5 smoke test (see docs/04-adr/0004) -->
         <spring-ai.version>2.0.2</spring-ai.version>
-        <spring-cloud-aws.version>4.2.1</spring-cloud-aws.version>
+        <spring-cloud-aws.version>4.2.2</spring-cloud-aws.version>
         <spring-modulith.version>2.1.2</spring-modulith.version>
         <spotless.version>3.11.0</spotless.version>
         <springdoc.version>3.2.0</springdoc.version>
