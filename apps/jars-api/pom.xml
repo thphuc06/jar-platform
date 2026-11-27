@@ -24,7 +24,7 @@
         <spring-cloud-aws.version>4.2.1</spring-cloud-aws.version>
         <spring-modulith.version>2.1.2</spring-modulith.version>
         <spotless.version>3.11.0</spotless.version>
-        <springdoc.version>3.2.0</springdoc.version>
+        <springdoc.version>3.2.1</springdoc.version>
         <jacoco.version>0.8.16</jacoco.version>
         <enforcer.version>3.7.0</enforcer.version>
         <palantir-java-format.version>2.102.0</palantir-java-format.version>
